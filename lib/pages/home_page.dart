@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'lesson_list_page.dart';
+import 'login_page.dart';
+import 'quiz_exam_page.dart';
+import 'statistics_page.dart';
+
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -26,28 +31,40 @@ class HomePage extends StatelessWidget {
               context,
               title: 'Login',
               icon: Icons.login,
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              ),
             ),
             const SizedBox(height: 16),
             _menuButton(
               context,
               title: 'Lezioni',
               icon: Icons.menu_book,
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LessonListPage()),
+              ),
             ),
             const SizedBox(height: 16),
             _menuButton(
               context,
               title: 'Quiz Esame',
               icon: Icons.quiz,
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QuizExamPage()),
+              ),
             ),
             const SizedBox(height: 16),
             _menuButton(
               context,
               title: 'Statistiche',
               icon: Icons.bar_chart,
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StatisticsPage()),
+              ),
             ),
           ],
         ),
