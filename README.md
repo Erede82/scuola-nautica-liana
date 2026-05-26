@@ -1,4 +1,4 @@
-# flutter_application_1
+# Scuola Nautica Liana (scuola_nautica_liana)
 
 A new Flutter project.
 

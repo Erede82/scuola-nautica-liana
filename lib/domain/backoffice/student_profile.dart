@@ -1,0 +1,87 @@
+import '../../models/license_models.dart';
+import '../course_taxonomy.dart';
+import '../enrollment_content_mapping.dart';
+import 'address.dart';
+import 'backoffice_enums.dart';
+import 'ids.dart';
+
+/// Anagrafica allievo — tabella centrale `students` (o `profiles`) nel backend.
+///
+/// **App studente:** subset in sola lettura (nome, corso, stato) sincronizzato dopo login.
+/// **Backoffice:** CRUD completo; collegamento a `auth.users` tramite [linkedAuthUserId]
+/// (colonna DB tipica: `public.students.user_id`).
+///
+/// [enrolledCoursePath] è il **percorso di iscrizione** (segreteria). I moduli contenuto
+/// app si derivano con [EnrollmentContentMapping] (`lib/domain/enrollment_content_mapping.dart`).
+class StudentProfile {
+  const StudentProfile({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    this.phone,
+    this.email,
+    this.birthDate,
+
+    /// Codice fiscale o identificativo fiscale nazionale.
+    this.taxCode,
+
+    /// Comune/stato di nascita (`students.birth_place` in produzione).
+    this.birthPlace,
+
+    /// Genere anagrafico (`students.gender`), es. «Maschio» / «Femmina».
+    this.gender,
+    this.address,
+    required this.enrolledCoursePath,
+    required this.registrationStatus,
+    this.onboardingStatus = StudentOnboardingStatus.activeCourse,
+    this.firstContactedAt,
+    this.onboardingNotes,
+    this.linkedAuthUserId,
+    this.internalNotes,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final StudentId id;
+  final String firstName;
+  final String lastName;
+  final String? phone;
+  final String? email;
+
+  /// Solo data (timezone locale scuola); in DB tipicamente `DATE`.
+  final DateTime? birthDate;
+  final String? taxCode;
+  final String? birthPlace;
+  final String? gender;
+  final PostalAddress? address;
+
+  /// Percorso corso scelto in iscrizione (Entro 12 miglia, D1, misto vela, …).
+  final EnrollmentCoursePath enrolledCoursePath;
+
+  final StudentRegistrationStatus registrationStatus;
+
+  /// Flusso operativo segreteria (nuovi iscritti, contatti, documenti, …).
+  final StudentOnboardingStatus onboardingStatus;
+
+  /// Prima registrazione contatto da parte dello staff.
+  final DateTime? firstContactedAt;
+
+  /// Note rapide onboarding (non sostituisce le note interne strutturate).
+  final String? onboardingNotes;
+
+  /// FK verso identity provider (Supabase Auth UUID).
+  final String? linkedAuthUserId;
+
+  /// Note interne visibili solo allo staff (non mostrate nell’app allievo).
+  final String? internalNotes;
+
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  /// Compatibilità: categoria catalogo “principale” per schermate che usano ancora
+  /// una sola [LicenseCategoryId] (primo modulo del percorso: motore entro 12, D1, …).
+  LicenseCategoryId get enrolledLicenseCategory =>
+      EnrollmentContentMapping.primaryLicenseCategory(enrolledCoursePath);
+
+  String get displayName => '$firstName $lastName'.trim();
+}

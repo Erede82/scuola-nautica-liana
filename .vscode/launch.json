@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "Web Chrome 3000 - Scuola Nautica Liana",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "args": [
+        "--web-port=3000",
+        "--dart-define-from-file=env/dev.json"
+      ]
+    },
+    {
+      "name": "iPhone Simulator - Scuola Nautica Liana",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "iPhone 17 Pro Max",
+      "args": ["--dart-define-from-file=env/dev.json"]
+    }
+  ]
+}
