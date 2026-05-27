@@ -328,6 +328,16 @@ class ManagementRepositoryMock implements ManagementRepository {
         _practiceServiceTemplates[index].copyWith(active: active);
   }
 
+  @override
+  Future<void> deletePracticeServiceTemplate(String id) async {
+    final removed =
+        _practiceServiceTemplates.where((t) => t.id == id).toList(growable: false);
+    if (removed.isEmpty) {
+      throw StateError('Prestazione non trovata.');
+    }
+    _practiceServiceTemplates.removeWhere((t) => t.id == id);
+  }
+
   String? _nullableTrim(String? value) {
     final t = value?.trim();
     if (t == null || t.isEmpty) return null;

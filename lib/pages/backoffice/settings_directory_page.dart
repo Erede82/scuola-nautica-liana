@@ -62,6 +62,57 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
     if (saved == true) await _load();
   }
 
+  Future<void> _confirmDelete(PracticeServiceTemplate item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Elimina prestazione'),
+        content: const Text(
+          'Vuoi eliminare definitivamente questa prestazione?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await managementRepository.deletePracticeServiceTemplate(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prestazione eliminata.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is StateError
+                ? e.message
+                : 'Eliminazione fallita: $e',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleActive(PracticeServiceTemplate item) async {
     try {
       await managementRepository.setPracticeServiceTemplateActive(
@@ -212,46 +263,56 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 900;
-        final pad = wide ? 16.0 : 12.0;
-        return ListView.separated(
+        final width = constraints.maxWidth;
+        final columns = _gridColumnCount(width);
+        final pad = width >= 900 ? 16.0 : 12.0;
+        return GridView.builder(
           padding: EdgeInsets.fromLTRB(pad, 0, pad, 16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 340,
+          ),
           itemCount: items.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
+            final item = items[index];
             return _TemplateCard(
-              item: items[index],
-              wide: wide,
-              onEdit: () => _openForm(existing: items[index]),
-              onToggleActive: () => _toggleActive(items[index]),
+              item: item,
+              onEdit: () => _openForm(existing: item),
+              onToggleActive: () => _toggleActive(item),
+              onDelete: () => _confirmDelete(item),
             );
           },
         );
       },
     );
   }
+
+  static int _gridColumnCount(double width) {
+    if (width >= 1200) return 4;
+    if (width >= 900) return 3;
+    if (width >= 600) return 2;
+    return 1;
+  }
 }
 
 class _TemplateCard extends StatelessWidget {
   const _TemplateCard({
     required this.item,
-    required this.wide,
     required this.onEdit,
     required this.onToggleActive,
+    required this.onDelete,
   });
 
   final PracticeServiceTemplate item;
-  final bool wide;
   final VoidCallback onEdit;
   final VoidCallback onToggleActive;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final notes = item.internalNotes?.trim();
-    final notesShort = notes == null || notes.isEmpty
-        ? null
-        : (notes.length > 80 ? '${notes.substring(0, 80)}…' : notes);
 
     return Material(
       color: AppVisual.surface,
@@ -261,104 +322,105 @@ class _TemplateCard extends StatelessWidget {
         side: const BorderSide(color: AppVisual.border),
       ),
       child: Padding(
-        padding: EdgeInsets.all(wide ? 14 : 12),
+        padding: const EdgeInsets.all(14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: BackofficeUiTokens.text,
-                        ),
-                      ),
-                      if (item.description != null &&
-                          item.description!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          item.description!.trim(),
-                          style: textTheme.bodySmall?.copyWith(
-                            color: BackofficeUiTokens.text.withValues(alpha: 0.72),
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _StatusChip(active: item.active),
-              ],
+            Text(
+              item.title,
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: BackofficeUiTokens.text,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _MetaChip(
-                  label: 'Tipo',
-                  value: BackofficeFormatters.practiceServiceType(item.practiceType),
-                ),
-                _MetaChip(
-                  label: 'Percorso',
-                  value: BackofficeFormatters.enrolledCoursePathStorage(
-                    item.enrolledCoursePath,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Categoria',
-                  value: BackofficeFormatters.enrolledLicenseCategory(
-                    item.enrolledLicenseCategory,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Costo totale',
-                  value: BackofficeFormatters.moneyEur(
-                    item.defaultRegistrationFeeCents,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Acconto consigliato',
-                  value: BackofficeFormatters.moneyEur(
-                    item.suggestedDepositCents,
-                  ),
-                ),
-              ],
-            ),
-            if (notesShort != null) ...[
-              const SizedBox(height: 8),
+            if (item.description != null && item.description!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
               Text(
-                notesShort,
-                style: textTheme.labelSmall?.copyWith(
-                  color: BackofficeUiTokens.text.withValues(alpha: 0.62),
-                  fontStyle: FontStyle.italic,
+                item.description!.trim(),
+                style: textTheme.bodySmall?.copyWith(
+                  color: BackofficeUiTokens.text.withValues(alpha: 0.72),
+                  height: 1.3,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
             const SizedBox(height: 10),
+            Expanded(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _MetaChip(
+                    label: 'Tipo',
+                    value: BackofficeFormatters.practiceServiceType(item.practiceType),
+                  ),
+                  _MetaChip(
+                    label: 'Percorso',
+                    value: BackofficeFormatters.enrolledCoursePathStorage(
+                      item.enrolledCoursePath,
+                    ),
+                  ),
+                  _MetaChip(
+                    label: 'Categoria',
+                    value: BackofficeFormatters.enrolledLicenseCategory(
+                      item.enrolledLicenseCategory,
+                    ),
+                  ),
+                  _MetaChip(
+                    label: 'Costo',
+                    value: BackofficeFormatters.moneyEur(
+                      item.defaultRegistrationFeeCents,
+                    ),
+                  ),
+                  _MetaChip(
+                    label: 'Acconto',
+                    value: BackofficeFormatters.moneyEur(
+                      item.suggestedDepositCents,
+                    ),
+                  ),
+                  _MetaChip(
+                    label: 'Stato',
+                    value: item.active ? 'Attiva' : 'Non attiva',
+                    highlight: item.active,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 OutlinedButton.icon(
                   onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Modifica'),
                 ),
                 OutlinedButton.icon(
                   onPressed: onToggleActive,
                   icon: Icon(
-                    item.active ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    size: 18,
+                    item.active
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 16,
                   ),
                   label: Text(item.active ? 'Disattiva' : 'Attiva'),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.error.withValues(
+                        alpha: 0.45,
+                      ),
+                    ),
+                  ),
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('Elimina'),
                 ),
               ],
             ),
@@ -369,52 +431,32 @@ class _TemplateCard extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.active});
-
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: active
-            ? BackofficeUiTokens.success.withValues(alpha: 0.12)
-            : BackofficeUiTokens.text.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: active
-              ? BackofficeUiTokens.success.withValues(alpha: 0.35)
-              : AppVisual.border,
-        ),
-      ),
-      child: Text(
-        active ? 'Attiva' : 'Non attiva',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: active ? BackofficeUiTokens.success : BackofficeUiTokens.text,
-        ),
-      ),
-    );
-  }
-}
-
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.label, required this.value});
+  const _MetaChip({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
 
   final String label;
   final String value;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppVisual.chipFill,
+        color: highlight
+            ? BackofficeUiTokens.success.withValues(alpha: 0.1)
+            : AppVisual.chipFill,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppVisual.border.withValues(alpha: 0.8)),
+        border: Border.all(
+          color: highlight
+              ? BackofficeUiTokens.success.withValues(alpha: 0.35)
+              : AppVisual.border.withValues(alpha: 0.8),
+        ),
       ),
       child: RichText(
         text: TextSpan(
@@ -426,7 +468,10 @@ class _MetaChip extends StatelessWidget {
             ),
             TextSpan(
               text: value,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: highlight ? BackofficeUiTokens.success : null,
+              ),
             ),
           ],
         ),
@@ -588,189 +633,231 @@ class _PracticeServiceTemplateDialogState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(_isEdit ? 'Modifica prestazione' : 'Nuova prestazione'),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Titolo prestazione *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Obbligatorio' : null,
-                  onChanged: (v) {
-                    if (!_isEdit && _slugCtrl.text.trim().isEmpty) {
-                      _slugCtrl.text = _slugify(v);
-                    }
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _slugCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Slug (identificativo)',
-                    border: OutlineInputBorder(),
-                    helperText: 'Usato internamente; deve essere univoco.',
+    final title = _isEdit ? 'Modifica prestazione' : 'Nuova prestazione';
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        width: 560,
+        height: maxHeight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _descriptionCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Descrizione',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: _practiceType,
-                  decoration: const InputDecoration(
-                    labelText: 'Tipo pratica *',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'new_license', child: Text('Nuova patente')),
-                    DropdownMenuItem(value: 'renewal', child: Text('Rinnovo')),
-                    DropdownMenuItem(value: 'duplicate', child: Text('Duplicato')),
-                    DropdownMenuItem(value: 'other', child: Text('Altro')),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (v) {
-                          if (v == null) return;
-                          setState(() => _practiceType = v);
-                        },
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String?>(
-                  initialValue: _coursePath,
-                  decoration: const InputDecoration(
-                    labelText: 'Percorso iscrizione',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('— Nessuno —')),
-                    DropdownMenuItem(
-                      value: 'entro_12_miglia',
-                      child: Text('Entro le 12 miglia motore'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'entro_12_miglia_vela',
-                      child: Text('Oltre 12 miglia vela e motore'),
-                    ),
-                    DropdownMenuItem(value: 'd1', child: Text('D1')),
-                  ],
-                  onChanged: _busy ? null : (v) => setState(() => _coursePath = v),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String?>(
-                  initialValue: _licenseCategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Categoria patente',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('— Nessuna —')),
-                    DropdownMenuItem(value: 'motore', child: Text('Motore')),
-                    DropdownMenuItem(value: 'vela', child: Text('Vela')),
-                    DropdownMenuItem(value: 'd1', child: Text('D1')),
-                  ],
-                  onChanged:
-                      _busy ? null : (v) => setState(() => _licenseCategory = v),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _feeCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Costo totale (€)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _depositCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Acconto consigliato (€)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _notesCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Note interne',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _sortCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Ordine visualizzazione',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                ),
-                const SizedBox(height: 6),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Prestazione attiva'),
-                  value: _active,
-                  onChanged: _busy ? null : (v) => setState(() => _active = v),
-                ),
-              ],
+              ),
             ),
-          ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                child: _buildForm(),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+                    child: const Text('Annulla'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _busy ? null : _save,
+                    child: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(_isEdit ? 'Salva' : 'Crea'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Annulla'),
-        ),
-        FilledButton(
-          onPressed: _busy ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isEdit ? 'Salva' : 'Crea'),
-        ),
-      ],
+    );
+  }
+
+  Widget _buildForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: _titleCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Titolo prestazione *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Obbligatorio' : null,
+            onChanged: (v) {
+              if (!_isEdit && _slugCtrl.text.trim().isEmpty) {
+                _slugCtrl.text = _slugify(v);
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _slugCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Slug (identificativo)',
+              border: OutlineInputBorder(),
+              helperText: 'Usato internamente; deve essere univoco.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _descriptionCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Descrizione',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('practice-type-$_practiceType'),
+            initialValue: _practiceType,
+            decoration: const InputDecoration(
+              labelText: 'Tipo pratica *',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'new_license', child: Text('Nuova patente')),
+              DropdownMenuItem(value: 'renewal', child: Text('Rinnovo')),
+              DropdownMenuItem(value: 'duplicate', child: Text('Duplicato')),
+              DropdownMenuItem(value: 'other', child: Text('Altro')),
+            ],
+            onChanged: _busy
+                ? null
+                : (v) {
+                    if (v == null) return;
+                    setState(() => _practiceType = v);
+                  },
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            key: ValueKey('course-path-$_coursePath'),
+            initialValue: _coursePath,
+            decoration: const InputDecoration(
+              labelText: 'Percorso iscrizione',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('— Nessuno —')),
+              DropdownMenuItem(
+                value: 'entro_12_miglia',
+                child: Text('Entro le 12 miglia motore'),
+              ),
+              DropdownMenuItem(
+                value: 'entro_12_miglia_vela',
+                child: Text('Oltre 12 miglia vela e motore'),
+              ),
+              DropdownMenuItem(value: 'd1', child: Text('D1')),
+            ],
+            onChanged: _busy ? null : (v) => setState(() => _coursePath = v),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            key: ValueKey('license-cat-$_licenseCategory'),
+            initialValue: _licenseCategory,
+            decoration: const InputDecoration(
+              labelText: 'Categoria patente',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('— Nessuna —')),
+              DropdownMenuItem(value: 'motore', child: Text('Motore')),
+              DropdownMenuItem(value: 'vela', child: Text('Vela')),
+              DropdownMenuItem(value: 'd1', child: Text('D1')),
+            ],
+            onChanged:
+                _busy ? null : (v) => setState(() => _licenseCategory = v),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _feeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Costo totale (€)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _depositCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Acconto consigliato (€)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _notesCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Note interne',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _sortCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Ordine visualizzazione',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Prestazione attiva'),
+            value: _active,
+            onChanged: _busy ? null : (v) => setState(() => _active = v),
+          ),
+        ],
+      ),
     );
   }
 }

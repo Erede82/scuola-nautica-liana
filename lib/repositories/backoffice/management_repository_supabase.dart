@@ -245,6 +245,23 @@ class ManagementRepositorySupabase implements ManagementRepository {
         .eq('id', id);
   }
 
+  @override
+  Future<void> deletePracticeServiceTemplate(String id) async {
+    try {
+      await _client.from('practice_service_templates').delete().eq('id', id);
+    } on PostgrestException catch (e) {
+      final code = e.code ?? '';
+      if (code == '23503' ||
+          e.message.toLowerCase().contains('foreign key') ||
+          e.message.toLowerCase().contains('violates')) {
+        throw StateError(
+          'Impossibile eliminare: la prestazione è collegata ad altri dati.',
+        );
+      }
+      throw StateError(e.message);
+    }
+  }
+
   Map<String, dynamic> _templatePayload(PracticeServiceTemplateInput input) {
     final payload = <String, dynamic>{
       'slug': input.slug.trim(),

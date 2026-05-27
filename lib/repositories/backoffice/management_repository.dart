@@ -40,4 +40,6 @@ abstract class ManagementRepository {
   );
 
   Future<void> setPracticeServiceTemplateActive(String id, bool active);
+
+  Future<void> deletePracticeServiceTemplate(String id);
 }
