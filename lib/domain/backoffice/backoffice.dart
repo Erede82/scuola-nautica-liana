@@ -14,6 +14,7 @@ export 'management_foundation.dart';
 export 'practice_document.dart';
 export 'practice_list_item.dart';
 export 'practice_registry.dart';
+export 'practice_service_template.dart';
 export 'staff_internal_note.dart';
 export 'student_admin_aggregate.dart';
 export 'student_profile.dart';

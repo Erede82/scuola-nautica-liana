@@ -213,4 +213,41 @@ abstract final class BackofficeFormatters {
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     return '${dateUi(d)} · $t';
   }
+
+  static String practiceServiceType(String? type) {
+    switch (type) {
+      case 'new_license':
+        return 'Nuova patente';
+      case 'renewal':
+        return 'Rinnovo';
+      case 'duplicate':
+        return 'Duplicato';
+      case 'other':
+        return 'Altro';
+      default:
+        if (type == null || type.isEmpty) return '—';
+        return type;
+    }
+  }
+
+  static String enrolledCoursePathStorage(String? raw) {
+    final parsed = EnrollmentCoursePathStorage.tryParse(raw);
+    if (parsed != null) return parsed.labelIt;
+    if (raw == null || raw.isEmpty) return '—';
+    return raw;
+  }
+
+  static String enrolledLicenseCategory(String? raw) {
+    switch (raw) {
+      case 'motore':
+        return 'Motore';
+      case 'vela':
+        return 'Vela';
+      case 'd1':
+        return 'D1';
+      default:
+        if (raw == null || raw.isEmpty) return '—';
+        return raw;
+    }
+  }
 }

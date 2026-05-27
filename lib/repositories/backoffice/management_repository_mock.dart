@@ -4,6 +4,113 @@ import 'management_repository.dart';
 
 class ManagementRepositoryMock implements ManagementRepository {
   final Set<String> _purchasedExtraProductIds = <String>{};
+  final List<PracticeServiceTemplate> _practiceServiceTemplates =
+      List<PracticeServiceTemplate>.from(_seedPracticeServiceTemplates);
+
+  static int _mockIdSeq = 0;
+
+  static String _nextMockId() {
+    _mockIdSeq += 1;
+    return 'mock-practice-template-$_mockIdSeq';
+  }
+
+  static const List<PracticeServiceTemplate> _seedPracticeServiceTemplates = [
+    PracticeServiceTemplate(
+      id: 'mock-template-entro-12-motore',
+      slug: 'patente-entro-12-motore',
+      title: 'Patente nautica entro 12 miglia motore',
+      description: 'Percorso standard patente entro 12 miglia — modulo motore.',
+      practiceType: 'new_license',
+      enrolledCoursePath: 'entro_12_miglia',
+      enrolledLicenseCategory: 'motore',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: importo totale e acconto consigliato.',
+      sortOrder: 10,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-oltre-12-motore',
+      slug: 'patente-oltre-12-motore',
+      title: 'Patente nautica oltre 12 miglia motore',
+      description:
+          'Percorso oltre 12 miglia con focus operativo motore (catalogo vela/motore).',
+      practiceType: 'new_license',
+      enrolledCoursePath: 'entro_12_miglia_vela',
+      enrolledLicenseCategory: 'motore',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: verificare percorso iscrizione e importi.',
+      sortOrder: 20,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-d1',
+      slug: 'patente-d1',
+      title: 'Patente nautica D1',
+      description: 'Percorso patente D1.',
+      practiceType: 'new_license',
+      enrolledCoursePath: 'd1',
+      enrolledLicenseCategory: 'd1',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: importo totale e acconto consigliato.',
+      sortOrder: 30,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-rinnovo',
+      slug: 'rinnovo-patente-nautica',
+      title: 'Rinnovo patente nautica',
+      description: 'Pratica di rinnovo patente nautica.',
+      practiceType: 'renewal',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: importo e note operative rinnovo.',
+      sortOrder: 40,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-duplicato',
+      slug: 'duplicato-patente-nautica',
+      title: 'Duplicato patente nautica',
+      description: 'Richiesta duplicato documento di patente nautica.',
+      practiceType: 'duplicate',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: importo e documenti richiesti.',
+      sortOrder: 50,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-integrazione',
+      slug: 'integrazione-estensione-patente',
+      title: 'Integrazione / estensione patente nautica',
+      description: 'Pratica di integrazione o estensione titolo nautico.',
+      practiceType: 'other',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare: tipologia e importo.',
+      sortOrder: 60,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-generica',
+      slug: 'pratica-nautica-generica',
+      title: 'Pratica nautica generica',
+      description: 'Prestazione generica non classificata nel catalogo standard.',
+      practiceType: 'other',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare.',
+      sortOrder: 70,
+    ),
+    PracticeServiceTemplate(
+      id: 'mock-template-altro',
+      slug: 'altro-servizio-nautico',
+      title: 'Altro servizio nautico',
+      description: 'Altre prestazioni o servizi nautici della scuola.',
+      practiceType: 'other',
+      defaultRegistrationFeeCents: 0,
+      suggestedDepositCents: 0,
+      internalNotes: 'Da configurare.',
+      sortOrder: 80,
+    ),
+  ];
 
   static const List<NauticalInstructor> _instructors = [
     NauticalInstructor(
@@ -144,5 +251,86 @@ class ManagementRepositoryMock implements ManagementRepository {
   }) async {
     _purchasedExtraProductIds.add(productId);
     return true;
+  }
+
+  @override
+  Future<List<PracticeServiceTemplate>> listPracticeServiceTemplates({
+    bool includeInactive = true,
+  }) async {
+    final list = includeInactive
+        ? _practiceServiceTemplates
+        : _practiceServiceTemplates.where((t) => t.active);
+    final sorted = list.toList()
+      ..sort((a, b) {
+        final c = a.sortOrder.compareTo(b.sortOrder);
+        if (c != 0) return c;
+        return a.title.compareTo(b.title);
+      });
+    return List<PracticeServiceTemplate>.unmodifiable(sorted);
+  }
+
+  @override
+  Future<PracticeServiceTemplate> createPracticeServiceTemplate(
+    PracticeServiceTemplateInput input,
+  ) async {
+    final created = PracticeServiceTemplate(
+      id: _nextMockId(),
+      slug: input.slug.trim(),
+      title: input.title.trim(),
+      description: input.description?.trim(),
+      practiceType: input.practiceType,
+      enrolledCoursePath: _nullableTrim(input.enrolledCoursePath),
+      enrolledLicenseCategory: _nullableTrim(input.enrolledLicenseCategory),
+      defaultRegistrationFeeCents: input.defaultRegistrationFeeCents,
+      suggestedDepositCents: input.suggestedDepositCents,
+      internalNotes: input.internalNotes?.trim(),
+      active: input.active,
+      sortOrder: input.sortOrder,
+    );
+    _practiceServiceTemplates.add(created);
+    return created;
+  }
+
+  @override
+  Future<PracticeServiceTemplate> updatePracticeServiceTemplate(
+    String id,
+    PracticeServiceTemplateInput input,
+  ) async {
+    final index = _practiceServiceTemplates.indexWhere((t) => t.id == id);
+    if (index < 0) {
+      throw StateError('Prestazione non trovata.');
+    }
+    final updated = PracticeServiceTemplate(
+      id: id,
+      slug: input.slug.trim(),
+      title: input.title.trim(),
+      description: input.description?.trim(),
+      practiceType: input.practiceType,
+      enrolledCoursePath: _nullableTrim(input.enrolledCoursePath),
+      enrolledLicenseCategory: _nullableTrim(input.enrolledLicenseCategory),
+      defaultRegistrationFeeCents: input.defaultRegistrationFeeCents,
+      suggestedDepositCents: input.suggestedDepositCents,
+      internalNotes: input.internalNotes?.trim(),
+      active: input.active,
+      sortOrder: input.sortOrder,
+    );
+    _practiceServiceTemplates[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> setPracticeServiceTemplateActive(String id, bool active) async {
+    final index = _practiceServiceTemplates.indexWhere((t) => t.id == id);
+    if (index < 0) {
+      throw StateError('Prestazione non trovata.');
+    }
+    _practiceServiceTemplates[index] =
+        _practiceServiceTemplates[index].copyWith(active: active);
+  }
+
+  String? _nullableTrim(String? value) {
+    final t = value?.trim();
+    if (t == null || t.isEmpty) return null;
+    return t;
   }
 }

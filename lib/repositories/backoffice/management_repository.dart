@@ -25,4 +25,19 @@ abstract class ManagementRepository {
     String currencyCode = 'EUR',
     String? paymentReference,
   });
+
+  Future<List<PracticeServiceTemplate>> listPracticeServiceTemplates({
+    bool includeInactive = true,
+  });
+
+  Future<PracticeServiceTemplate> createPracticeServiceTemplate(
+    PracticeServiceTemplateInput input,
+  );
+
+  Future<PracticeServiceTemplate> updatePracticeServiceTemplate(
+    String id,
+    PracticeServiceTemplateInput input,
+  );
+
+  Future<void> setPracticeServiceTemplateActive(String id, bool active);
 }

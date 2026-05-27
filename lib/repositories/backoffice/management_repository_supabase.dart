@@ -191,4 +191,110 @@ class ManagementRepositorySupabase implements ManagementRepository {
       date.day,
     ).toIso8601String().split('T').first;
   }
+
+  static const _templateSelect =
+      'id, slug, title, description, practice_type, enrolled_course_path, '
+      'enrolled_license_category, default_registration_fee_cents, '
+      'suggested_deposit_cents, internal_notes, active, sort_order';
+
+  @override
+  Future<List<PracticeServiceTemplate>> listPracticeServiceTemplates({
+    bool includeInactive = true,
+  }) async {
+    var query = _client.from('practice_service_templates').select(_templateSelect);
+    if (!includeInactive) {
+      query = query.eq('active', true);
+    }
+    final rows = await query.order('sort_order').order('title');
+    return (rows as List<dynamic>)
+        .map((row) => _mapTemplate(Map<String, dynamic>.from(row as Map)))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<PracticeServiceTemplate> createPracticeServiceTemplate(
+    PracticeServiceTemplateInput input,
+  ) async {
+    final row = await _client
+        .from('practice_service_templates')
+        .insert(_templatePayload(input))
+        .select(_templateSelect)
+        .single();
+    return _mapTemplate(Map<String, dynamic>.from(row));
+  }
+
+  @override
+  Future<PracticeServiceTemplate> updatePracticeServiceTemplate(
+    String id,
+    PracticeServiceTemplateInput input,
+  ) async {
+    final row = await _client
+        .from('practice_service_templates')
+        .update(_templatePayload(input))
+        .eq('id', id)
+        .select(_templateSelect)
+        .single();
+    return _mapTemplate(Map<String, dynamic>.from(row));
+  }
+
+  @override
+  Future<void> setPracticeServiceTemplateActive(String id, bool active) async {
+    await _client
+        .from('practice_service_templates')
+        .update(<String, dynamic>{'active': active})
+        .eq('id', id);
+  }
+
+  Map<String, dynamic> _templatePayload(PracticeServiceTemplateInput input) {
+    final payload = <String, dynamic>{
+      'slug': input.slug.trim(),
+      'title': input.title.trim(),
+      'practice_type': input.practiceType,
+      'default_registration_fee_cents': input.defaultRegistrationFeeCents,
+      'suggested_deposit_cents': input.suggestedDepositCents,
+      'active': input.active,
+      'sort_order': input.sortOrder,
+    };
+    final desc = input.description?.trim();
+    if (desc != null && desc.isNotEmpty) {
+      payload['description'] = desc;
+    } else {
+      payload['description'] = null;
+    }
+    final notes = input.internalNotes?.trim();
+    if (notes != null && notes.isNotEmpty) {
+      payload['internal_notes'] = notes;
+    } else {
+      payload['internal_notes'] = null;
+    }
+    payload['enrolled_course_path'] = _nullableTrim(input.enrolledCoursePath);
+    payload['enrolled_license_category'] =
+        _nullableTrim(input.enrolledLicenseCategory);
+    return payload;
+  }
+
+  String? _nullableTrim(String? value) {
+    final t = value?.trim();
+    if (t == null || t.isEmpty) return null;
+    return t;
+  }
+
+  PracticeServiceTemplate _mapTemplate(Map<String, dynamic> row) {
+    return PracticeServiceTemplate(
+      id: row['id'] as String,
+      slug: row['slug'] as String,
+      title: row['title'] as String,
+      description: row['description'] as String?,
+      practiceType: row['practice_type'] as String,
+      enrolledCoursePath: row['enrolled_course_path'] as String?,
+      enrolledLicenseCategory: row['enrolled_license_category'] as String?,
+      defaultRegistrationFeeCents:
+          (row['default_registration_fee_cents'] as num?)?.toInt() ?? 0,
+      suggestedDepositCents:
+          (row['suggested_deposit_cents'] as num?)?.toInt() ?? 0,
+      internalNotes: row['internal_notes'] as String?,
+      active: row['active'] as bool? ?? true,
+      sortOrder: row['sort_order'] as int? ?? 0,
+    );
+  }
 }

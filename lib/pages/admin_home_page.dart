@@ -18,6 +18,7 @@ import 'backoffice/accounting_payments_directory_page.dart';
 import 'backoffice/guidance_appointments_directory_page.dart';
 import 'backoffice/practice_dossiers_directory_page.dart';
 import 'backoffice/school_management_shell_page.dart';
+import 'backoffice/settings_directory_page.dart';
 import 'backoffice/student_360_direct_page.dart';
 import 'feature_placeholder_page.dart';
 import 'home_page.dart';
@@ -438,10 +439,11 @@ const List<_ManagementModule> _managementModules = [
   _ManagementModule(
     kind: _ManagementModuleKind.settings,
     title: 'Impostazioni',
-    subtitle: 'Istruttori, categorie e parametri',
+    subtitle: 'Prestazioni, istruttori e parametri',
     icon: Icons.tune_rounded,
     message:
-        'Qui gestiremo istruttori, categorie uscite, prodotti Extra e parametri scuola.',
+        'Catalogo prestazioni preimpostate e parametri gestionali della scuola.',
+    available: true,
   ),
 ];
 
@@ -674,8 +676,13 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
         );
       case _ManagementModuleKind.videoCourses:
       case _ManagementModuleKind.reports:
-      case _ManagementModuleKind.settings:
         return _ModulePlaceholder(module: module);
+      case _ManagementModuleKind.settings:
+        return StaffAccessGate(
+          showStaffWelcomeSnack: true,
+          gateTitle: 'Backoffice scuola',
+          child: const SettingsDirectoryPage(embedded: true),
+        );
     }
   }
 }
