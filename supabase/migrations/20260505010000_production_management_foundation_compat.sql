@@ -65,6 +65,30 @@ $$;
 -- Existing payments compatibility: add only missing columns used by RPC
 -- ---------------------------------------------------------------------------
 DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'payment_source'
+  ) THEN
+    CREATE TYPE public.payment_source AS ENUM ('school', 'online');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'payment_category'
+  ) THEN
+    CREATE TYPE public.payment_category AS ENUM ('patente', 'extra');
+  END IF;
+END
+$$;
+
+DO $$
 DECLARE
   v_blocking_columns text;
 BEGIN
@@ -103,10 +127,16 @@ ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS amount_cents integer;
 
 ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS amount numeric;
+
+ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS currency_code text DEFAULT 'EUR';
 
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS received_at timestamptz;
+
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS paid_at timestamptz;
 
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS receipt_reference text;
@@ -122,6 +152,12 @@ ALTER TABLE public.payments
 
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS idempotency_key text;
+
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS source public.payment_source DEFAULT 'school'::public.payment_source;
+
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS category public.payment_category DEFAULT 'patente'::public.payment_category;
 
 CREATE UNIQUE INDEX IF NOT EXISTS payments_idempotency_key_uq
   ON public.payments (idempotency_key)

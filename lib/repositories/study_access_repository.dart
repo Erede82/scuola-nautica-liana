@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../config/supabase_config.dart';
 import '../data/license_catalog.dart';
 import '../domain/backoffice/backoffice.dart';
 import '../models/license_models.dart';
@@ -103,6 +104,9 @@ extension StudyAccessRepositoryEffective on StudyAccessRepository {
 /// o con uno store iniettato.
 class MutableMockStudyAccessRepository extends ChangeNotifier
     implements StudyAccessWritableRepository {
+  MutableMockStudyAccessRepository({bool? allowDemoSeedAccess})
+      : _allowDemoSeedAccessOverride = allowDemoSeedAccess;
+
   /// Default seed quando non c’è override (come prima dell’intro admin).
   /// Si applica a categorie con catalogo teoria completo (motore entro 12, D1).
   static const bool kDemoUnlockEntireExamForTheory = false;
@@ -110,6 +114,10 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
   final Map<String, bool> _lessonSheetOverrides = {};
   final Map<LicenseCategoryId, bool> _examOverrides = {};
   final Map<String, bool> _errorTopicOverrides = {};
+  final bool? _allowDemoSeedAccessOverride;
+
+  bool get _allowDemoSeedAccess =>
+      _allowDemoSeedAccessOverride ?? !SupabaseConfig.isConfigured;
 
   static String _sheetStoreKey(
     LicenseCategoryId categoryId,
@@ -347,7 +355,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       lessonNumber,
       maxSheets,
     );
-    final demoLessonUnlocked = !schoolStoredAnySheetForLesson &&
+    final demoLessonUnlocked = _allowDemoSeedAccess &&
+        !schoolStoredAnySheetForLesson &&
         _demoEntireLessonUnlockedForStudent(category, lessonNumber);
     final lessonUnlocked = schoolUnlockedLesson || demoLessonUnlocked;
 
@@ -532,7 +541,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     }
 
     final o = _errorTopicOverride(categoryId, lessonNumber);
-    final unlocked = o ?? (lessonNumber != 7);
+    final unlocked = o ?? (_allowDemoSeedAccess && lessonNumber != 7);
 
     if (unlocked) {
       return StudyContentAccessSnapshot(
