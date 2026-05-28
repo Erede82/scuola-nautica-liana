@@ -48,6 +48,14 @@ class BackofficeDemoStore extends ChangeNotifier {
 
   List<StudentProfile> get profiles => List.unmodifiable(_profiles);
 
+  /// Profili arricchiti con `practice_dossiers.practice_type` per l’elenco sidebar.
+  List<StudentProfile> get profilesForList => _profiles
+      .map((p) {
+        final pt = _practice[p.id]?.practiceType;
+        return pt == null ? p : p.copyWith(practiceDossierType: pt);
+      })
+      .toList(growable: false);
+
   /// Incassi globali per directory contabile mock (data ricezione discendente).
   List<AccountingPaymentListItem> listAccountingPaymentDirectoryItems() {
     final byId = {for (final p in _profiles) p.id: p};
@@ -1040,9 +1048,15 @@ class BackofficeDemoStore extends ChangeNotifier {
       }
     }
 
-    final path =
-        EnrollmentCoursePathStorage.tryParse(enrolledCoursePath?.trim()) ??
-        EnrollmentCoursePath.entro12Miglia;
+    final pathRaw = enrolledCoursePath?.trim();
+    final EnrollmentCoursePath path;
+    if (pathRaw != null && pathRaw.isNotEmpty) {
+      path =
+          EnrollmentCoursePathStorage.tryParse(pathRaw) ??
+          EnrollmentCoursePath.entro12Miglia;
+    } else {
+      path = EnrollmentCoursePath.entro12Miglia;
+    }
 
     final id = 'stu-mock-${DateTime.now().microsecondsSinceEpoch}';
     final now = DateTime.now();

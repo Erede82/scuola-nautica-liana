@@ -158,8 +158,7 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
         final narrow = MediaQuery.sizeOf(context).width < 880;
         final collapseRequested = _pendingCollapseListAfterOpen;
         _pendingCollapseListAfterOpen = false;
-        final deepLinkedOk =
-            pending != null && _selectedStudentId == pending;
+        final deepLinkedOk = pending != null && _selectedStudentId == pending;
         if (collapseRequested && !narrow && deepLinkedOk) {
           setState(() => _listPaneVisible = false);
         }
@@ -288,17 +287,6 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
         return 'D1 · d1';
       case EnrollmentCoursePath.entro12MigliaVela:
         return 'Oltre 12 miglia vela e motore · oltre_12_miglia_vela_motore';
-    }
-  }
-
-  String _listCourseBadgeLabel(EnrollmentCoursePath path) {
-    switch (path) {
-      case EnrollmentCoursePath.entro12Miglia:
-        return 'Entro 12 · motore';
-      case EnrollmentCoursePath.d1:
-        return 'D1';
-      case EnrollmentCoursePath.entro12MigliaVela:
-        return 'Vela e motore';
     }
   }
 
@@ -485,7 +473,7 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          _listCourseBadgeLabel(p.enrolledCoursePath),
+                          BackofficeFormatters.studentListPracticeBadge(p),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelSmall

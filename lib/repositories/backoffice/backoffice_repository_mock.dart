@@ -14,7 +14,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
 
   @override
   Future<List<StudentProfile>> listStudentProfiles() async {
-    return List<StudentProfile>.from(_store.profiles);
+    return List<StudentProfile>.from(_store.profilesForList);
   }
 
   @override

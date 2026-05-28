@@ -13,6 +13,24 @@ abstract final class BackofficeFormatters {
 
   static String enrollmentCoursePath(EnrollmentCoursePath p) => p.labelIt;
 
+  /// Badge compatto elenco allievi: rinnovo/duplicato hanno priorità sul percorso.
+  static String studentListPracticeBadge(StudentProfile profile) {
+    switch (profile.practiceDossierType) {
+      case 'renewal':
+        return 'Rinnovo patente';
+      case 'duplicate':
+        return 'Duplicato patente';
+    }
+    switch (profile.enrolledCoursePath) {
+      case EnrollmentCoursePath.entro12Miglia:
+        return 'Entro 12 · motore';
+      case EnrollmentCoursePath.d1:
+        return 'D1';
+      case EnrollmentCoursePath.entro12MigliaVela:
+        return 'Vela e motore';
+    }
+  }
+
   static String contentModulesForEnrollmentPath(EnrollmentCoursePath p) =>
       EnrollmentContentMapping.contentModulesJoinedIt(p);
 

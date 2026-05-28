@@ -172,7 +172,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   Future<List<StudentProfile>> listStudentProfiles() async {
     final res = await _client
         .from('students')
-        .select()
+        .select('*, practice_dossiers(practice_type)')
         .order('last_name', ascending: true);
 
     final list = res as List<dynamic>;
@@ -257,21 +257,25 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       throw ArgumentError('Nome e cognome sono obbligatori.');
     }
 
-    final path =
-        EnrollmentCoursePathStorage.tryParse(enrolledCoursePath?.trim()) ??
-        EnrollmentCoursePath.entro12Miglia;
-    final pathStr = EnrollmentCoursePathStorage.toStorage(path);
+    final pathRaw = enrolledCoursePath?.trim();
+    EnrollmentCoursePath? pathEnum;
+    if (pathRaw != null && pathRaw.isNotEmpty) {
+      pathEnum = EnrollmentCoursePathStorage.tryParse(pathRaw);
+      if (pathEnum == null) {
+        throw ArgumentError('Percorso iscrizione non riconosciuto.');
+      }
+    }
 
     final licRaw = enrolledLicenseCategory?.trim();
-    final String licenseCat;
+    String? licenseCat;
     if (licRaw != null && licRaw.isNotEmpty) {
       final valid = LicenseCategoryId.values.any((e) => e.name == licRaw);
       if (!valid) {
         throw ArgumentError('Categoria patente non riconosciuta.');
       }
       licenseCat = licRaw;
-    } else {
-      licenseCat = EnrollmentContentMapping.primaryLicenseCategory(path).name;
+    } else if (pathEnum != null) {
+      licenseCat = EnrollmentContentMapping.primaryLicenseCategory(pathEnum).name;
     }
 
     void putNonEmpty(Map<String, dynamic> map, String key, String? v) {
@@ -284,13 +288,18 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     final insertPayload = <String, dynamic>{
       'first_name': fn,
       'last_name': ln,
-      'enrolled_course_path': pathStr,
-      'enrolled_license_category': licenseCat,
       'registration_status': 'pending',
       'onboarding_status': studentOnboardingStatusDbValue(
         StudentOnboardingStatus.pendingReview,
       ),
     };
+    if (pathEnum != null) {
+      insertPayload['enrolled_course_path'] =
+          EnrollmentCoursePathStorage.toStorage(pathEnum);
+    }
+    if (licenseCat != null) {
+      insertPayload['enrolled_license_category'] = licenseCat;
+    }
     putNonEmpty(insertPayload, 'phone', phone);
     putNonEmpty(insertPayload, 'email', email);
     putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);

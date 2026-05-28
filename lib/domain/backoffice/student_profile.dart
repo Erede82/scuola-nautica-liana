@@ -40,6 +40,7 @@ class StudentProfile {
     this.internalNotes,
     this.createdAt,
     this.updatedAt,
+    this.practiceDossierType,
   });
 
   final StudentId id;
@@ -78,10 +79,39 @@ class StudentProfile {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// Tipo fascicolo registro (`new_license` | `renewal` | `duplicate`), se presente.
+  /// Usato in elenco allievi per distinguere rinnovo/duplicato dal percorso.
+  final String? practiceDossierType;
+
   /// Compatibilità: categoria catalogo “principale” per schermate che usano ancora
   /// una sola [LicenseCategoryId] (primo modulo del percorso: motore entro 12, D1, …).
   LicenseCategoryId get enrolledLicenseCategory =>
       EnrollmentContentMapping.primaryLicenseCategory(enrolledCoursePath);
 
   String get displayName => '$firstName $lastName'.trim();
+
+  StudentProfile copyWith({String? practiceDossierType}) {
+    return StudentProfile(
+      id: id,
+      firstName: firstName,
+      lastName: lastName,
+      phone: phone,
+      email: email,
+      birthDate: birthDate,
+      taxCode: taxCode,
+      birthPlace: birthPlace,
+      gender: gender,
+      address: address,
+      enrolledCoursePath: enrolledCoursePath,
+      registrationStatus: registrationStatus,
+      onboardingStatus: onboardingStatus,
+      firstContactedAt: firstContactedAt,
+      onboardingNotes: onboardingNotes,
+      linkedAuthUserId: linkedAuthUserId,
+      internalNotes: internalNotes,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      practiceDossierType: practiceDossierType ?? this.practiceDossierType,
+    );
+  }
 }

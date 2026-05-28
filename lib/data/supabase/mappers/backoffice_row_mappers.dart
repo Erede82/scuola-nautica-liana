@@ -57,6 +57,7 @@ StudentProfile mapStudentRowToProfile(StudentRow r) {
     internalNotes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    practiceDossierType: r.practiceDossierType,
   );
 }
 

@@ -112,3 +112,85 @@ class PracticeServiceTemplateInput {
 
   static const allowedLicenseCategories = {'motore', 'vela', 'd1'};
 }
+
+/// Percorso iscrizione D1 (`students.enrolled_course_path`).
+bool isD1EnrollmentPath(String? path) {
+  final p = path?.trim();
+  return p != null && p.isNotEmpty && p == 'd1';
+}
+
+extension PracticeServiceTemplateNewPractice on PracticeServiceTemplate {
+  /// Percorso e categoria entrambi valorizzati nel catalogo.
+  bool get definesEnrollment =>
+      enrolledCoursePath != null &&
+      enrolledCoursePath!.isNotEmpty &&
+      enrolledLicenseCategory != null &&
+      enrolledLicenseCategory!.isNotEmpty;
+
+  /// Prestazioni «other» non generano dossier / registro pratica.
+  bool get excludesRegistry => practiceType == 'other';
+
+  /// Patente D1: registro in stand-by (nessuna numerazione automatica).
+  bool get isD1RegistryStandby =>
+      slug == 'patente-d1' || isD1EnrollmentPath(enrolledCoursePath);
+
+  /// Nessuna numerazione registro automatica (other o D1 stand-by).
+  bool get excludesAutomaticRegistry => excludesRegistry || isD1RegistryStandby;
+
+  /// Rinnovo o duplicato: percorso patente non obbligatorio in nuova pratica.
+  bool get isRenewalOrDuplicate =>
+      practiceType == 'renewal' || practiceType == 'duplicate';
+
+  /// Valore DB per `practice_dossiers.practice_type`, se ammesso dal registro.
+  String? get registryPracticeTypeDbValue {
+    if (excludesAutomaticRegistry) return null;
+    const allowed = {'new_license', 'renewal', 'duplicate'};
+    return allowed.contains(practiceType) ? practiceType : null;
+  }
+}
+
+/// Note operative da un template da includere in `students.notes`.
+String composeNewPracticeTemplateNotes(PracticeServiceTemplate? template) {
+  if (template == null) return '';
+  final blocks = <String>[];
+  blocks.add('Prestazione preimpostata: ${template.title}');
+  final desc = template.description?.trim();
+  if (desc != null && desc.isNotEmpty) {
+    blocks.add(desc);
+  }
+  final notes = template.internalNotes?.trim();
+  if (notes != null && notes.isNotEmpty) {
+    blocks.add(notes);
+  }
+  if (template.suggestedDepositCents > 0) {
+    final euros = (template.suggestedDepositCents / 100).toStringAsFixed(2);
+    blocks.add('Acconto consigliato (informativo): $euros €');
+  }
+  return blocks.join('\n\n');
+}
+
+/// Etichetta leggibile per percorso/categoria da catalogo.
+String practiceServiceTemplateEnrollmentLabel(
+  PracticeServiceTemplate template,
+) {
+  if (!template.definesEnrollment) {
+    return 'Da selezionare manualmente';
+  }
+  return '${template.enrolledCoursePath} · ${template.enrolledLicenseCategory}';
+}
+
+/// Etichetta descrittiva quando rinnovo/duplicato non richiede percorso patente.
+String renewalDuplicatePracticePathLabel({
+  PracticeServiceTemplate? template,
+  String? registryPracticeTypeDb,
+}) {
+  final fromTemplate = template?.practiceType;
+  final type = (fromTemplate == 'renewal' || fromTemplate == 'duplicate')
+      ? fromTemplate
+      : registryPracticeTypeDb;
+  return switch (type) {
+    'renewal' => 'Rinnovo patente nautica (percorso non applicabile)',
+    'duplicate' => 'Duplicato patente nautica (percorso non applicabile)',
+    _ => 'Rinnovo / duplicato (percorso non applicabile)',
+  };
+}

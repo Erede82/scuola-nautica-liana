@@ -38,6 +38,7 @@ class StudentRow {
     this.notes,
     this.createdAt,
     this.updatedAt,
+    this.practiceDossierType,
   });
 
   final String id;
@@ -70,6 +71,9 @@ class StudentRow {
   final String? notes;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Da embed `practice_dossiers(practice_type)` in elenco allievi.
+  final String? practiceDossierType;
 
   factory StudentRow.fromJson(Map<String, dynamic> j) {
     final addrRaw = j['address'];
@@ -121,7 +125,19 @@ class StudentRow {
       notes: notesFromJson(),
       createdAt: _parseTs(j['created_at']),
       updatedAt: _parseTs(j['updated_at']),
+      practiceDossierType: _practiceTypeFromEmbed(j['practice_dossiers']),
     );
+  }
+
+  static String? _practiceTypeFromEmbed(dynamic raw) {
+    if (raw is Map) {
+      return raw['practice_type'] as String?;
+    }
+    if (raw is List && raw.isNotEmpty) {
+      final first = raw.first;
+      if (first is Map) return first['practice_type'] as String?;
+    }
+    return null;
   }
 }
 
