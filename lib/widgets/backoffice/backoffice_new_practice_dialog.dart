@@ -422,6 +422,11 @@ class _BackofficeNewPracticeDialogBodyState
     return _createDossier;
   }
 
+  /// Solo il conseguimento (entro/oltre 12) genera numero di registro automatico.
+  /// Rinnovo e duplicato creano il fascicolo ma NON consumano un numero di registro.
+  bool get _assignRegistryForSubmit =>
+      _createPracticeDossierForSubmit && !_isRenewalOrDuplicatePractice;
+
   void _resolveEnrollmentFromChip(_BackofficePracticeCategory category) {
     final spec = _specFor(category);
     _enrolledCoursePath = spec.pathStorage;
@@ -644,6 +649,7 @@ class _BackofficeNewPracticeDialogBodyState
             : null,
         registrationDate:
             _createPracticeDossierForSubmit ? _registrationDate : null,
+        assignRegistryNumber: _assignRegistryForSubmit,
       );
 
       final feeCents = _selectedTemplate?.defaultRegistrationFeeCents ?? 0;
@@ -742,6 +748,20 @@ class _BackofficeNewPracticeDialogBodyState
               'Pratica creata, ma l’assegnazione del numero registro non è andata a buon fine. '
               'Potrai riprovare dalla scheda allievo.\n\n'
               '${outcome.registryAssignmentNote}',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (mounted &&
+          _createPracticeDossierForSubmit &&
+          !_assignRegistryForSubmit) {
+        final feePart = feeSetOk
+            ? ' Quota iscrizione: ${BackofficeFormatters.moneyEur(feeCents)}.'
+            : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Fascicolo creato senza numero di registro (rinnovo/duplicato).$feePart',
             ),
             behavior: SnackBarBehavior.floating,
           ),
@@ -1467,6 +1487,16 @@ class _BackofficeNewPracticeDialogBodyState
                     ],
                   ),
                 ),
+                if (_isRenewalOrDuplicatePractice) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Rinnovo/duplicato: il fascicolo viene creato ma non viene '
+                    'assegnato alcun numero di registro automatico.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppVisual.inkMuted,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _labeledField(
                   'Data iscrizione al registro *',

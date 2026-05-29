@@ -250,6 +250,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     bool createPracticeDossier = true,
     String? practiceType,
     DateTime? registrationDate,
+    bool assignRegistryNumber = true,
   }) async {
     final fn = firstName.trim();
     final ln = lastName.trim();
@@ -356,14 +357,16 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
             .select('id')
             .single();
         final dossierId = inserted['id'] as String;
-        try {
-          final assign = await assignPracticeRegistryNumber(
-            practiceDossierId: dossierId,
-            registrationDate: registrationDate!,
-          );
-          assignedRegistryCode = assign.registryCode;
-        } catch (e) {
-          registryAssignmentNote = e is StateError ? e.message : e.toString();
+        if (assignRegistryNumber) {
+          try {
+            final assign = await assignPracticeRegistryNumber(
+              practiceDossierId: dossierId,
+              registrationDate: registrationDate!,
+            );
+            assignedRegistryCode = assign.registryCode;
+          } catch (e) {
+            registryAssignmentNote = e is StateError ? e.message : e.toString();
+          }
         }
       } catch (e) {
         try {

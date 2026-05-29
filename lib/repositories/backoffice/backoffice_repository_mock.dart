@@ -49,6 +49,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
     bool createPracticeDossier = true,
     String? practiceType,
     DateTime? registrationDate,
+    bool assignRegistryNumber = true,
   }) async {
     try {
       return _store.createBackofficeStudent(
@@ -70,6 +71,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
         createPracticeDossier: createPracticeDossier,
         practiceType: practiceType,
         registrationDate: registrationDate,
+        assignRegistryNumber: assignRegistryNumber,
       );
     } on DuplicateStudentEmailException {
       throw StateError('Esiste già un allievo con questa email.');

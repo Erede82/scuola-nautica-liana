@@ -35,6 +35,11 @@ abstract class BackofficeRepository {
     bool createPracticeDossier = true,
     String? practiceType,
     DateTime? registrationDate,
+
+    /// Se `true` (default), dopo aver creato il dossier assegna anche il numero
+    /// di registro via RPC. Per rinnovo/duplicato passare `false`: il fascicolo
+    /// viene creato ma NON consuma un numero di registro.
+    bool assignRegistryNumber = true,
   });
 
   /// Assegna progressivo registro pratiche per anno (RPC server).

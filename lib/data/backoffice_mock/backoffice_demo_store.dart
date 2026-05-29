@@ -1023,6 +1023,7 @@ class BackofficeDemoStore extends ChangeNotifier {
     bool createPracticeDossier = true,
     String? practiceType,
     DateTime? registrationDate,
+    bool assignRegistryNumber = true,
   }) {
     final fn = firstName.trim();
     final ln = lastName.trim();
@@ -1148,24 +1149,18 @@ class BackofficeDemoStore extends ChangeNotifier {
         documentStatus: LicenseDocumentStatus.notStarted,
         practiceStatus: PracticeFileStatus.notOpen,
       );
-      PracticeRegistryAssignment assign;
-      try {
-        assign = assignPracticeRegistryNumber(
-          practiceDossierId: dossierId,
-          registrationDate: reg,
-        );
-      } catch (e) {
-        _appendActivity(
-          studentId: id,
-          type: BackofficeActivityType.backofficeStudentCreated,
-          title: 'Nuova pratica (gestionale)',
-          description: '$fn $ln',
-        );
-        notifyListeners();
-        return BackofficeNewStudentOutcome(
-          profile: profile,
-          registryAssignmentNote: e.toString(),
-        );
+      String? assignedRegistryCode;
+      String? registryAssignmentNote;
+      if (assignRegistryNumber) {
+        try {
+          final assign = assignPracticeRegistryNumber(
+            practiceDossierId: dossierId,
+            registrationDate: reg,
+          );
+          assignedRegistryCode = assign.registryCode;
+        } catch (e) {
+          registryAssignmentNote = e.toString();
+        }
       }
       _appendActivity(
         studentId: id,
@@ -1176,7 +1171,8 @@ class BackofficeDemoStore extends ChangeNotifier {
       notifyListeners();
       return BackofficeNewStudentOutcome(
         profile: profile,
-        assignedRegistryCode: assign.registryCode,
+        assignedRegistryCode: assignedRegistryCode,
+        registryAssignmentNote: registryAssignmentNote,
       );
     } else {
       _practice[id] = null;
