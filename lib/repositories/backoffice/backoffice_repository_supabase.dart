@@ -16,6 +16,101 @@ import '../../services/demo_student_enrollment.dart';
 import 'backoffice_repository.dart';
 import 'backoffice_supabase_write_helpers.dart';
 
+@visibleForTesting
+Map<String, dynamic> buildBackofficeStudentInsertPayload({
+  required String firstName,
+  required String lastName,
+  String? phone,
+  String? email,
+  String? fiscalCode,
+  DateTime? birthDate,
+  String? birthPlace,
+  String? gender,
+  String? address,
+  String? city,
+  String? province,
+  String? cap,
+  String? enrolledCoursePath,
+  String? enrolledLicenseCategory,
+  String? notes,
+}) {
+  final fn = firstName.trim();
+  final ln = lastName.trim();
+  if (fn.isEmpty || ln.isEmpty) {
+    throw ArgumentError('Nome e cognome sono obbligatori.');
+  }
+
+  final pathRaw = enrolledCoursePath?.trim();
+  EnrollmentCoursePath? pathEnum;
+  if (pathRaw != null && pathRaw.isNotEmpty) {
+    pathEnum = EnrollmentCoursePathStorage.tryParse(pathRaw);
+    if (pathEnum == null) {
+      throw ArgumentError('Percorso iscrizione non riconosciuto.');
+    }
+  }
+
+  final licRaw = enrolledLicenseCategory?.trim();
+  LicenseCategoryId? licenseCategory;
+  if (licRaw != null && licRaw.isNotEmpty) {
+    for (final category in LicenseCategoryId.values) {
+      if (category.name == licRaw) {
+        licenseCategory = category;
+        break;
+      }
+    }
+    if (licenseCategory == null) {
+      throw ArgumentError('Categoria patente non riconosciuta.');
+    }
+  }
+
+  final effectivePath =
+      pathEnum ??
+      (licenseCategory == null
+          ? EnrollmentCoursePath.entro12Miglia
+          : EnrollmentContentMapping.inferEnrollmentPathFromLegacyCategory(
+              licenseCategory,
+            ));
+  final effectiveLicenseCategory =
+      licenseCategory ??
+      EnrollmentContentMapping.primaryLicenseCategory(effectivePath);
+
+  void putNonEmpty(Map<String, dynamic> map, String key, String? v) {
+    final t = v?.trim();
+    if (t != null && t.isNotEmpty) {
+      map[key] = t;
+    }
+  }
+
+  final insertPayload = <String, dynamic>{
+    'first_name': fn,
+    'last_name': ln,
+    'registration_status': 'pending',
+    'onboarding_status': studentOnboardingStatusDbValue(
+      StudentOnboardingStatus.pendingReview,
+    ),
+    'enrolled_course_path': EnrollmentCoursePathStorage.toStorage(
+      effectivePath,
+    ),
+    'enrolled_license_category': effectiveLicenseCategory.name,
+  };
+  putNonEmpty(insertPayload, 'phone', phone);
+  putNonEmpty(insertPayload, 'email', email);
+  putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);
+  putNonEmpty(insertPayload, 'notes', notes);
+  putNonEmpty(insertPayload, 'birth_place', birthPlace);
+  putNonEmpty(insertPayload, 'gender', gender);
+  putNonEmpty(insertPayload, 'address', address);
+  putNonEmpty(insertPayload, 'city', city);
+  putNonEmpty(insertPayload, 'province', province);
+  putNonEmpty(insertPayload, 'cap', cap);
+  final bd = dateOnlyIso(birthDate);
+  if (bd != null) {
+    insertPayload['birth_date'] = bd;
+  }
+
+  return insertPayload;
+}
+
 /// Lettura e **scrittura** backoffice su Supabase (PostgREST).
 ///
 /// Richiede JWT con `is_school_staff()` = true per INSERT/UPDATE sulle tabelle operative.
@@ -251,69 +346,23 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     String? practiceType,
     DateTime? registrationDate,
   }) async {
-    final fn = firstName.trim();
-    final ln = lastName.trim();
-    if (fn.isEmpty || ln.isEmpty) {
-      throw ArgumentError('Nome e cognome sono obbligatori.');
-    }
-
-    final pathRaw = enrolledCoursePath?.trim();
-    EnrollmentCoursePath? pathEnum;
-    if (pathRaw != null && pathRaw.isNotEmpty) {
-      pathEnum = EnrollmentCoursePathStorage.tryParse(pathRaw);
-      if (pathEnum == null) {
-        throw ArgumentError('Percorso iscrizione non riconosciuto.');
-      }
-    }
-
-    final licRaw = enrolledLicenseCategory?.trim();
-    String? licenseCat;
-    if (licRaw != null && licRaw.isNotEmpty) {
-      final valid = LicenseCategoryId.values.any((e) => e.name == licRaw);
-      if (!valid) {
-        throw ArgumentError('Categoria patente non riconosciuta.');
-      }
-      licenseCat = licRaw;
-    } else if (pathEnum != null) {
-      licenseCat = EnrollmentContentMapping.primaryLicenseCategory(pathEnum).name;
-    }
-
-    void putNonEmpty(Map<String, dynamic> map, String key, String? v) {
-      final t = v?.trim();
-      if (t != null && t.isNotEmpty) {
-        map[key] = t;
-      }
-    }
-
-    final insertPayload = <String, dynamic>{
-      'first_name': fn,
-      'last_name': ln,
-      'registration_status': 'pending',
-      'onboarding_status': studentOnboardingStatusDbValue(
-        StudentOnboardingStatus.pendingReview,
-      ),
-    };
-    if (pathEnum != null) {
-      insertPayload['enrolled_course_path'] =
-          EnrollmentCoursePathStorage.toStorage(pathEnum);
-    }
-    if (licenseCat != null) {
-      insertPayload['enrolled_license_category'] = licenseCat;
-    }
-    putNonEmpty(insertPayload, 'phone', phone);
-    putNonEmpty(insertPayload, 'email', email);
-    putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);
-    putNonEmpty(insertPayload, 'notes', notes);
-    putNonEmpty(insertPayload, 'birth_place', birthPlace);
-    putNonEmpty(insertPayload, 'gender', gender);
-    putNonEmpty(insertPayload, 'address', address);
-    putNonEmpty(insertPayload, 'city', city);
-    putNonEmpty(insertPayload, 'province', province);
-    putNonEmpty(insertPayload, 'cap', cap);
-    final bd = dateOnlyIso(birthDate);
-    if (bd != null) {
-      insertPayload['birth_date'] = bd;
-    }
+    final insertPayload = buildBackofficeStudentInsertPayload(
+      firstName: firstName,
+      lastName: lastName,
+      phone: phone,
+      email: email,
+      fiscalCode: fiscalCode,
+      birthDate: birthDate,
+      birthPlace: birthPlace,
+      gender: gender,
+      address: address,
+      city: city,
+      province: province,
+      cap: cap,
+      enrolledCoursePath: enrolledCoursePath,
+      enrolledLicenseCategory: enrolledLicenseCategory,
+      notes: notes,
+    );
 
     if (createPracticeDossier) {
       const allowed = {'new_license', 'renewal', 'duplicate'};
