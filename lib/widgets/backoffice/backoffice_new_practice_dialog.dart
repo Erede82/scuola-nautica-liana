@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/anagrafica/comuni_repository.dart';
+import '../../domain/anagrafica/anagrafica_format.dart';
 import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/anagrafica/comune_catastale.dart';
 import '../../domain/backoffice/backoffice.dart';
@@ -691,18 +692,18 @@ class _BackofficeNewPracticeDialogBodyState
         birthProvince: birthProvince,
       );
       final outcome = await widget.repository.createBackofficeStudent(
-        firstName: _firstNameCtrl.text.trim(),
-        lastName: _lastNameCtrl.text.trim(),
+        firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
+        lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
         phone: phone,
         email: _emailAppCtrl.text.trim().isEmpty
             ? null
             : _emailAppCtrl.text.trim(),
-        fiscalCode: _fiscalCtrl.text.trim(),
+        fiscalCode: _fiscalCtrl.text.trim().toUpperCase(),
         birthDate: _birthDate,
-        birthPlace: _birthPlaceCtrl.text.trim(),
+        birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
         gender: _gender == _StudentGender.male ? 'Maschio' : 'Femmina',
-        address: _addressCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
+        address: AnagraficaFormat.titleCase(_addressCtrl.text),
+        city: AnagraficaFormat.titleCase(_cityCtrl.text),
         province: _provinceCtrl.text.trim().toUpperCase(),
         cap: cap,
         enrolledCoursePath: path,
@@ -1030,11 +1031,12 @@ class _BackofficeNewPracticeDialogBodyState
                 child: Autocomplete<ComuneCatastale>(
                   optionsBuilder: (TextEditingValue value) =>
                       _comuniRepo.cerca(value.text),
-                  displayStringForOption: (c) => c.nome,
+                  displayStringForOption: (c) =>
+                      AnagraficaFormat.titleCase(c.nome),
                   onSelected: (c) {
                     setState(() {
                       _selectedBirthComune = c;
-                      _birthPlaceCtrl.text = c.nome;
+                      _birthPlaceCtrl.text = AnagraficaFormat.titleCase(c.nome);
                       _birthProvinceCtrl.text = c.provincia;
                     });
                   },
@@ -1056,8 +1058,10 @@ class _BackofficeNewPracticeDialogBodyState
                               final c = options.elementAt(index);
                               return ListTile(
                                 dense: true,
-                                title: Text('${c.nome} (${c.provincia})'),
-                                subtitle: Text('Belfiore ${c.codiceCatastale}'),
+                                title: Text(
+                                  '${AnagraficaFormat.titleCase(c.nome)} '
+                                  '(${c.provincia})',
+                                ),
                                 onTap: () => onSelected(c),
                               );
                             },
