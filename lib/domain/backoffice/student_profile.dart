@@ -96,7 +96,10 @@ class StudentProfile {
 
   String get displayName => '$firstName $lastName'.trim();
 
-  StudentProfile copyWith({String? practiceDossierType}) {
+  StudentProfile copyWith({
+    String? practiceDossierType,
+    bool? hasEnrollmentCoursePath,
+  }) {
     return StudentProfile(
       id: id,
       firstName: firstName,
@@ -109,7 +112,8 @@ class StudentProfile {
       gender: gender,
       address: address,
       enrolledCoursePath: enrolledCoursePath,
-      hasEnrollmentCoursePath: hasEnrollmentCoursePath,
+      hasEnrollmentCoursePath:
+          hasEnrollmentCoursePath ?? this.hasEnrollmentCoursePath,
       registrationStatus: registrationStatus,
       onboardingStatus: onboardingStatus,
       firstContactedAt: firstContactedAt,

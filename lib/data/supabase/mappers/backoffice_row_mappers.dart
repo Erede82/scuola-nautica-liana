@@ -31,8 +31,11 @@ StudentProfile mapStudentRowToProfile(StudentRow r) {
           : EnrollmentContentMapping.inferEnrollmentPathFromLegacyCategory(
               legacyCategory,
             ));
+  final isRenewalOrDuplicate =
+      r.practiceDossierType == 'renewal' || r.practiceDossierType == 'duplicate';
   final hasEnrollmentCoursePath =
-      parsedCoursePath != null || legacyCategoryRaw.isNotEmpty;
+      !isRenewalOrDuplicate &&
+      (parsedCoursePath != null || legacyCategoryRaw.isNotEmpty);
 
   return StudentProfile(
     id: r.id,

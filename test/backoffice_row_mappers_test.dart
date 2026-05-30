@@ -20,10 +20,11 @@ void main() {
     );
   }
 
-  test('keeps renewal/duplicate rows without enrollment out of course paths', () {
+  test('keeps renewal/duplicate rows out of course paths', () {
     final profile = mapStudentRowToProfile(
       baseStudentRow(
-        enrolledLicenseCategory: '',
+        enrolledCoursePath: 'entro_12_miglia',
+        enrolledLicenseCategory: 'motore',
         practiceDossierType: 'renewal',
       ),
     );
