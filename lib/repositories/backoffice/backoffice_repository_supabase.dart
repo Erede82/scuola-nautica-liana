@@ -297,10 +297,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     if (pathEnum != null) {
       insertPayload['enrolled_course_path'] =
           EnrollmentCoursePathStorage.toStorage(pathEnum);
+    } else {
+      insertPayload['enrolled_course_path'] = null;
     }
-    if (licenseCat != null) {
-      insertPayload['enrolled_license_category'] = licenseCat;
-    }
+    insertPayload['enrolled_license_category'] = licenseCat;
     putNonEmpty(insertPayload, 'phone', phone);
     putNonEmpty(insertPayload, 'email', email);
     putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);
@@ -502,7 +502,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     if (profileRow == null) return null;
 
-    final profile = mapStudentRowToProfile(
+    var profile = mapStudentRowToProfile(
       StudentRow.fromJson(Map<String, dynamic>.from(profileRow)),
     );
 
@@ -972,6 +972,17 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
         );
         practice = null;
       }
+    }
+    if (practice != null) {
+      final isRenewalOrDuplicate =
+          practice.practiceType == 'renewal' ||
+          practice.practiceType == 'duplicate';
+      profile = profile.copyWith(
+        practiceDossierType: practice.practiceType,
+        hasEnrollmentCoursePath: isRenewalOrDuplicate
+            ? false
+            : profile.hasEnrollmentCoursePath,
+      );
     }
 
     final documents = _mapRowsSafe(

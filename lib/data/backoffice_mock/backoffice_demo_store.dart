@@ -52,7 +52,15 @@ class BackofficeDemoStore extends ChangeNotifier {
   List<StudentProfile> get profilesForList => _profiles
       .map((p) {
         final pt = _practice[p.id]?.practiceType;
-        return pt == null ? p : p.copyWith(practiceDossierType: pt);
+        final isRenewalOrDuplicate = pt == 'renewal' || pt == 'duplicate';
+        return pt == null
+            ? p
+            : p.copyWith(
+                practiceDossierType: pt,
+                hasEnrollmentCoursePath: isRenewalOrDuplicate
+                    ? false
+                    : p.hasEnrollmentCoursePath,
+              );
       })
       .toList(growable: false);
 
@@ -137,6 +145,7 @@ class BackofficeDemoStore extends ChangeNotifier {
       gender: p.gender,
       address: p.address,
       enrolledCoursePath: p.enrolledCoursePath,
+      hasEnrollmentCoursePath: p.hasEnrollmentCoursePath,
       registrationStatus: registrationStatus ?? p.registrationStatus,
       onboardingStatus: onboardingStatus ?? p.onboardingStatus,
       firstContactedAt: firstContactedAt ?? p.firstContactedAt,
@@ -1096,6 +1105,9 @@ class BackofficeDemoStore extends ChangeNotifier {
       gender: g == null || g.isEmpty ? null : g,
       address: addr,
       enrolledCoursePath: path,
+      hasEnrollmentCoursePath:
+          (pathRaw != null && pathRaw.isNotEmpty) ||
+          (licRaw != null && licRaw.isNotEmpty),
       registrationStatus: StudentRegistrationStatus.pending,
       onboardingStatus: StudentOnboardingStatus.pendingReview,
       onboardingNotes: null,

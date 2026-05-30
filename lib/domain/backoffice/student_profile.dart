@@ -32,6 +32,7 @@ class StudentProfile {
     this.gender,
     this.address,
     required this.enrolledCoursePath,
+    this.hasEnrollmentCoursePath = true,
     required this.registrationStatus,
     this.onboardingStatus = StudentOnboardingStatus.activeCourse,
     this.firstContactedAt,
@@ -58,6 +59,11 @@ class StudentProfile {
 
   /// Percorso corso scelto in iscrizione (Entro 12 miglia, D1, misto vela, …).
   final EnrollmentCoursePath enrolledCoursePath;
+
+  /// False per pratiche amministrative (rinnovo/duplicato) che non hanno un
+  /// percorso didattico collegato. [enrolledCoursePath] resta valorizzato solo
+  /// per compatibilità con schermate legacy.
+  final bool hasEnrollmentCoursePath;
 
   final StudentRegistrationStatus registrationStatus;
 
@@ -90,7 +96,10 @@ class StudentProfile {
 
   String get displayName => '$firstName $lastName'.trim();
 
-  StudentProfile copyWith({String? practiceDossierType}) {
+  StudentProfile copyWith({
+    String? practiceDossierType,
+    bool? hasEnrollmentCoursePath,
+  }) {
     return StudentProfile(
       id: id,
       firstName: firstName,
@@ -103,6 +112,8 @@ class StudentProfile {
       gender: gender,
       address: address,
       enrolledCoursePath: enrolledCoursePath,
+      hasEnrollmentCoursePath:
+          hasEnrollmentCoursePath ?? this.hasEnrollmentCoursePath,
       registrationStatus: registrationStatus,
       onboardingStatus: onboardingStatus,
       firstContactedAt: firstContactedAt,

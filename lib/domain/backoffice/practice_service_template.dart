@@ -185,7 +185,11 @@ String renewalDuplicatePracticePathLabel({
   String? registryPracticeTypeDb,
 }) {
   final fromTemplate = template?.practiceType;
-  final type = (fromTemplate == 'renewal' || fromTemplate == 'duplicate')
+  final type =
+      (registryPracticeTypeDb == 'renewal' ||
+          registryPracticeTypeDb == 'duplicate')
+      ? registryPracticeTypeDb
+      : (fromTemplate == 'renewal' || fromTemplate == 'duplicate')
       ? fromTemplate
       : registryPracticeTypeDb;
   return switch (type) {

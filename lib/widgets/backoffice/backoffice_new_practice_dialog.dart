@@ -408,7 +408,6 @@ class _BackofficeNewPracticeDialogBodyState
       isD1EnrollmentPath(_enrolledCoursePath);
 
   bool get _isRenewalOrDuplicatePractice {
-    if (_selectedTemplate?.isRenewalOrDuplicate ?? false) return true;
     if (!_createPracticeDossierForSubmit) return false;
     return _registryPracticeType == _RegistryPracticeType.renewal ||
         _registryPracticeType == _RegistryPracticeType.duplicate;

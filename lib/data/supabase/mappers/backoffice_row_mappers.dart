@@ -13,16 +13,29 @@ T _enumByName<T extends Enum>(List<T> values, String raw, T fallback) {
 
 /// `students` + opzionale `student_financial_summaries` → riepilogo dominio parziale.
 StudentProfile mapStudentRowToProfile(StudentRow r) {
-  final legacyCategory = _enumByName(
-    LicenseCategoryId.values,
-    r.enrolledLicenseCategory,
-    LicenseCategoryId.motore,
+  final legacyCategoryRaw = r.enrolledLicenseCategory.trim();
+  final legacyCategory = legacyCategoryRaw.isEmpty
+      ? null
+      : _enumByName(
+          LicenseCategoryId.values,
+          legacyCategoryRaw,
+          LicenseCategoryId.motore,
+        );
+  final parsedCoursePath = EnrollmentCoursePathStorage.tryParse(
+    r.enrolledCoursePath,
   );
   final coursePath =
-      EnrollmentCoursePathStorage.tryParse(r.enrolledCoursePath) ??
-      EnrollmentContentMapping.inferEnrollmentPathFromLegacyCategory(
-        legacyCategory,
-      );
+      parsedCoursePath ??
+      (legacyCategory == null
+          ? EnrollmentCoursePath.entro12Miglia
+          : EnrollmentContentMapping.inferEnrollmentPathFromLegacyCategory(
+              legacyCategory,
+            ));
+  final isRenewalOrDuplicate =
+      r.practiceDossierType == 'renewal' || r.practiceDossierType == 'duplicate';
+  final hasEnrollmentCoursePath =
+      !isRenewalOrDuplicate &&
+      (parsedCoursePath != null || legacyCategoryRaw.isNotEmpty);
 
   return StudentProfile(
     id: r.id,
@@ -38,6 +51,7 @@ StudentProfile mapStudentRowToProfile(StudentRow r) {
     gender: r.gender?.trim().isEmpty ?? true ? null : r.gender!.trim(),
     address: _postalAddressFromStudentRow(r),
     enrolledCoursePath: coursePath,
+    hasEnrollmentCoursePath: hasEnrollmentCoursePath,
     registrationStatus: () {
       final raw = r.registrationStatus.trim();
       if (raw.isEmpty) return StudentRegistrationStatus.pending;
