@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/anagrafica/comuni_repository.dart';
+import '../../domain/anagrafica/codice_fiscale.dart';
+import '../../domain/anagrafica/comune_catastale.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
@@ -284,6 +287,10 @@ String? _validateNewPracticeFields({
   if (fiscalCode.trim().isEmpty) {
     return 'Inserisci il codice fiscale.';
   }
+  if (!CodiceFiscale.isFormalmenteValido(fiscalCode)) {
+    return 'Il codice fiscale non è formalmente valido: '
+        'verifica formato (16 caratteri) e carattere di controllo.';
+  }
   if (address.trim().isEmpty) {
     return 'Inserisci l’indirizzo.';
   }
@@ -397,6 +404,57 @@ class _BackofficeNewPracticeDialogBodyState
   bool _createAppAccess = false;
   bool _busy = false;
   bool _obscurePassword = true;
+
+  /// Dataset Comuni/Belfiore: caricato in [initState]. Finché non è disponibile
+  /// (placeholder vuoto), il calcolo automatico del CF resta disabilitato.
+  final ComuniRepository _comuniRepo = ComuniRepository();
+  bool _comuniDatasetAvailable = false;
+
+  /// Comune selezionato dall'autocomplete (porta con sé il codice Belfiore).
+  /// `null` se l'operatore digita liberamente o sceglie un luogo non in elenco.
+  ComuneCatastale? _selectedBirthComune;
+
+  bool get _canCalcolaCf =>
+      !_busy && _comuniDatasetAvailable && _selectedBirthComune != null;
+
+  void _calcolaCodiceFiscale() {
+    final comune = _selectedBirthComune;
+    if (comune == null) return;
+    if (_lastNameCtrl.text.trim().isEmpty ||
+        _firstNameCtrl.text.trim().isEmpty) {
+      _showCfSnack('Inserisci nome e cognome per calcolare il codice fiscale.');
+      return;
+    }
+    if (_gender == null) {
+      _showCfSnack('Seleziona il sesso per calcolare il codice fiscale.');
+      return;
+    }
+    if (_birthDate == null) {
+      _showCfSnack('Seleziona la data di nascita per calcolare il codice fiscale.');
+      return;
+    }
+    try {
+      final cf = CodiceFiscale.genera(
+        cognome: _lastNameCtrl.text,
+        nome: _firstNameCtrl.text,
+        isFemmina: _gender == _StudentGender.female,
+        dataNascita: _birthDate!,
+        codiceCatastale: comune.codiceCatastale,
+      );
+      setState(() => _fiscalCtrl.text = cf);
+      _showCfSnack('Codice fiscale calcolato: $cf. Resta modificabile: '
+          'verificalo dal documento.');
+    } catch (e) {
+      _showCfSnack('Impossibile calcolare il codice fiscale: $e');
+    }
+  }
+
+  void _showCfSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
 
   bool get _enrollmentFromTemplate =>
       _selectedTemplate != null && _selectedTemplate!.definesEnrollment;
@@ -527,6 +585,13 @@ class _BackofficeNewPracticeDialogBodyState
     _registrationDate = DateTime(n.year, n.month, n.day);
     _resolveEnrollmentFromChip(_BackofficePracticeCategory.entro12Motore);
     _loadTemplates();
+    _loadComuniDataset();
+  }
+
+  Future<void> _loadComuniDataset() async {
+    await _comuniRepo.ensureLoaded();
+    if (!mounted) return;
+    setState(() => _comuniDatasetAvailable = _comuniRepo.disponibile);
   }
 
   @override
@@ -962,14 +1027,68 @@ class _BackofficeNewPracticeDialogBodyState
               const SizedBox(height: 8),
               _labeledField(
                 'Luogo di nascita *',
-                child: TextField(
-                  controller: _birthPlaceCtrl,
-                  enabled: !_busy,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    hintText: 'Comune o stato estero',
-                    border: OutlineInputBorder(),
-                  ),
+                child: Autocomplete<ComuneCatastale>(
+                  optionsBuilder: (TextEditingValue value) =>
+                      _comuniRepo.cerca(value.text),
+                  displayStringForOption: (c) => c.nome,
+                  onSelected: (c) {
+                    setState(() {
+                      _selectedBirthComune = c;
+                      _birthPlaceCtrl.text = c.nome;
+                      _birthProvinceCtrl.text = c.provincia;
+                    });
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxHeight: 240,
+                            maxWidth: 360,
+                          ),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (context, index) {
+                              final c = options.elementAt(index);
+                              return ListTile(
+                                dense: true,
+                                title: Text('${c.nome} (${c.provincia})'),
+                                subtitle: Text('Belfiore ${c.codiceCatastale}'),
+                                onTap: () => onSelected(c),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      enabled: !_busy,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        hintText: _comuniDatasetAvailable
+                            ? 'Cerca il Comune italiano'
+                            : 'Comune o stato estero',
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (v) {
+                        _birthPlaceCtrl.text = v;
+                        if (_selectedBirthComune != null &&
+                            _selectedBirthComune!.nomeNormalizzato !=
+                                v.trim().toUpperCase()) {
+                          setState(() => _selectedBirthComune = null);
+                        }
+                      },
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 12),
@@ -1004,17 +1123,48 @@ class _BackofficeNewPracticeDialogBodyState
                   controller: _fiscalCtrl,
                   enabled: !_busy,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      return newValue.copyWith(
+                        text: newValue.text
+                            .toUpperCase()
+                            .replaceAll(RegExp(r'\s'), ''),
+                        selection: newValue.selection,
+                        composing: TextRange.empty,
+                      );
+                    }),
+                  ],
                   decoration: const InputDecoration(
                     hintText: 'Codice fiscale',
                     border: OutlineInputBorder(),
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Tooltip(
+                  message: !_comuniDatasetAvailable
+                      ? 'Dataset Comuni non disponibile: inserisci il CF a mano.'
+                      : _selectedBirthComune == null
+                          ? 'Seleziona prima il Comune di nascita dall’elenco.'
+                          : 'Calcola il codice fiscale dai dati anagrafici.',
+                  child: OutlinedButton.icon(
+                    onPressed: _canCalcolaCf ? _calcolaCodiceFiscale : null,
+                    icon: const Icon(Icons.calculate_outlined, size: 18),
+                    label: const Text('Calcola CF'),
+                  ),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  'Inserisci il codice fiscale manualmente, verificandolo dal '
-                  'documento dell’allievo.',
+                  _comuniDatasetAvailable
+                      ? 'Il codice fiscale resta sempre modificabile: verificalo '
+                            'dal documento dell’allievo.'
+                      : 'Calcolo automatico non disponibile (dataset Comuni '
+                            'ufficiale non ancora caricato). Inserisci il codice '
+                            'fiscale manualmente, verificandolo dal documento.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppVisual.inkMuted.withValues(alpha: 0.78),
                     height: 1.35,
