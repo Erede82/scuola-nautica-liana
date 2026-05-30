@@ -32,6 +32,7 @@ class StudentProfile {
     this.gender,
     this.address,
     required this.enrolledCoursePath,
+    this.hasEnrollmentCoursePath = true,
     required this.registrationStatus,
     this.onboardingStatus = StudentOnboardingStatus.activeCourse,
     this.firstContactedAt,
@@ -58,6 +59,11 @@ class StudentProfile {
 
   /// Percorso corso scelto in iscrizione (Entro 12 miglia, D1, misto vela, …).
   final EnrollmentCoursePath enrolledCoursePath;
+
+  /// False per pratiche amministrative (rinnovo/duplicato) che non hanno un
+  /// percorso didattico collegato. [enrolledCoursePath] resta valorizzato solo
+  /// per compatibilità con schermate legacy.
+  final bool hasEnrollmentCoursePath;
 
   final StudentRegistrationStatus registrationStatus;
 
@@ -103,6 +109,7 @@ class StudentProfile {
       gender: gender,
       address: address,
       enrolledCoursePath: enrolledCoursePath,
+      hasEnrollmentCoursePath: hasEnrollmentCoursePath,
       registrationStatus: registrationStatus,
       onboardingStatus: onboardingStatus,
       firstContactedAt: firstContactedAt,

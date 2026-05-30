@@ -137,6 +137,13 @@ Future<void> showManageLessonSheetsDialog(
   required BackofficeRepository repository,
   required BackofficeDetailRefresh onRefreshDetail,
 }) async {
+  if (!initialView.profile.hasEnrollmentCoursePath) {
+    _backofficeSnack(
+      context,
+      'Questa pratica non ha un percorso didattico collegato.',
+    );
+    return;
+  }
   final holder = ValueNotifier<StudentAdmin360View>(initialView);
   var busy =
       false; // ignore: prefer_final_locals (mutated across async closures)
@@ -390,6 +397,13 @@ Future<void> showExamAccessManageDialog(
   required BackofficeRepository repository,
   required BackofficeDetailRefresh onRefreshDetail,
 }) async {
+  if (!initialView.profile.hasEnrollmentCoursePath) {
+    _backofficeSnack(
+      context,
+      'Questa pratica non ha un percorso didattico collegato.',
+    );
+    return;
+  }
   final holder = ValueNotifier<StudentAdmin360View>(initialView);
   var busy = false;
   try {
@@ -566,6 +580,13 @@ Future<void> showErrorReviewAssignDialog(
   required BackofficeRepository repository,
   required BackofficeDetailRefresh onRefreshDetail,
 }) async {
+  if (!initialView.profile.hasEnrollmentCoursePath) {
+    _backofficeSnack(
+      context,
+      'Questa pratica non ha un percorso didattico collegato.',
+    );
+    return;
+  }
   final holder = ValueNotifier<StudentAdmin360View>(initialView);
   var busy = false;
   try {

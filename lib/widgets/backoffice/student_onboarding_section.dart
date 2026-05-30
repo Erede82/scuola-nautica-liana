@@ -65,7 +65,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final p = widget.view.profile;
-    final cat = p.enrolledLicenseCategory;
+    final cat = p.hasEnrollmentCoursePath ? p.enrolledLicenseCategory : null;
 
     return ColoredBox(
       color: BackofficeUiTokens.background,
@@ -196,12 +196,12 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                         label: const Text('Aggiungi nota iniziale'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: _busy
+                        onPressed: _busy || cat == null
                             ? null
                             : () => _run(
                                   () => widget.repository.setLessonSheetUnlocked(
                                     studentId: p.id,
-                                    categoryId: cat,
+                                    categoryId: cat!,
                                     lessonNumber: 1,
                                     sheetNumber: 1,
                                     unlocked: true,
@@ -212,12 +212,12 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                         label: const Text('Sblocca prima scheda (lez. 1)'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: _busy
+                        onPressed: _busy || cat == null
                             ? null
                             : () => _run(
                                   () => widget.repository.setExamQuizAccessForCategory(
                                     studentId: p.id,
-                                    categoryId: cat,
+                                    categoryId: cat!,
                                     examUnlocked: false,
                                   ),
                                   'Quiz esame disabilitato per categoria.',
@@ -245,9 +245,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                       ),
                       _kv(
                         'Percorso iscritto',
-                        BackofficeFormatters.enrollmentCoursePath(
-                          p.enrolledCoursePath,
-                        ),
+                        p.hasEnrollmentCoursePath
+                            ? BackofficeFormatters.enrollmentCoursePath(
+                                p.enrolledCoursePath,
+                              )
+                            : 'Non applicabile',
                       ),
                       _kv(
                         'Data registrazione',

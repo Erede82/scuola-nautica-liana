@@ -78,8 +78,8 @@ class Student360DetailView extends StatelessWidget {
                               border: Border.all(color: _neutral),
                             ),
                             child: Text(
-                              BackofficeFormatters.enrollmentCoursePath(
-                                view.profile.enrolledCoursePath,
+                              BackofficeFormatters.studentListPracticeBadge(
+                                view.profile,
                               ),
                               style: textTheme.labelMedium?.copyWith(
                                 color: _primary,
@@ -549,25 +549,29 @@ class _SectionAnagrafica extends StatelessWidget {
                   children: [
                     _kvRow(
                       'Percorso iscrizione',
-                      BackofficeFormatters.enrollmentCoursePath(
-                        p.enrolledCoursePath,
-                      ),
+                      p.hasEnrollmentCoursePath
+                          ? BackofficeFormatters.enrollmentCoursePath(
+                              p.enrolledCoursePath,
+                            )
+                          : 'Non applicabile',
                       textTheme,
                     ),
-                    _kvRow(
-                      'Moduli contenuto app',
-                      BackofficeFormatters.contentModulesForEnrollmentPath(
-                        p.enrolledCoursePath,
+                    if (p.hasEnrollmentCoursePath) ...[
+                      _kvRow(
+                        'Moduli contenuto app',
+                        BackofficeFormatters.contentModulesForEnrollmentPath(
+                          p.enrolledCoursePath,
+                        ),
+                        textTheme,
                       ),
-                      textTheme,
-                    ),
-                    _kvRow(
-                      'Categoria catalogo (principale)',
-                      BackofficeFormatters.categoryName(
-                        p.enrolledLicenseCategory,
+                      _kvRow(
+                        'Categoria catalogo (principale)',
+                        BackofficeFormatters.categoryName(
+                          p.enrolledLicenseCategory,
+                        ),
+                        textTheme,
                       ),
-                      textTheme,
-                    ),
+                    ],
                     _kvRow(
                       'Stato iscrizione',
                       BackofficeFormatters.registrationStatus(
@@ -622,6 +626,7 @@ class _SectionStudio extends StatelessWidget {
   Widget build(BuildContext context) {
     final sp = view.studyProgress;
     final textTheme = Theme.of(context).textTheme;
+    final hasEnrollmentCoursePath = view.profile.hasEnrollmentCoursePath;
 
     return _SectionScroll(
       child: _SectionContent(
@@ -638,12 +643,14 @@ class _SectionStudio extends StatelessWidget {
                       style: FilledButton.styleFrom(
                         foregroundColor: BackofficeUiTokens.primary,
                       ),
-                      onPressed: () => showManageLessonSheetsDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
+                      onPressed: hasEnrollmentCoursePath
+                          ? () => showManageLessonSheetsDialog(
+                              context,
+                              initialView: view,
+                              repository: repository,
+                              onRefreshDetail: onRefreshDetail,
+                            )
+                          : null,
                       icon: const Icon(Icons.grid_view_rounded),
                       label: const Text('Gestisci schede'),
                     ),
@@ -651,12 +658,14 @@ class _SectionStudio extends StatelessWidget {
                       style: FilledButton.styleFrom(
                         foregroundColor: BackofficeUiTokens.primary,
                       ),
-                      onPressed: () => showExamAccessManageDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
+                      onPressed: hasEnrollmentCoursePath
+                          ? () => showExamAccessManageDialog(
+                              context,
+                              initialView: view,
+                              repository: repository,
+                              onRefreshDetail: onRefreshDetail,
+                            )
+                          : null,
                       icon: const Icon(Icons.verified_user_outlined),
                       label: const Text('Abilita quiz esame'),
                     ),
@@ -664,12 +673,14 @@ class _SectionStudio extends StatelessWidget {
                       style: FilledButton.styleFrom(
                         foregroundColor: BackofficeUiTokens.primary,
                       ),
-                      onPressed: () => showErrorReviewAssignDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
+                      onPressed: hasEnrollmentCoursePath
+                          ? () => showErrorReviewAssignDialog(
+                              context,
+                              initialView: view,
+                              repository: repository,
+                              onRefreshDetail: onRefreshDetail,
+                            )
+                          : null,
                       icon: const Icon(Icons.error_outline_rounded),
                       label: const Text('Assegna ripasso'),
                     ),

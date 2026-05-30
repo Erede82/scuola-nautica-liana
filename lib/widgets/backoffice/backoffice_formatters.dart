@@ -21,6 +21,9 @@ abstract final class BackofficeFormatters {
       case 'duplicate':
         return 'Duplicato patente';
     }
+    if (!profile.hasEnrollmentCoursePath) {
+      return 'Percorso non applicabile';
+    }
     switch (profile.enrolledCoursePath) {
       case EnrollmentCoursePath.entro12Miglia:
         return 'Entro 12 · motore';

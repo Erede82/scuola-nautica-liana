@@ -502,7 +502,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     if (profileRow == null) return null;
 
-    final profile = mapStudentRowToProfile(
+    var profile = mapStudentRowToProfile(
       StudentRow.fromJson(Map<String, dynamic>.from(profileRow)),
     );
 
@@ -972,6 +972,9 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
         );
         practice = null;
       }
+    }
+    if (practice != null) {
+      profile = profile.copyWith(practiceDossierType: practice.practiceType);
     }
 
     final documents = _mapRowsSafe(

@@ -251,8 +251,11 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
     final q = _searchCtrl.text.trim().toLowerCase();
     return all
         .where((p) {
-          if (_pathFilter != null && p.enrolledCoursePath != _pathFilter) {
-            return false;
+          if (_pathFilter != null) {
+            if (!p.hasEnrollmentCoursePath ||
+                p.enrolledCoursePath != _pathFilter) {
+              return false;
+            }
           }
           if (_statusFilter != null && p.registrationStatus != _statusFilter) {
             return false;
