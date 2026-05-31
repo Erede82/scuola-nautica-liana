@@ -415,6 +415,9 @@ class _BackofficeNewPracticeDialogBodyState
   /// `null` se l'operatore digita liberamente o sceglie un luogo non in elenco.
   ComuneCatastale? _selectedBirthComune;
 
+  /// Comune di residenza selezionato dall'autocomplete (solo città/provincia).
+  ComuneCatastale? _selectedResidenceComune;
+
   bool get _canCalcolaCf =>
       !_busy && _comuniDatasetAvailable && _selectedBirthComune != null;
 
@@ -454,6 +457,87 @@ class _BackofficeNewPracticeDialogBodyState
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  /// Autocomplete Comune italiano (nascita o residenza). Fallback TextField se
+  /// il dataset non è disponibile.
+  Widget _buildComuneAutocompleteField({
+    required TextEditingController controller,
+    required ComuneCatastale? selectedComune,
+    required void Function(ComuneCatastale?) onSelectedComuneChanged,
+    required void Function(ComuneCatastale comune) onComuneSelected,
+    required String hintWithDataset,
+    required String hintWithoutDataset,
+  }) {
+    if (!_comuniDatasetAvailable) {
+      return TextField(
+        controller: controller,
+        enabled: !_busy,
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(
+          hintText: hintWithoutDataset,
+          border: const OutlineInputBorder(),
+        ),
+      );
+    }
+    return Autocomplete<ComuneCatastale>(
+      optionsBuilder: (TextEditingValue value) => _comuniRepo.cerca(value.text),
+      displayStringForOption: (c) => AnagraficaFormat.titleCase(c.nome),
+      onSelected: (c) {
+        setState(() {
+          onSelectedComuneChanged(c);
+          onComuneSelected(c);
+        });
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 240,
+                maxWidth: 360,
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final c = options.elementAt(index);
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      '${AnagraficaFormat.titleCase(c.nome)} (${c.provincia})',
+                    ),
+                    onTap: () => onSelected(c),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: fieldController,
+          focusNode: focusNode,
+          enabled: !_busy,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            hintText: hintWithDataset,
+            border: const OutlineInputBorder(),
+          ),
+          onChanged: (v) {
+            controller.text = v;
+            if (selectedComune != null &&
+                selectedComune.nomeNormalizzato != v.trim().toUpperCase()) {
+              setState(() => onSelectedComuneChanged(null));
+            }
+          },
+        );
+      },
     );
   }
 
@@ -1028,71 +1112,16 @@ class _BackofficeNewPracticeDialogBodyState
               const SizedBox(height: 8),
               _labeledField(
                 'Luogo di nascita *',
-                child: Autocomplete<ComuneCatastale>(
-                  optionsBuilder: (TextEditingValue value) =>
-                      _comuniRepo.cerca(value.text),
-                  displayStringForOption: (c) =>
-                      AnagraficaFormat.titleCase(c.nome),
-                  onSelected: (c) {
-                    setState(() {
-                      _selectedBirthComune = c;
-                      _birthPlaceCtrl.text = AnagraficaFormat.titleCase(c.nome);
-                      _birthProvinceCtrl.text = c.provincia;
-                    });
+                child: _buildComuneAutocompleteField(
+                  controller: _birthPlaceCtrl,
+                  selectedComune: _selectedBirthComune,
+                  onSelectedComuneChanged: (c) => _selectedBirthComune = c,
+                  onComuneSelected: (c) {
+                    _birthPlaceCtrl.text = AnagraficaFormat.titleCase(c.nome);
+                    _birthProvinceCtrl.text = c.provincia;
                   },
-                  optionsViewBuilder: (context, onSelected, options) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        elevation: 4,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxHeight: 240,
-                            maxWidth: 360,
-                          ),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (context, index) {
-                              final c = options.elementAt(index);
-                              return ListTile(
-                                dense: true,
-                                title: Text(
-                                  '${AnagraficaFormat.titleCase(c.nome)} '
-                                  '(${c.provincia})',
-                                ),
-                                onTap: () => onSelected(c),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onFieldSubmitted) {
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      enabled: !_busy,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        hintText: _comuniDatasetAvailable
-                            ? 'Cerca il Comune italiano'
-                            : 'Comune o stato estero',
-                        border: const OutlineInputBorder(),
-                      ),
-                      onChanged: (v) {
-                        _birthPlaceCtrl.text = v;
-                        if (_selectedBirthComune != null &&
-                            _selectedBirthComune!.nomeNormalizzato !=
-                                v.trim().toUpperCase()) {
-                          setState(() => _selectedBirthComune = null);
-                        }
-                      },
-                    );
-                  },
+                  hintWithDataset: 'Cerca il Comune italiano',
+                  hintWithoutDataset: 'Comune o stato estero',
                 ),
               ),
               const SizedBox(height: 12),
@@ -1196,14 +1225,17 @@ class _BackofficeNewPracticeDialogBodyState
                     flex: 2,
                     child: _labeledField(
                       'Città *',
-                      child: TextField(
+                      child: _buildComuneAutocompleteField(
                         controller: _cityCtrl,
-                        enabled: !_busy,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          hintText: 'Città',
-                          border: OutlineInputBorder(),
-                        ),
+                        selectedComune: _selectedResidenceComune,
+                        onSelectedComuneChanged: (c) =>
+                            _selectedResidenceComune = c,
+                        onComuneSelected: (c) {
+                          _cityCtrl.text = AnagraficaFormat.titleCase(c.nome);
+                          _provinceCtrl.text = c.provincia;
+                        },
+                        hintWithDataset: 'Cerca il Comune italiano',
+                        hintWithoutDataset: 'Città',
                       ),
                     ),
                   ),
@@ -1216,6 +1248,16 @@ class _BackofficeNewPracticeDialogBodyState
                         enabled: !_busy,
                         textCapitalization: TextCapitalization.characters,
                         maxLength: 2,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z]')),
+                          TextInputFormatter.withFunction((oldValue, newValue) {
+                            return newValue.copyWith(
+                              text: newValue.text.toUpperCase(),
+                              selection: newValue.selection,
+                              composing: TextRange.empty,
+                            );
+                          }),
+                        ],
                         decoration: const InputDecoration(
                           hintText: 'Prov.',
                           border: OutlineInputBorder(),
