@@ -49,7 +49,7 @@ class AccountChangePasswordPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.12),
+                        color: _primaryColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -74,7 +74,7 @@ class AccountChangePasswordPage extends StatelessWidget {
                 Text(
                   'Quando l’accesso con credenziali sarà attivo, potrai aggiornare la password in autonomia con verifica sicura.',
                   style: textTheme.bodyMedium?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.88),
+                    color: _textPrimaryColor.withValues(alpha: 0.88),
                     height: 1.45,
                   ),
                 ),

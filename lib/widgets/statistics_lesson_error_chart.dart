@@ -55,7 +55,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
           children: [
             Icon(
               Icons.insights_rounded,
-              color: _primaryColor.withOpacity(0.9),
+              color: _primaryColor.withValues(alpha: 0.9),
               size: 24,
             ),
             const SizedBox(width: 10),
@@ -76,7 +76,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                     'Le tre barre evidenziate sono gli argomenti con il maggior tasso di errori — '
                     'utili per priorità di ripasso (anche in sezione Quiz).',
                     style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.8),
+                      color: _textPrimaryColor.withValues(alpha: 0.8),
                       height: 1.45,
                     ),
                   ),
@@ -101,7 +101,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isTop
-                      ? _topIssueColor.withOpacity(0.35)
+                      ? _topIssueColor.withValues(alpha: 0.35)
                       : _neutralColor,
                   width: isTop ? 1.2 : 1,
                 ),
@@ -132,7 +132,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: _topIssueColor.withOpacity(0.12),
+                            color: _topIssueColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
@@ -160,7 +160,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: frac,
                       minHeight: 8,
-                      backgroundColor: _neutralColor.withOpacity(0.65),
+                      backgroundColor: _neutralColor.withValues(alpha: 0.65),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         isTop ? _topIssueColor : _accentColor,
                       ),

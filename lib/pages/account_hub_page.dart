@@ -160,7 +160,7 @@ class AccountHubPage extends StatelessWidget {
                 child: Text(
                   AppBranding.schoolName,
                   style: textTheme.labelSmall?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.45),
+                    color: _textPrimaryColor.withValues(alpha: 0.45),
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
                   ),
@@ -212,7 +212,7 @@ class _ProfileHeaderCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 _cardColor,
-                _accentColor.withOpacity(0.08),
+                _accentColor.withValues(alpha: 0.08),
               ],
             ),
             borderRadius: BorderRadius.circular(18),
@@ -230,7 +230,7 @@ class _ProfileHeaderCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 36,
-                backgroundColor: _primaryColor.withOpacity(0.15),
+                backgroundColor: _primaryColor.withValues(alpha: 0.15),
                 child: Icon(
                   Icons.person_rounded,
                   size: 40,
@@ -253,7 +253,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: textTheme.bodySmall?.copyWith(
-                        color: _textPrimaryColor.withOpacity(0.8),
+                        color: _textPrimaryColor.withValues(alpha: 0.8),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -270,7 +270,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                       Text(
                         'Funzioni staff: ${summary.staffRole!.labelIt}',
                         style: textTheme.labelSmall?.copyWith(
-                          color: _primaryColor.withOpacity(0.9),
+                          color: _primaryColor.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -281,7 +281,7 @@ class _ProfileHeaderCard extends StatelessWidget {
                       Text(
                         'Profilo studente non disponibile per questo account.',
                         style: textTheme.bodySmall?.copyWith(
-                          color: _textPrimaryColor.withOpacity(0.72),
+                          color: _textPrimaryColor.withValues(alpha: 0.72),
                           height: 1.3,
                         ),
                       ),
@@ -324,7 +324,7 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text,
         style: textTheme.labelSmall?.copyWith(
-          color: _textPrimaryColor.withOpacity(0.55),
+          color: _textPrimaryColor.withValues(alpha: 0.55),
           fontWeight: FontWeight.w800,
           letterSpacing: 1.1,
           fontSize: 10,
@@ -374,7 +374,7 @@ class _TileDivider extends StatelessWidget {
     return Divider(
       height: 1,
       thickness: 1,
-      color: _neutralColor.withOpacity(0.85),
+      color: _neutralColor.withValues(alpha: 0.85),
     );
   }
 }

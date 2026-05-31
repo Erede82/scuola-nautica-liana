@@ -78,7 +78,7 @@ class _LessonListPageState extends State<LessonListPage> {
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.12),
+                          color: _primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(lesson.icon, color: _primaryColor),
@@ -93,7 +93,7 @@ class _LessonListPageState extends State<LessonListPage> {
                       subtitle: Text(
                         '${lesson.quizSheets} schede',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: _textPrimaryColor.withOpacity(0.8),
+                          color: _textPrimaryColor.withValues(alpha: 0.8),
                         ),
                       ),
                       trailing: const Icon(

@@ -134,7 +134,7 @@ class _ErrorReviewPageState extends State<ErrorReviewPage> {
                 'I suggerimenti si basano su percentuali di errore simili a quelle '
                 'che vedrai in Statistiche quando saranno collegate al tuo storico quiz.',
                 style: textTheme.bodySmall?.copyWith(
-                  color: ErrorReviewPage._textPrimaryColor.withOpacity(0.78),
+                  color: ErrorReviewPage._textPrimaryColor.withValues(alpha: 0.78),
                   height: 1.45,
                 ),
               ),
@@ -254,8 +254,8 @@ class _HeaderSummaryCard extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             _primaryColor,
-            _primaryColor.withOpacity(0.92),
-            _accentColor.withOpacity(0.72),
+            _primaryColor.withValues(alpha: 0.92),
+            _accentColor.withValues(alpha: 0.72),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -263,7 +263,7 @@ class _HeaderSummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.2),
+            color: _primaryColor.withValues(alpha: 0.2),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -278,12 +278,12 @@ class _HeaderSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+                  color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   Icons.fact_check_rounded,
-                  color: Colors.white.withOpacity(0.96),
+                  color: Colors.white.withValues(alpha: 0.96),
                   size: 28,
                 ),
               ),
@@ -304,7 +304,7 @@ class _HeaderSummaryCard extends StatelessWidget {
                     Text(
                       categoryName,
                       style: textTheme.labelLarge?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -321,7 +321,7 @@ class _HeaderSummaryCard extends StatelessWidget {
                 : 'Non risultano ancora tentativi per questa categoria: svolgi qualche '
                     'scheda quiz per generare suggerimenti mirati.',
             style: textTheme.bodySmall?.copyWith(
-              color: Colors.white.withOpacity(0.92),
+              color: Colors.white.withValues(alpha: 0.92),
               height: 1.45,
             ),
           ),
@@ -330,7 +330,7 @@ class _HeaderSummaryCard extends StatelessWidget {
             'L’accesso ai contenuti di ripasso è abilitato dalla scuola: '
             'vedrai “Sbloccato dalla scuola” sugli argomenti già assegnati.',
             style: textTheme.bodySmall?.copyWith(
-              color: Colors.white.withOpacity(0.88),
+              color: Colors.white.withValues(alpha: 0.88),
               height: 1.45,
               fontWeight: FontWeight.w600,
             ),
@@ -361,7 +361,7 @@ class _SchoolGateInfoCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _accentColor.withOpacity(0.1),
+        color: _accentColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _neutralColor),
       ),
@@ -370,7 +370,7 @@ class _SchoolGateInfoCard extends StatelessWidget {
         children: [
           Icon(
             Icons.admin_panel_settings_outlined,
-            color: allTopicsLocked ? _warnColor : _textPrimaryColor.withOpacity(0.75),
+            color: allTopicsLocked ? _warnColor : _textPrimaryColor.withValues(alpha: 0.75),
             size: 22,
           ),
           const SizedBox(width: 10),
@@ -382,7 +382,7 @@ class _SchoolGateInfoCard extends StatelessWidget {
                   : 'Alcuni argomenti possono essere ancora bloccati: il suggerimento '
                       'indica cosa ripassare, mentre la scuola decide quando sbloccare il materiale.',
               style: textTheme.bodySmall?.copyWith(
-                color: _textPrimaryColor.withOpacity(0.88),
+                color: _textPrimaryColor.withValues(alpha: 0.88),
                 height: 1.45,
               ),
             ),
@@ -465,11 +465,11 @@ class _RecommendationCard extends StatelessWidget {
   Color _badgeColor(ErrorReviewPriority p) {
     switch (p) {
       case ErrorReviewPriority.high:
-        return _errorTint.withOpacity(0.12);
+        return _errorTint.withValues(alpha: 0.12);
       case ErrorReviewPriority.medium:
-        return _warnColor.withOpacity(0.15);
+        return _warnColor.withValues(alpha: 0.15);
       case ErrorReviewPriority.low:
-        return _successColor.withOpacity(0.14);
+        return _successColor.withValues(alpha: 0.14);
     }
   }
 
@@ -544,7 +544,7 @@ class _RecommendationCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.08),
+                    color: _primaryColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(color: _neutralColor),
                   ),
@@ -561,13 +561,13 @@ class _RecommendationCard extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: r.isSchoolUnlocked
-                        ? _successColor.withOpacity(0.16)
-                        : _warnColor.withOpacity(0.14),
+                        ? _successColor.withValues(alpha: 0.16)
+                        : _warnColor.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: r.isSchoolUnlocked
-                          ? _successColor.withOpacity(0.35)
-                          : _warnColor.withOpacity(0.4),
+                          ? _successColor.withValues(alpha: 0.35)
+                          : _warnColor.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Text(
@@ -586,7 +586,7 @@ class _RecommendationCard extends StatelessWidget {
             Text(
               r.lessonTitle,
               style: textTheme.bodySmall?.copyWith(
-                color: _textPrimaryColor.withOpacity(0.65),
+                color: _textPrimaryColor.withValues(alpha: 0.65),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -596,7 +596,7 @@ class _RecommendationCard extends StatelessWidget {
                 Icon(
                   Icons.trending_down_rounded,
                   size: 20,
-                  color: _primaryColor.withOpacity(0.85),
+                  color: _primaryColor.withValues(alpha: 0.85),
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -612,7 +612,7 @@ class _RecommendationCard extends StatelessWidget {
             Text(
               r.recommendationMessage,
               style: textTheme.bodyMedium?.copyWith(
-                color: _textPrimaryColor.withOpacity(0.88),
+                color: _textPrimaryColor.withValues(alpha: 0.88),
                 height: 1.45,
               ),
             ),
@@ -622,14 +622,14 @@ class _RecommendationCard extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _warnColor.withOpacity(0.1),
+                  color: _warnColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _warnColor.withOpacity(0.35)),
+                  border: Border.all(color: _warnColor.withValues(alpha: 0.35)),
                 ),
                 child: Text(
                   r.schoolLockMessage,
                   style: textTheme.bodySmall?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.9),
+                    color: _textPrimaryColor.withValues(alpha: 0.9),
                     height: 1.45,
                     fontWeight: FontWeight.w600,
                   ),
@@ -734,7 +734,7 @@ class _FooterNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _accentColor.withOpacity(0.08),
+        color: _accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _neutralColor),
       ),
@@ -743,7 +743,7 @@ class _FooterNote extends StatelessWidget {
         children: [
           Icon(
             Icons.verified_outlined,
-            color: _successColor.withOpacity(0.95),
+            color: _successColor.withValues(alpha: 0.95),
             size: 22,
           ),
           const SizedBox(width: 12),
@@ -764,7 +764,7 @@ class _FooterNote extends StatelessWidget {
                   'dal tuo profilo; gli accessi al materiale restano assegnati dalla scuola, '
                   'come per le schede quiz e il quiz esame.',
                   style: textTheme.bodySmall?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.85),
+                    color: _textPrimaryColor.withValues(alpha: 0.85),
                     height: 1.45,
                   ),
                 ),

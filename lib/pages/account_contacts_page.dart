@@ -41,7 +41,7 @@ class AccountContactsPage extends StatelessWidget {
           Text(
             AppBranding.schoolAddressLine.trim(),
             style: textTheme.bodyMedium?.copyWith(
-              color: _textPrimaryColor.withOpacity(0.82),
+              color: _textPrimaryColor.withValues(alpha: 0.82),
               fontWeight: FontWeight.w600,
               height: 1.3,
             ),
@@ -50,7 +50,7 @@ class AccountContactsPage extends StatelessWidget {
           Text(
             'Telefono / WhatsApp: ${AppBranding.supportPhoneDisplay}',
             style: textTheme.bodySmall?.copyWith(
-              color: _textPrimaryColor.withOpacity(0.68),
+              color: _textPrimaryColor.withValues(alpha: 0.68),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -68,7 +68,7 @@ class AccountContactsPage extends StatelessWidget {
           Text(
             'Apri Maps, WhatsApp, Instagram o le recensioni con un tocco.',
             style: textTheme.bodySmall?.copyWith(
-              color: _textPrimaryColor.withOpacity(0.72),
+              color: _textPrimaryColor.withValues(alpha: 0.72),
               height: 1.35,
             ),
           ),
@@ -110,7 +110,7 @@ class AccountContactsPage extends StatelessWidget {
             'Le iscrizioni e le pratiche restano gestite in segreteria; '
             'questa pagina riassume orari e collegamenti utili.',
             style: textTheme.bodySmall?.copyWith(
-              color: _textPrimaryColor.withOpacity(0.65),
+              color: _textPrimaryColor.withValues(alpha: 0.65),
               height: 1.45,
               fontStyle: FontStyle.italic,
             ),
@@ -155,12 +155,12 @@ class _HoursPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _accentColor.withOpacity(0.18),
+              color: _accentColor.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               Icons.schedule_rounded,
-              color: _primaryColor.withOpacity(0.92),
+              color: _primaryColor.withValues(alpha: 0.92),
               size: 22,
             ),
           ),
@@ -172,7 +172,7 @@ class _HoursPanel extends StatelessWidget {
                 Text(
                   'Orari',
                   style: textTheme.labelSmall?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.55),
+                    color: _textPrimaryColor.withValues(alpha: 0.55),
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
@@ -181,7 +181,7 @@ class _HoursPanel extends StatelessWidget {
                 Text(
                   AppBranding.officeAndCourseHoursDetail,
                   style: textTheme.bodyMedium?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.9),
+                    color: _textPrimaryColor.withValues(alpha: 0.9),
                     height: 1.42,
                     fontWeight: FontWeight.w500,
                   ),
@@ -247,7 +247,7 @@ class _ContactLinksList extends StatelessWidget {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: _neutralColor.withOpacity(0.85),
+                  color: _neutralColor.withValues(alpha: 0.85),
                 ),
               Material(
                 color: Colors.transparent,
@@ -264,8 +264,8 @@ class _ContactLinksList extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: items[i].enabled
-                                ? _primaryColor.withOpacity(0.1)
-                                : _neutralColor.withOpacity(0.45),
+                                ? _primaryColor.withValues(alpha: 0.1)
+                                : _neutralColor.withValues(alpha: 0.45),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -273,7 +273,7 @@ class _ContactLinksList extends StatelessWidget {
                             size: 22,
                             color: items[i].enabled
                                 ? _primaryColor
-                                : _textPrimaryColor.withOpacity(0.38),
+                                : _textPrimaryColor.withValues(alpha: 0.38),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -286,7 +286,7 @@ class _ContactLinksList extends StatelessWidget {
                                 style: textTheme.titleSmall?.copyWith(
                                   color: items[i].enabled
                                       ? _textPrimaryColor
-                                      : _textPrimaryColor.withOpacity(0.45),
+                                      : _textPrimaryColor.withValues(alpha: 0.45),
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -296,8 +296,8 @@ class _ContactLinksList extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: textTheme.bodySmall?.copyWith(
-                                  color: _textPrimaryColor.withOpacity(
-                                    items[i].enabled ? 0.65 : 0.4,
+                                  color: _textPrimaryColor.withValues(
+                                    alpha: items[i].enabled ? 0.65 : 0.4,
                                   ),
                                   height: 1.25,
                                 ),
@@ -307,8 +307,8 @@ class _ContactLinksList extends StatelessWidget {
                         ),
                         Icon(
                           Icons.chevron_right_rounded,
-                          color: _textPrimaryColor.withOpacity(
-                            items[i].enabled ? 0.35 : 0.22,
+                          color: _textPrimaryColor.withValues(
+                            alpha: items[i].enabled ? 0.35 : 0.22,
                           ),
                         ),
                       ],

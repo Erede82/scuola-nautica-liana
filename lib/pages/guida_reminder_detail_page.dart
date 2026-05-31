@@ -75,7 +75,7 @@ class _GuidaReminderDetailPageState extends State<GuidaReminderDetailPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _accentColor.withOpacity(0.2),
+                  color: _accentColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
@@ -114,7 +114,7 @@ class _GuidaReminderDetailPageState extends State<GuidaReminderDetailPage> {
                   'La scuola assegna l’istruttore e comunica chi accompagna la lezione o l’uscita '
                   'attraverso questo messaggio: non è una scelta da parte dello studente.',
                   style: textTheme.bodySmall?.copyWith(
-                    color: _textPrimaryColor.withOpacity(0.78),
+                    color: _textPrimaryColor.withValues(alpha: 0.78),
                     height: 1.45,
                   ),
                 ),
@@ -137,7 +137,7 @@ class _GuidaReminderDetailPageState extends State<GuidaReminderDetailPage> {
                 Icon(
                   Icons.calendar_today_rounded,
                   size: 20,
-                  color: _primaryColor.withOpacity(0.85),
+                  color: _primaryColor.withValues(alpha: 0.85),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -151,7 +151,7 @@ class _GuidaReminderDetailPageState extends State<GuidaReminderDetailPage> {
                 Icon(
                   Icons.schedule_rounded,
                   size: 20,
-                  color: _primaryColor.withOpacity(0.85),
+                  color: _primaryColor.withValues(alpha: 0.85),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -171,7 +171,7 @@ class _GuidaReminderDetailPageState extends State<GuidaReminderDetailPage> {
               child: Text(
                 _reminder.category!.label,
                 style: textTheme.bodyMedium?.copyWith(
-                  color: _textPrimaryColor.withOpacity(0.9),
+                  color: _textPrimaryColor.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -240,7 +240,7 @@ class _DetailSection extends StatelessWidget {
         Text(
           title.toUpperCase(),
           style: textTheme.labelSmall?.copyWith(
-            color: _textPrimaryColor.withOpacity(0.5),
+            color: _textPrimaryColor.withValues(alpha: 0.5),
             fontWeight: FontWeight.w800,
             letterSpacing: 0.9,
             fontSize: 10,

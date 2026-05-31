@@ -321,7 +321,7 @@ class _LessonSummaryCard extends StatelessWidget {
             Text(
               'Le abilitazioni sono gestite dalla segreteria a livello di lezione.',
               style: textTheme.bodySmall?.copyWith(
-                color: _textPrimaryColor.withOpacity(0.72),
+                color: _textPrimaryColor.withValues(alpha: 0.72),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -370,7 +370,7 @@ class _QuizSheetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final locked = access.isLocked;
     final borderColor = locked
-        ? _secondaryColor.withOpacity(0.35)
+        ? _secondaryColor.withValues(alpha: 0.35)
         : _neutralColor;
 
     return Opacity(
@@ -390,8 +390,8 @@ class _QuizSheetCard extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: locked
-                  ? _secondaryColor.withOpacity(0.12)
-                  : _primaryColor.withOpacity(0.12),
+                  ? _secondaryColor.withValues(alpha: 0.12)
+                  : _primaryColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -415,7 +415,7 @@ class _QuizSheetCard extends StatelessWidget {
                   Text(
                     'Lezione non ancora abilitata',
                     style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.75),
+                      color: _textPrimaryColor.withValues(alpha: 0.75),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -426,7 +426,7 @@ class _QuizSheetCard extends StatelessWidget {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.65),
+                      color: _textPrimaryColor.withValues(alpha: 0.65),
                       height: 1.35,
                     ),
                   ),
@@ -445,7 +445,7 @@ class _QuizSheetCard extends StatelessWidget {
                   Text(
                     'Rafforza la preparazione su questa scheda.',
                     style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.78),
+                      color: _textPrimaryColor.withValues(alpha: 0.78),
                     ),
                   ),
                 ],
@@ -503,7 +503,7 @@ class _DaSvolgereChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _primaryColor.withOpacity(0.1),
+        color: _primaryColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

@@ -465,7 +465,7 @@ Widget _kvRow(String k, String v, TextTheme textTheme) {
           child: Text(
             k,
             style: textTheme.bodySmall?.copyWith(
-              color: textColor.withOpacity(0.6),
+              color: textColor.withValues(alpha: 0.6),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -684,7 +684,7 @@ class _SectionStudio extends StatelessWidget {
                     'Allineamento app: per questa scheda demo, le modifiche a schede / esame / ripasso '
                     'aggiornano anche il repository accessi studio condiviso con l’app allievo.',
                     style: textTheme.bodySmall?.copyWith(
-                      color: _SectionStudio._muted.withOpacity(0.68),
+                      color: _SectionStudio._muted.withValues(alpha: 0.68),
                       height: 1.35,
                     ),
                   ),
@@ -751,7 +751,7 @@ class _SectionStudio extends StatelessWidget {
                               style: textTheme.labelSmall,
                             ),
                             backgroundColor: on
-                                ? const Color(0xFF2E9E5B).withOpacity(0.15)
+                                ? const Color(0xFF2E9E5B).withValues(alpha: 0.15)
                                 : AppVisual.chipFill,
                           );
                         }).toList(),
@@ -2174,7 +2174,7 @@ class _SectionRegistroInterno extends StatelessWidget {
               Text(
                 'Visibili solo in backoffice; non sincronizzate con l’app allievo.',
                 style: textTheme.bodySmall?.copyWith(
-                  color: BackofficeUiTokens.text.withOpacity(0.7),
+                  color: BackofficeUiTokens.text.withValues(alpha: 0.7),
                 ),
               ),
               const SizedBox(height: 12),
@@ -2244,7 +2244,7 @@ class _SectionRegistroInterno extends StatelessWidget {
                   );
                 }),
               const SizedBox(height: 24),
-              Divider(color: BackofficeUiTokens.neutral.withOpacity(0.9)),
+              Divider(color: BackofficeUiTokens.neutral.withValues(alpha: 0.9)),
               const SizedBox(height: 12),
               Text(
                 'Storico attività',
@@ -2257,7 +2257,7 @@ class _SectionRegistroInterno extends StatelessWidget {
               Text(
                 'Registro delle attività operative eseguite sul profilo allievo.',
                 style: textTheme.bodySmall?.copyWith(
-                  color: BackofficeUiTokens.text.withOpacity(0.68),
+                  color: BackofficeUiTokens.text.withValues(alpha: 0.68),
                 ),
               ),
               const SizedBox(height: 12),
@@ -2286,8 +2286,8 @@ class _SectionRegistroInterno extends StatelessWidget {
                               BackofficeFormatters.dateTimeUi(e.occurredAt),
                               style: textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: BackofficeUiTokens.text.withOpacity(
-                                  0.75,
+                                color: BackofficeUiTokens.text.withValues(
+                                  alpha: 0.75,
                                 ),
                               ),
                             ),
@@ -2318,7 +2318,7 @@ class _SectionRegistroInterno extends StatelessWidget {
                                     style: textTheme.bodySmall?.copyWith(
                                       height: 1.3,
                                       color: BackofficeUiTokens.text
-                                          .withOpacity(0.85),
+                                          .withValues(alpha: 0.85),
                                     ),
                                   ),
                                 ],

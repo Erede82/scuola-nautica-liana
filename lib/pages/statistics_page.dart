@@ -104,7 +104,7 @@ class StatisticsPage extends StatelessWidget {
                                   'Ripasso errori (Quiz) usa gli stessi criteri sulle aree più delicate.',
                           textAlign: TextAlign.center,
                           style: textTheme.bodySmall?.copyWith(
-                            color: _textPrimaryColor.withOpacity(0.84),
+                            color: _textPrimaryColor.withValues(alpha: 0.84),
                             height: 1.45,
                           ),
                         ),

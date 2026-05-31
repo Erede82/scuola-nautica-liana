@@ -57,7 +57,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             children: [
               Icon(
                 Icons.auto_fix_high_rounded,
-                color: _primaryColor.withOpacity(0.9),
+                color: _primaryColor.withValues(alpha: 0.9),
                 size: 22,
               ),
               const SizedBox(width: 8),
@@ -77,7 +77,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             'Suggerimenti di anteprima (fase successiva: statistiche reali dell’allievo). '
             'Il materiale resta soggetto all’abilitazione della scuola.',
             style: textTheme.bodySmall?.copyWith(
-              color: _textPrimaryColor.withOpacity(0.78),
+              color: _textPrimaryColor.withValues(alpha: 0.78),
               height: 1.4,
             ),
           ),
@@ -161,7 +161,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _accentColor.withOpacity(0.12),
+              color: _accentColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _neutralColor),
             ),
@@ -175,7 +175,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
                     'Ci sono argomenti consigliati, ma tutti sono ancora in attesa '
                     'di abilitazione da parte della scuola. Apri Ripasso errori per i dettagli.',
                     style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.88),
+                      color: _textPrimaryColor.withValues(alpha: 0.88),
                       height: 1.4,
                     ),
                   ),
@@ -211,8 +211,8 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _neutralColor),
             color: locked
-                ? _neutralColor.withOpacity(0.35)
-                : _accentColor.withOpacity(0.06),
+                ? _neutralColor.withValues(alpha: 0.35)
+                : _accentColor.withValues(alpha: 0.06),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,21 +249,21 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
                   _miniChip(
                     textTheme,
                     'Argomento consigliato',
-                    _primaryColor.withOpacity(0.1),
+                    _primaryColor.withValues(alpha: 0.1),
                     _primaryColor,
                   ),
                   if (locked)
                     _miniChip(
                       textTheme,
                       'Disponibile su assegnazione della scuola',
-                      _errorTint.withOpacity(0.1),
+                      _errorTint.withValues(alpha: 0.1),
                       _errorTint,
                     )
                   else
                     _miniChip(
                       textTheme,
                       'Sbloccato dalla scuola',
-                      _successColor.withOpacity(0.14),
+                      _successColor.withValues(alpha: 0.14),
                       _successColor,
                     ),
                 ],

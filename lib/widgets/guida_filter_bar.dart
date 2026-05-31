@@ -52,7 +52,7 @@ class GuidaFilterBar extends StatelessWidget {
                     boxShadow: selected == f
                         ? [
                             BoxShadow(
-                              color: _accentColor.withOpacity(0.18),
+                              color: _accentColor.withValues(alpha: 0.18),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -64,7 +64,7 @@ class GuidaFilterBar extends StatelessWidget {
                     style: textTheme.labelMedium?.copyWith(
                       color: selected == f
                           ? Colors.white
-                          : _textPrimaryColor.withOpacity(0.88),
+                          : _textPrimaryColor.withValues(alpha: 0.88),
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.15,
                     ),

@@ -302,7 +302,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
             child: Text(
               k,
               style: textTheme.labelMedium?.copyWith(
-                color: BackofficeUiTokens.text.withOpacity(0.65),
+                color: BackofficeUiTokens.text.withValues(alpha: 0.65),
                 fontWeight: FontWeight.w600,
               ),
             ),

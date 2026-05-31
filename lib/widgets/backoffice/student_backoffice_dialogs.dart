@@ -919,7 +919,6 @@ class _AddGuidanceDialogBodyState extends State<_AddGuidanceDialogBody> {
   late DateTime _day;
   TimeOfDay _startT = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endT = const TimeOfDay(hour: 10, minute: 0);
-  final bool _endTimeManuallySet = false;
   String? _instructorName;
   final TextEditingController _notesCtrl = TextEditingController();
 

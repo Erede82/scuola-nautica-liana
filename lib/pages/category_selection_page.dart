@@ -74,7 +74,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
                 'Vedi le aree contenuto collegate al tuo percorso. Puoi cambiare il percorso '
                 'demo da Profilo per provare D1 o Entro le 12 miglia motore + Vela.',
                 style: textTheme.bodyMedium?.copyWith(
-                  color: _textPrimaryColor.withOpacity(0.88),
+                  color: _textPrimaryColor.withValues(alpha: 0.88),
                   height: 1.35,
                 ),
               ),
@@ -192,8 +192,8 @@ class _CategoryCard extends StatelessWidget {
           height: 42,
           decoration: BoxDecoration(
             color: isEnabled
-                ? _primaryColor.withOpacity(0.12)
-                : _neutralColor.withOpacity(0.5),
+                ? _primaryColor.withValues(alpha: 0.12)
+                : _neutralColor.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(

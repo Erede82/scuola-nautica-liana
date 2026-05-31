@@ -40,7 +40,7 @@ class AccountPaymentMethodsPage extends StatelessWidget {
               children: [
                 Icon(
                   Icons.workspace_premium_outlined,
-                  color: _successColor.withOpacity(0.9),
+                  color: _successColor.withValues(alpha: 0.9),
                   size: 28,
                 ),
                 const SizedBox(width: 12),
@@ -50,7 +50,7 @@ class AccountPaymentMethodsPage extends StatelessWidget {
                     'in sezione Extra. Rate, iscrizioni ai corsi e pratiche di segreteria '
                     'non passano da qui.',
                     style: textTheme.bodyMedium?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.88),
+                      color: _textPrimaryColor.withValues(alpha: 0.88),
                       height: 1.45,
                     ),
                   ),
@@ -71,7 +71,7 @@ class AccountPaymentMethodsPage extends StatelessWidget {
               children: [
                 Icon(
                   Icons.verified_user_outlined,
-                  color: _successColor.withOpacity(0.9),
+                  color: _successColor.withValues(alpha: 0.9),
                   size: 28,
                 ),
                 const SizedBox(width: 12),
@@ -80,7 +80,7 @@ class AccountPaymentMethodsPage extends StatelessWidget {
                     'I pagamenti saranno gestiti con fornitori certificati. In app vedrai solo l’esito e le ricevute, '
                     'mai i dati completi della carta.',
                     style: textTheme.bodyMedium?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.88),
+                      color: _textPrimaryColor.withValues(alpha: 0.88),
                       height: 1.45,
                     ),
                   ),

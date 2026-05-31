@@ -117,7 +117,7 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
               decoration: BoxDecoration(
                 color: _cardColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _accentColor.withOpacity(0.35)),
+                border: Border.all(color: _accentColor.withValues(alpha: 0.35)),
                 boxShadow: const [
                   BoxShadow(
                     color: Color(0x0D000000),
@@ -149,7 +149,7 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
                   Text(
                     'Scheda ${widget.sheetNumber} di ${lesson?.quizSheets ?? '—'} · ${category.name}',
                     style: textTheme.bodyMedium?.copyWith(
-                      color: _textPrimaryColor.withOpacity(0.85),
+                      color: _textPrimaryColor.withValues(alpha: 0.85),
                       height: 1.4,
                     ),
                   ),
@@ -159,7 +159,7 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _accentColor.withOpacity(0.12),
+                        color: _accentColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -186,7 +186,7 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
                       'Le domande e il tracciamento dei risultati saranno collegati al tuo '
                       'account quando il flusso quiz sarà integrato end-to-end.',
               style: textTheme.bodyMedium?.copyWith(
-                color: _textPrimaryColor.withOpacity(0.88),
+                color: _textPrimaryColor.withValues(alpha: 0.88),
                 height: 1.45,
               ),
             ),

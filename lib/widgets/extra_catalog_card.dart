@@ -33,9 +33,9 @@ class ExtraCatalogCard extends StatelessWidget {
     final borderColor = isComingSoon
         ? _neutralColor
         : included
-            ? _successColor.withOpacity(0.45)
+            ? _successColor.withValues(alpha: 0.45)
             : isLocked
-                ? _primaryColor.withOpacity(0.22)
+                ? _primaryColor.withValues(alpha: 0.22)
                 : _neutralColor;
     final borderWidth = (isLocked || included) ? 1.2 : 1.0;
 
@@ -53,8 +53,8 @@ class ExtraCatalogCard extends StatelessWidget {
               border: Border.all(color: borderColor, width: borderWidth),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(
-                    isComingSoon ? 0.03 : (included ? 0.07 : 0.06),
+                  color: Colors.black.withValues(
+                    alpha: isComingSoon ? 0.03 : (included ? 0.07 : 0.06),
                   ),
                   blurRadius: included ? 16 : (isLocked ? 10 : 14),
                   offset: Offset(0, isComingSoon ? 2 : (included ? 5 : 4)),
@@ -76,16 +76,16 @@ class ExtraCatalogCard extends StatelessWidget {
                           colors: isComingSoon
                               ? [
                                   _neutralColor,
-                                  _neutralColor.withOpacity(0.85),
+                                  _neutralColor.withValues(alpha: 0.85),
                                 ]
                               : included
                                   ? [
-                                      _successColor.withOpacity(0.95),
-                                      _primaryColor.withOpacity(0.82),
+                                      _successColor.withValues(alpha: 0.95),
+                                      _primaryColor.withValues(alpha: 0.82),
                                     ]
                                   : [
-                                      _accentColor.withOpacity(0.9),
-                                      _primaryColor.withOpacity(0.75),
+                                      _accentColor.withValues(alpha: 0.9),
+                                      _primaryColor.withValues(alpha: 0.75),
                                     ],
                         ),
                       ),
@@ -104,21 +104,21 @@ class ExtraCatalogCard extends StatelessWidget {
                                   height: 54,
                                   decoration: BoxDecoration(
                                     color: included
-                                        ? _successColor.withOpacity(0.12)
-                                        : _primaryColor.withOpacity(0.1),
+                                        ? _successColor.withValues(alpha: 0.12)
+                                        : _primaryColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(14),
                                     border: Border.all(
                                       color: included
-                                          ? _successColor.withOpacity(0.28)
+                                          ? _successColor.withValues(alpha: 0.28)
                                           : _neutralColor,
                                     ),
                                   ),
                                   child: Icon(
                                     item.icon,
                                     color: isComingSoon
-                                        ? _textPrimaryColor.withOpacity(0.45)
+                                        ? _textPrimaryColor.withValues(alpha: 0.45)
                                         : included
-                                            ? _successColor.withOpacity(0.92)
+                                            ? _successColor.withValues(alpha: 0.92)
                                             : _primaryColor,
                                     size: 28,
                                   ),
@@ -151,7 +151,7 @@ class ExtraCatalogCard extends StatelessWidget {
                                                 Icons.verified_rounded,
                                                 size: 20,
                                                 color: _successColor
-                                                    .withOpacity(0.9),
+                                                    .withValues(alpha: 0.9),
                                               ),
                                             ),
                                           if (isLocked)
@@ -163,7 +163,7 @@ class ExtraCatalogCard extends StatelessWidget {
                                                 Icons.lock_rounded,
                                                 size: 18,
                                                 color: _primaryColor
-                                                    .withOpacity(0.75),
+                                                    .withValues(alpha: 0.75),
                                               ),
                                             ),
                                         ],
@@ -173,7 +173,7 @@ class ExtraCatalogCard extends StatelessWidget {
                                         item.subtitle,
                                         style: textTheme.bodySmall?.copyWith(
                                           color: _textPrimaryColor
-                                              .withOpacity(0.76),
+                                              .withValues(alpha: 0.76),
                                           height: 1.35,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -189,7 +189,7 @@ class ExtraCatalogCard extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.bodySmall?.copyWith(
-                                color: _textPrimaryColor.withOpacity(0.88),
+                                color: _textPrimaryColor.withValues(alpha: 0.88),
                                 height: 1.4,
                               ),
                             ),
@@ -250,13 +250,13 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: subtle ? _neutralColor.withOpacity(0.55) : _neutralColor,
+        color: subtle ? _neutralColor.withValues(alpha: 0.55) : _neutralColor,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: textTheme.labelSmall?.copyWith(
-          color: _textPrimaryColor.withOpacity(0.85),
+          color: _textPrimaryColor.withValues(alpha: 0.85),
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -290,20 +290,20 @@ class _StatusPill extends StatelessWidget {
     switch (state) {
       case ExtraCatalogUiState.unlocked:
         if (isIncludedBenefit) {
-          bg = _successColor.withOpacity(0.22);
+          bg = _successColor.withValues(alpha: 0.22);
           fg = _successColor;
         } else {
-          bg = _successColor.withOpacity(0.18);
+          bg = _successColor.withValues(alpha: 0.18);
           fg = _successColor;
         }
         break;
       case ExtraCatalogUiState.premiumLocked:
-        bg = _accentColor.withOpacity(0.22);
+        bg = _accentColor.withValues(alpha: 0.22);
         fg = _primaryColor;
         break;
       case ExtraCatalogUiState.comingSoon:
-        bg = _neutralColor.withOpacity(0.85);
-        fg = _textPrimaryColor.withOpacity(0.78);
+        bg = _neutralColor.withValues(alpha: 0.85);
+        fg = _textPrimaryColor.withValues(alpha: 0.78);
         break;
     }
 
@@ -314,8 +314,8 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: isIncludedBenefit
-              ? _successColor.withOpacity(0.35)
-              : _neutralColor.withOpacity(0.9),
+              ? _successColor.withValues(alpha: 0.35)
+              : _neutralColor.withValues(alpha: 0.9),
           width: isIncludedBenefit ? 1 : 0.7,
         ),
       ),

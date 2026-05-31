@@ -30,7 +30,7 @@ class DevBackendEnvBadge extends StatelessWidget {
           border: Border.all(color: border, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -55,7 +55,7 @@ class DevBackendEnvBadge extends StatelessWidget {
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.9,
-                color: fg.withOpacity(0.75),
+                color: fg.withValues(alpha: 0.75),
                 height: 1.1,
               ),
             ),

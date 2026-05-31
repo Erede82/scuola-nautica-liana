@@ -38,7 +38,7 @@ class AccountOptionTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.1),
+                  color: _primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(icon, color: _primaryColor, size: 22),
@@ -60,7 +60,7 @@ class AccountOptionTile extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: textTheme.bodySmall?.copyWith(
-                          color: _textPrimaryColor.withOpacity(0.72),
+                          color: _textPrimaryColor.withValues(alpha: 0.72),
                           height: 1.25,
                         ),
                       ),
@@ -72,7 +72,7 @@ class AccountOptionTile extends StatelessWidget {
               trailing ??
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: _neutralColor.withOpacity(0.9),
+                    color: _neutralColor.withValues(alpha: 0.9),
                   ),
             ],
           ),
