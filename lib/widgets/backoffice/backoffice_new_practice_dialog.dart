@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/anagrafica/comuni_cap_repository.dart';
 import '../../data/anagrafica/comuni_repository.dart';
 import '../../domain/anagrafica/anagrafica_format.dart';
 import '../../domain/anagrafica/codice_fiscale.dart';
@@ -409,6 +410,7 @@ class _BackofficeNewPracticeDialogBodyState
   /// Dataset Comuni/Belfiore: caricato in [initState]. Finché non è disponibile
   /// (placeholder vuoto), il calcolo automatico del CF resta disabilitato.
   final ComuniRepository _comuniRepo = ComuniRepository();
+  final ComuniCapRepository _comuniCapRepo = ComuniCapRepository();
   bool _comuniDatasetAvailable = false;
 
   /// Comune selezionato dall'autocomplete (porta con sé il codice Belfiore).
@@ -417,6 +419,12 @@ class _BackofficeNewPracticeDialogBodyState
 
   /// Comune di residenza selezionato dall'autocomplete (solo città/provincia).
   ComuneCatastale? _selectedResidenceComune;
+
+  /// Hint sotto al CAP quando il Comune ha più CAP disponibili.
+  bool _residenceMultiCapHint = false;
+
+  /// `true` se l'ultimo CAP è stato precompilato automaticamente (unico CAP).
+  bool _capAutoFilled = false;
 
   bool get _canCalcolaCf =>
       !_busy && _comuniDatasetAvailable && _selectedBirthComune != null;
@@ -458,6 +466,31 @@ class _BackofficeNewPracticeDialogBodyState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  void _resetResidenceCapAssist() {
+    _residenceMultiCapHint = false;
+    if (_capAutoFilled) {
+      _capCtrl.clear();
+      _capAutoFilled = false;
+    }
+  }
+
+  void _applyResidenceCapAssist(ComuneCatastale comune) {
+    final caps = _comuniCapRepo.capsForBelfiore(comune.codiceCatastale);
+    if (caps.length == 1) {
+      _capCtrl.text = caps.first;
+      _capAutoFilled = true;
+      _residenceMultiCapHint = false;
+    } else if (caps.length > 1) {
+      if (_capAutoFilled) {
+        _capCtrl.clear();
+        _capAutoFilled = false;
+      }
+      _residenceMultiCapHint = true;
+    } else {
+      _resetResidenceCapAssist();
+    }
   }
 
   /// Autocomplete Comune italiano (nascita o residenza). Fallback TextField se
@@ -674,7 +707,10 @@ class _BackofficeNewPracticeDialogBodyState
   }
 
   Future<void> _loadComuniDataset() async {
-    await _comuniRepo.ensureLoaded();
+    await Future.wait([
+      _comuniRepo.ensureLoaded(),
+      _comuniCapRepo.ensureLoaded(),
+    ]);
     if (!mounted) return;
     setState(() => _comuniDatasetAvailable = _comuniRepo.disponibile);
   }
@@ -1228,11 +1264,14 @@ class _BackofficeNewPracticeDialogBodyState
                       child: _buildComuneAutocompleteField(
                         controller: _cityCtrl,
                         selectedComune: _selectedResidenceComune,
-                        onSelectedComuneChanged: (c) =>
-                            _selectedResidenceComune = c,
+                        onSelectedComuneChanged: (c) {
+                          _selectedResidenceComune = c;
+                          if (c == null) _resetResidenceCapAssist();
+                        },
                         onComuneSelected: (c) {
                           _cityCtrl.text = AnagraficaFormat.titleCase(c.nome);
                           _provinceCtrl.text = c.provincia;
+                          _applyResidenceCapAssist(c);
                         },
                         hintWithDataset: 'Cerca il Comune italiano',
                         hintWithoutDataset: 'Città',
@@ -1278,6 +1317,11 @@ class _BackofficeNewPracticeDialogBodyState
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
+                        onChanged: (_) {
+                          if (_capAutoFilled) {
+                            setState(() => _capAutoFilled = false);
+                          }
+                        },
                         decoration: const InputDecoration(
                           hintText: 'CAP',
                           border: OutlineInputBorder(),
@@ -1287,6 +1331,19 @@ class _BackofficeNewPracticeDialogBodyState
                   ),
                 ],
               ),
+              if (_residenceMultiCapHint) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Questo Comune ha più CAP: verifica il CAP in base '
+                    'all\'indirizzo.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppVisual.inkMuted.withValues(alpha: 0.85),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
               _sectionTitle('Pratica'),
               if (_templatesLoadError != null) ...[
                 Container(
