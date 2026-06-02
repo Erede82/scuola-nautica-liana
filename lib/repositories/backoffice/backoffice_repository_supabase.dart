@@ -1092,7 +1092,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     final metadata = <String, dynamic>{
       'student_id': studentId,
-      'document_type': documentType,
+      'document_type': StudentDocumentTypes.documentTypeToDb(documentType),
       'title': title.trim().isEmpty ? fileName : title.trim(),
       'storage_path': storagePath,
       'file_name': fileName,
@@ -1148,7 +1148,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     final metadata = <String, dynamic>{
       'student_id': studentId,
-      'photo_kind': photoKind,
+      'photo_kind': StudentDocumentTypes.photoKindToDb(photoKind),
       'storage_path': storagePath,
       'file_name': fileName,
     };

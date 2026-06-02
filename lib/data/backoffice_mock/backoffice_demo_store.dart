@@ -23,8 +23,8 @@ class BackofficeDemoStore extends ChangeNotifier {
       _payments = List<PaymentReceived>.from(seed.payments),
       _financial = Map<StudentId, StudentFinancialSummary>.from(seed.financial),
       _practice = Map<StudentId, PracticeLicenseDossier?>.from(seed.practice),
-      _documents = <StudentDocument>[],
-      _photos = <StudentPhoto>[],
+      _documents = List<StudentDocument>.from(seed.documents),
+      _photos = List<StudentPhoto>.from(seed.photos),
       _staffNotes = <StaffInternalNote>[],
       _activityLog = <BackofficeActivityEvent>[];
 
@@ -238,7 +238,7 @@ class BackofficeDemoStore extends ChangeNotifier {
       id: 'doc-${now.microsecondsSinceEpoch}',
       studentId: studentId,
       practiceDossierId: practiceDossierId,
-      documentType: documentType,
+      documentType: StudentDocumentTypes.documentTypeToDb(documentType),
       title: title.trim().isEmpty ? fileName : title.trim(),
       storagePath: 'mock/student-documents/$studentId/$fileName',
       fileName: fileName,
@@ -273,7 +273,7 @@ class BackofficeDemoStore extends ChangeNotifier {
     final photo = StudentPhoto(
       id: 'photo-${now.microsecondsSinceEpoch}',
       studentId: studentId,
-      photoKind: photoKind,
+      photoKind: StudentDocumentTypes.photoKindToDb(photoKind),
       storagePath: 'mock/student-photos/$studentId/$fileName',
       fileName: fileName,
       mimeType: mimeType,

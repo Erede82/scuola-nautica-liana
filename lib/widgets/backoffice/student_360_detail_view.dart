@@ -7,6 +7,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
+import 'practice_document_checklist_card.dart';
 import 'student_backoffice_dialogs.dart';
 import 'student_onboarding_section.dart';
 import 'student_record_dialogs.dart';
@@ -1371,25 +1372,6 @@ class _SectionPratica extends StatelessWidget {
         .join(' ');
   }
 
-  static Widget _fileAssociatedLabel(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppVisual.brandAzure.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppVisual.brandAzure.withValues(alpha: 0.24)),
-      ),
-      child: Text(
-        'File associato',
-        style: textTheme.labelSmall?.copyWith(
-          color: BackofficeUiTokens.primary,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
   static void _showOpenError(BuildContext context) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1401,14 +1383,20 @@ class _SectionPratica extends StatelessWidget {
 
   Future<void> _openSignedUrl(
     BuildContext context,
-    Future<String> Function() createSignedUrl,
-  ) async {
+    Future<String> Function() createSignedUrl, {
+    String? fileName,
+    String? mimeType,
+  }) async {
     try {
       final signedUrl = await createSignedUrl();
       if (!context.mounted) return;
       final uri = Uri.tryParse(signedUrl);
       if (uri == null || !uri.hasScheme) {
         _showOpenError(context);
+        return;
+      }
+      if (_isImageFile(mimeType: mimeType, fileName: fileName)) {
+        await _showLargeImageDialog(context, signedUrl);
         return;
       }
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -1419,6 +1407,59 @@ class _SectionPratica extends StatelessWidget {
       if (!context.mounted) return;
       _showOpenError(context);
     }
+  }
+
+  Future<void> _showLargeImageDialog(BuildContext context, String imageUrl) async {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4,
+                child: Center(
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Padding(
+                        padding: EdgeInsets.all(48),
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Impossibile caricare l\'immagine.',
+                          style: TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   static String _registryPracticeTypeLabelIt(String? t) {
@@ -1435,18 +1476,43 @@ class _SectionPratica extends StatelessWidget {
     }
   }
 
-  Future<void> _openDocument(BuildContext context, String storagePath) {
+  Future<void> _openDocument(BuildContext context, StudentDocument doc) {
+    final path = doc.storagePath;
+    if (path == null || path.isEmpty) return Future.value();
     return _openSignedUrl(
       context,
-      () => repository.createStudentDocumentSignedUrl(storagePath),
+      () => repository.createStudentDocumentSignedUrl(path),
+      fileName: doc.fileName,
+      mimeType: doc.mimeType,
     );
   }
 
-  Future<void> _openPhoto(BuildContext context, String storagePath) {
+  Future<void> _openPhoto(BuildContext context, StudentPhoto photo) {
+    final path = photo.storagePath;
+    if (path == null || path.isEmpty) return Future.value();
     return _openSignedUrl(
       context,
-      () => repository.createStudentPhotoSignedUrl(storagePath),
+      () => repository.createStudentPhotoSignedUrl(path),
+      fileName: photo.fileName,
+      mimeType: photo.mimeType,
     );
+  }
+
+  static bool _isImageFile({String? mimeType, String? fileName}) {
+    final mime = (mimeType ?? '').toLowerCase();
+    if (mime.startsWith('image/')) return true;
+    final name = (fileName ?? '').toLowerCase();
+    return name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.webp') ||
+        name.endsWith('.gif');
+  }
+
+  static bool _isPdfFile({String? mimeType, String? fileName}) {
+    final mime = (mimeType ?? '').toLowerCase();
+    if (mime.contains('pdf')) return true;
+    return (fileName ?? '').toLowerCase().endsWith('.pdf');
   }
 
   static void _showUploadMessage(BuildContext context, String message) {
@@ -1515,17 +1581,42 @@ class _SectionPratica extends StatelessWidget {
     await onRefreshDetail(updated);
   }
 
-  Future<void> _showUploadDocumentDialog(BuildContext context) async {
-    const documentTypes = <String, String>{
-      'identity_card': 'Carta identità',
-      'fiscal_code': 'Codice fiscale',
-      'medical_certificate': 'Certificato medico',
-      'other': 'Altro documento',
-    };
+  Future<void> _handleChecklistUpload(
+    BuildContext context, {
+    String? documentUiType,
+    String? photoUiType,
+  }) async {
+    if (photoUiType != null &&
+        (documentUiType == null ||
+            photoUiType == StudentDocumentTypes.uiPhotoKindLicense)) {
+      await _showUploadPhotoDialog(
+        context,
+        initialPhotoUiType: photoUiType,
+      );
+      return;
+    }
+    await _showUploadDocumentDialog(
+      context,
+      initialDocumentUiType: documentUiType,
+    );
+  }
 
-    final titleController = TextEditingController();
+  Future<void> _showUploadDocumentDialog(
+    BuildContext context, {
+    String? initialDocumentUiType,
+  }) async {
+    final documentTypes = StudentDocumentTypes.uploadDocumentOptions;
+    var documentType =
+        initialDocumentUiType ?? StudentDocumentTypes.uiIdentityCard;
+    if (!documentTypes.containsKey(documentType)) {
+      documentType = StudentDocumentTypes.uiIdentityCard;
+    }
+
+    final titleController = TextEditingController(
+      text: StudentDocumentTypes.defaultTitleForDocumentUiType(documentType) ??
+          '',
+    );
     final notesController = TextEditingController();
-    var documentType = 'identity_card';
     DateTime? expiresAt;
     _PickedUploadFile? pickedFile;
     var uploading = false;
@@ -1625,9 +1716,17 @@ class _SectionPratica extends StatelessWidget {
                             .toList(),
                         onChanged: uploading
                             ? null
-                            : (value) => setDialogState(
-                                () => documentType = value ?? documentType,
-                              ),
+                            : (value) => setDialogState(() {
+                                documentType = value ?? documentType;
+                                final defaultTitle =
+                                    StudentDocumentTypes.defaultTitleForDocumentUiType(
+                                  documentType,
+                                );
+                                if (defaultTitle != null &&
+                                    titleController.text.trim().isEmpty) {
+                                  titleController.text = defaultTitle;
+                                }
+                              }),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -1711,17 +1810,45 @@ class _SectionPratica extends StatelessWidget {
     }
   }
 
-  Future<void> _showUploadPhotoDialog(BuildContext context) async {
-    const photoKinds = <String, String>{
-      'profile': 'Profilo',
-      'license_photo': 'Foto patente',
-      'other': 'Altra foto',
-    };
+  Future<void> _showUploadSignatureDialog(BuildContext context) async {
+    await _showUploadPhotoDialog(
+      context,
+      initialPhotoUiType: StudentDocumentTypes.uiPhotoKindSignature,
+      dialogTitle: 'Carica firma',
+      uploadSuccessMessage: 'Firma caricata correttamente.',
+      forceSignatureNotes: true,
+      hideKindDropdown: true,
+    );
+  }
+
+  Future<void> _showUploadPhotoDialog(
+    BuildContext context, {
+    String? initialPhotoUiType,
+    String dialogTitle = 'Carica foto',
+    String uploadSuccessMessage = 'Foto caricata correttamente.',
+    bool forceSignatureNotes = false,
+    bool hideKindDropdown = false,
+  }) async {
+    final isSignatureUpload =
+        initialPhotoUiType == StudentDocumentTypes.uiPhotoKindSignature ||
+        forceSignatureNotes;
+    final photoKinds = isSignatureUpload
+        ? StudentDocumentTypes.uploadSignaturePhotoOptions
+        : StudentDocumentTypes.uploadPhotoOptions;
+    var photoKind = initialPhotoUiType ?? StudentDocumentTypes.uiPhotoKindProfile;
+    if (!photoKinds.containsKey(photoKind)) {
+      photoKind = photoKinds.keys.first;
+    }
 
     final notesController = TextEditingController();
-    var photoKind = 'profile';
     _PickedUploadFile? pickedFile;
     var uploading = false;
+
+    bool showNotesFieldForKind(String kind) {
+      if (isSignatureUpload) return false;
+      return kind != StudentDocumentTypes.uiPhotoKindProfile &&
+          kind != StudentDocumentTypes.uiPhotoKindSignature;
+    }
 
     try {
       await showDialog<void>(
@@ -1749,19 +1876,31 @@ class _SectionPratica extends StatelessWidget {
                 }
                 setDialogState(() => uploading = true);
                 try {
+                  final String? uploadNotes;
+                  if (isSignatureUpload ||
+                      photoKind ==
+                          StudentDocumentTypes.uiPhotoKindSignature) {
+                    uploadNotes =
+                        StudentDocumentTypes.signaturePhotoNotesMarker;
+                  } else if (photoKind ==
+                      StudentDocumentTypes.uiPhotoKindProfile) {
+                    uploadNotes = null;
+                  } else if (notesController.text.trim().isNotEmpty) {
+                    uploadNotes = notesController.text.trim();
+                  } else {
+                    uploadNotes = null;
+                  }
                   await repository.uploadStudentPhoto(
                     studentId: view.profile.id,
                     photoKind: photoKind,
                     fileName: file.name,
                     bytes: file.bytes,
                     mimeType: file.mimeType,
-                    notes: notesController.text.trim().isEmpty
-                        ? null
-                        : notesController.text.trim(),
+                    notes: uploadNotes,
                   );
                   if (!dialogContext.mounted) return;
                   Navigator.of(dialogContext).pop();
-                  _showUploadMessage(context, 'Foto caricata correttamente.');
+                  _showUploadMessage(context, uploadSuccessMessage);
                   await _refreshAfterUpload(context);
                 } catch (error) {
                   debugPrint('Upload foto allievo non riuscito: $error');
@@ -1775,42 +1914,45 @@ class _SectionPratica extends StatelessWidget {
               }
 
               return AlertDialog(
-                title: const Text('Carica foto'),
+                title: Text(dialogTitle),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: photoKind,
-                        decoration: const InputDecoration(
-                          labelText: 'Tipo foto',
+                      if (!hideKindDropdown)
+                        DropdownButtonFormField<String>(
+                          initialValue: photoKind,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo foto',
+                          ),
+                          items: photoKinds.entries
+                              .map(
+                                (entry) => DropdownMenuItem(
+                                  value: entry.key,
+                                  child: Text(entry.value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: uploading
+                              ? null
+                              : (value) => setDialogState(
+                                  () => photoKind = value ?? photoKind,
+                                ),
                         ),
-                        items: photoKinds.entries
-                            .map(
-                              (entry) => DropdownMenuItem(
-                                value: entry.key,
-                                child: Text(entry.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: uploading
-                            ? null
-                            : (value) => setDialogState(
-                                () => photoKind = value ?? photoKind,
-                              ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: notesController,
-                        enabled: !uploading,
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: 'Note opzionali',
+                      if (!hideKindDropdown) const SizedBox(height: 12),
+                      if (showNotesFieldForKind(photoKind))
+                        TextField(
+                          controller: notesController,
+                          enabled: !uploading,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Note opzionali',
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                      if (showNotesFieldForKind(photoKind))
+                        const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: uploading ? null : pickFile,
                         icon: const Icon(Icons.image_outlined),
@@ -1849,85 +1991,238 @@ class _SectionPratica extends StatelessWidget {
 
   Widget _documentTile(BuildContext context, StudentDocument doc) {
     final textTheme = Theme.of(context).textTheme;
-    return _InfoCard(
-      title: doc.title,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _kvRow('Tipo', _readableToken(doc.documentType), textTheme),
-          _kvRow('Stato', _readableToken(doc.status), textTheme),
-          if (doc.fileName != null && doc.fileName!.isNotEmpty)
-            _kvRow('File', doc.fileName!, textTheme),
-          if (doc.expiresAt != null)
-            _kvRow(
-              'Scadenza',
-              BackofficeFormatters.dateUi(doc.expiresAt),
-              textTheme,
+    final isImage = _isImageFile(mimeType: doc.mimeType, fileName: doc.fileName);
+    final isPdf = _isPdfFile(mimeType: doc.mimeType, fileName: doc.fileName);
+    final path = doc.storagePath;
+    final typeLabel = StudentDocumentTypes.documentTypeLabel(doc.documentType);
+    final statusLabel = _readableToken(doc.status);
+
+    Future<void> openFile() => _openDocument(context, doc);
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppVisual.inkMuted.withValues(alpha: 0.16)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _StorageThumbnailPreview(
+              storagePath: path,
+              fileName: doc.fileName,
+              mimeType: doc.mimeType,
+              createSignedUrl: repository.createStudentDocumentSignedUrl,
+              onTap: path != null && path.isNotEmpty ? openFile : null,
+              fallbackIcon: isPdf
+                  ? Icons.picture_as_pdf_outlined
+                  : Icons.description_outlined,
+              showImagePreview: isImage,
+              previewWidth: 88,
+              height: 88,
+              hideFileNameInPlaceholder: true,
             ),
-          if (doc.notes != null && doc.notes!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text('Note', style: textTheme.labelLarge),
-            SelectableText(doc.notes!, style: textTheme.bodySmall),
-          ],
-          if (doc.storagePath != null && doc.storagePath!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _fileAssociatedLabel(context),
-                OutlinedButton.icon(
-                  onPressed: () => _openDocument(context, doc.storagePath!),
-                  icon: const Icon(Icons.open_in_new_outlined, size: 18),
-                  label: const Text('Apri'),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    typeLabel,
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Stato: $statusLabel',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppVisual.inkMuted,
+                    ),
+                  ),
+                  if (doc.expiresAt != null)
+                    Text(
+                      'Scadenza: ${BackofficeFormatters.dateUi(doc.expiresAt)}',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: BackofficeUiTokens.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  if (path != null && path.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: openFile,
+                      icon: const Icon(Icons.open_in_new_outlined, size: 18),
+                      label: const Text('Apri'),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _photoTile(BuildContext context, StudentPhoto photo) {
-    final textTheme = Theme.of(context).textTheme;
-    return _InfoCard(
-      title: _readableToken(photo.photoKind),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (photo.fileName != null && photo.fileName!.isNotEmpty)
-            _kvRow('File', photo.fileName!, textTheme),
-          if (photo.createdAt != null)
-            _kvRow(
-              'Caricata il',
-              BackofficeFormatters.dateTimeUi(photo.createdAt),
-              textTheme,
+  static const double _portraitPhotoWidth = 160;
+  static const double _portraitPhotoHeight = 200;
+  static const double _signaturePreviewWidth = 220;
+  static const double _signaturePreviewHeight = 80;
+
+  StudentPhoto? _primaryStudentPhoto(List<StudentPhoto> studentPhotos) {
+    for (final photo in studentPhotos) {
+      if (StudentDocumentTypes.normalizePhotoDbValue(photo.photoKind) ==
+          StudentDocumentTypes.dbPhotoKindProfile) {
+        return photo;
+      }
+    }
+    return studentPhotos.isNotEmpty ? studentPhotos.first : null;
+  }
+
+  StudentPhoto? _primarySignaturePhoto(List<StudentPhoto> signaturePhotos) {
+    return signaturePhotos.isNotEmpty ? signaturePhotos.first : null;
+  }
+
+  Widget _photoSignatureSection(
+    BuildContext context, {
+    required TextTheme textTheme,
+    required List<StudentPhoto> studentPhotos,
+    required List<StudentPhoto> signaturePhotos,
+  }) {
+    final portraitPhoto = _primaryStudentPhoto(studentPhotos);
+    final signaturePhoto = _primarySignaturePhoto(signaturePhotos);
+
+    Future<void> openPortrait() {
+      if (portraitPhoto == null) return Future.value();
+      return _openPhoto(context, portraitPhoto);
+    }
+
+    Future<void> openSignature() {
+      if (signaturePhoto == null) return Future.value();
+      return _openPhoto(context, signaturePhoto);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Foto e firma',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: BackofficeUiTokens.text,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Card(
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: AppVisual.inkMuted.withValues(alpha: 0.18),
+              ),
             ),
-          if (photo.notes != null && photo.notes!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text('Note', style: textTheme.labelLarge),
-            SelectableText(photo.notes!, style: textTheme.bodySmall),
-          ],
-          if (photo.storagePath != null && photo.storagePath!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _fileAssociatedLabel(context),
-                OutlinedButton.icon(
-                  onPressed: () => _openPhoto(context, photo.storagePath!),
-                  icon: const Icon(Icons.open_in_new_outlined, size: 18),
-                  label: const Text('Apri'),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Foto allievo',
+                    style: textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: BackofficeUiTokens.text,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _StorageThumbnailPreview(
+                    storagePath: portraitPhoto?.storagePath,
+                    fileName: portraitPhoto?.fileName,
+                    mimeType: portraitPhoto?.mimeType,
+                    createSignedUrl: repository.createStudentPhotoSignedUrl,
+                    onTap: portraitPhoto?.storagePath != null &&
+                            portraitPhoto!.storagePath!.isNotEmpty
+                        ? openPortrait
+                        : null,
+                    fallbackIcon: Icons.person_outline,
+                    showImagePreview: portraitPhoto != null,
+                    previewWidth: _portraitPhotoWidth,
+                    height: _portraitPhotoHeight,
+                    hideFileNameInPlaceholder: true,
+                    backgroundColor: AppVisual.inkMuted.withValues(alpha: 0.06),
+                    borderRadius: 12,
+                    imageFit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => _showUploadPhotoDialog(
+                      context,
+                      initialPhotoUiType:
+                          StudentDocumentTypes.uiPhotoKindProfile,
+                    ),
+                    icon: Icon(
+                      portraitPhoto == null
+                          ? Icons.add_photo_alternate_outlined
+                          : Icons.swap_horiz_outlined,
+                      size: 18,
+                    ),
+                    label: Text(
+                      portraitPhoto == null ? 'Carica' : 'Cambia',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Firma',
+                    style: textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: BackofficeUiTokens.text,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _StorageThumbnailPreview(
+                    storagePath: signaturePhoto?.storagePath,
+                    fileName: signaturePhoto?.fileName,
+                    mimeType: signaturePhoto?.mimeType,
+                    createSignedUrl: repository.createStudentPhotoSignedUrl,
+                    onTap: signaturePhoto?.storagePath != null &&
+                            signaturePhoto!.storagePath!.isNotEmpty
+                        ? openSignature
+                        : null,
+                    fallbackIcon: Icons.draw_outlined,
+                    showImagePreview: signaturePhoto != null,
+                    previewWidth: _signaturePreviewWidth,
+                    height: _signaturePreviewHeight,
+                    hideFileNameInPlaceholder: true,
+                    backgroundColor: Colors.white,
+                    borderRadius: 8,
+                    borderColor: AppVisual.inkMuted.withValues(alpha: 0.22),
+                    imageFit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => _showUploadSignatureDialog(context),
+                    icon: Icon(
+                      signaturePhoto == null
+                          ? Icons.draw_outlined
+                          : Icons.swap_horiz_outlined,
+                      size: 18,
+                    ),
+                    label: Text(
+                      signaturePhoto == null ? 'Carica' : 'Cambia',
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1937,6 +2232,24 @@ class _SectionPratica extends StatelessWidget {
     final d = view.practiceDossier;
     final documents = view.documents;
     final photos = view.photos;
+    final signaturePhotos = photos
+        .where(
+          (p) => StudentDocumentTypes.isSignaturePhoto(
+            photoKind: p.photoKind,
+            notes: p.notes,
+            fileName: p.fileName,
+          ),
+        )
+        .toList(growable: false);
+    final studentPhotos = photos
+        .where(
+          (p) => !StudentDocumentTypes.isSignaturePhoto(
+            photoKind: p.photoKind,
+            notes: p.notes,
+            fileName: p.fileName,
+          ),
+        )
+        .toList(growable: false);
 
     return _SectionScroll(
       child: _SectionContent(
@@ -2054,6 +2367,25 @@ class _SectionPratica extends StatelessWidget {
                         ],
                       ),
                     ),
+              if (d != null) ...[
+                const SizedBox(height: 16),
+                PracticeDocumentChecklistCard(
+                  checklist: evaluatePracticeDocumentChecklist(
+                    practiceType: d.practiceType,
+                    documents: documents,
+                    photos: photos,
+                  ),
+                  onUploadRequested: ({
+                    documentUiType,
+                    photoUiType,
+                  }) =>
+                      _handleChecklistUpload(
+                        context,
+                        documentUiType: documentUiType,
+                        photoUiType: photoUiType,
+                      ),
+                ),
+              ],
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
@@ -2089,40 +2421,192 @@ class _SectionPratica extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    'Foto allievo',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
-                    ),
-                  ),
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      foregroundColor: BackofficeUiTokens.primary,
-                    ),
-                    onPressed: () => _showUploadPhotoDialog(context),
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('Carica foto'),
-                  ),
-                ],
+              _photoSignatureSection(
+                context,
+                textTheme: textTheme,
+                studentPhotos: studentPhotos,
+                signaturePhotos: signaturePhotos,
               ),
-              const SizedBox(height: 8),
-              if (photos.isEmpty)
-                Text('Nessuna foto caricata.', style: textTheme.bodyMedium)
-              else
-                ...photos.map(
-                  (photo) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _photoTile(context, photo),
-                  ),
-                ),
             ],
+        ),
+      ),
+    );
+  }
+}
+
+bool _storagePreviewIsImage({String? mimeType, String? fileName}) {
+  final mime = (mimeType ?? '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  final name = (fileName ?? '').toLowerCase();
+  return name.endsWith('.jpg') ||
+      name.endsWith('.jpeg') ||
+      name.endsWith('.png') ||
+      name.endsWith('.webp') ||
+      name.endsWith('.gif');
+}
+
+/// Anteprima file storage (immagine reale o placeholder icona).
+class _StorageThumbnailPreview extends StatefulWidget {
+  const _StorageThumbnailPreview({
+    required this.storagePath,
+    required this.fileName,
+    required this.mimeType,
+    required this.createSignedUrl,
+    this.onTap,
+    required this.fallbackIcon,
+    this.showImagePreview = true,
+    this.height = 96,
+    this.previewWidth,
+    this.hideFileNameInPlaceholder = false,
+    this.backgroundColor,
+    this.borderRadius = 10,
+    this.borderColor,
+    this.imageFit = BoxFit.cover,
+  });
+
+  final String? storagePath;
+  final String? fileName;
+  final String? mimeType;
+  final Future<String> Function(String storagePath) createSignedUrl;
+  final VoidCallback? onTap;
+  final IconData fallbackIcon;
+  final bool showImagePreview;
+  final double height;
+  final double? previewWidth;
+  final bool hideFileNameInPlaceholder;
+  final Color? backgroundColor;
+  final double borderRadius;
+  final Color? borderColor;
+  final BoxFit imageFit;
+
+  @override
+  State<_StorageThumbnailPreview> createState() =>
+      _StorageThumbnailPreviewState();
+}
+
+class _StorageThumbnailPreviewState extends State<_StorageThumbnailPreview> {
+  String? _signedUrl;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StorageThumbnailPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.storagePath != widget.storagePath) {
+      _loadPreview();
+    }
+  }
+
+  Future<void> _loadPreview() async {
+    final path = widget.storagePath;
+    if (path == null ||
+        path.isEmpty ||
+        !widget.showImagePreview ||
+        !_storagePreviewIsImage(
+          mimeType: widget.mimeType,
+          fileName: widget.fileName,
+        )) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _signedUrl = null;
+    });
+    try {
+      final url = await widget.createSignedUrl(path);
+      if (!mounted) return;
+      final valid = url.trim().isNotEmpty && Uri.tryParse(url)?.hasScheme == true;
+      setState(() {
+        _signedUrl = valid ? url : null;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(widget.borderRadius);
+    final width = widget.previewWidth ?? widget.height;
+    Widget inner = SizedBox(
+      width: width,
+      height: widget.height,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: _buildInner(context),
+      ),
+    );
+    if (widget.borderColor != null) {
+      inner = DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          border: Border.all(color: widget.borderColor!),
+        ),
+        child: inner,
+      );
+    }
+    if (widget.onTap == null) return inner;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: radius,
+        child: inner,
+      ),
+    );
+  }
+
+  Widget _buildInner(BuildContext context) {
+    final bg = widget.backgroundColor ??
+        AppVisual.inkMuted.withValues(alpha: 0.08);
+
+    if (_loading) {
+      return ColoredBox(
+        color: bg,
+        child: const Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_signedUrl != null) {
+      return ColoredBox(
+        color: bg,
+        child: Image.network(
+          _signedUrl!,
+          fit: widget.imageFit,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) => _placeholder(context),
+        ),
+      );
+    }
+
+    return _placeholder(context);
+  }
+
+  Widget _placeholder(BuildContext context) {
+    return ColoredBox(
+      color: widget.backgroundColor ??
+          AppVisual.brandAzure.withValues(alpha: 0.08),
+      child: Center(
+        child: Icon(
+          widget.fallbackIcon,
+          size: 32,
+          color: BackofficeUiTokens.primary.withValues(alpha: 0.75),
         ),
       ),
     );
