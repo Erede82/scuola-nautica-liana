@@ -206,6 +206,17 @@ class BackofficeRepositoryMock implements BackofficeRepository {
   }
 
   @override
+  Future<void> deleteStudentDocument({
+    required String documentId,
+    String? storagePath,
+  }) async {
+    _store.deleteStudentDocument(
+      documentId: documentId,
+      storagePath: storagePath,
+    );
+  }
+
+  @override
   Future<StudentPhoto> uploadStudentPhoto({
     required StudentId studentId,
     required String photoKind,

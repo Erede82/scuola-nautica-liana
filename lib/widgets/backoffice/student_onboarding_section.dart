@@ -17,17 +17,25 @@ class StudentOnboardingSection extends StatefulWidget {
     required this.onRefreshDetail,
     this.embeddedInScheda = false,
     this.compactActions = false,
+    this.inlineInPraticaCard = false,
+    this.hideRegistrationFee = false,
   });
 
   final StudentAdmin360View view;
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
 
-  /// Se true: solo card «Azioni segreteria» (tab Scheda), senza titolo onboarding né «Stato e date».
+  /// Se true: senza titolo onboarding né «Stato e date» (tab Scheda).
   final bool embeddedInScheda;
 
-  /// Pulsanti più compatti (tab Scheda, in fondo).
+  /// Pulsanti più compatti (tab Scheda).
   final bool compactActions;
+
+  /// Se true con [embeddedInScheda]: solo pulsanti, senza card wrapper (dentro card Pratica).
+  final bool inlineInPraticaCard;
+
+  /// Nasconde «Imposta quota iscrizione» (es. tab Scheda).
+  final bool hideRegistrationFee;
 
   @override
   State<StudentOnboardingSection> createState() =>
@@ -97,9 +105,9 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  if (widget.embeddedInScheda)
+                  if (widget.embeddedInScheda && !widget.inlineInPraticaCard)
                     _InfoCard(
-                      title: 'Azioni segreteria',
+                      title: 'Azioni',
                       compact: widget.compactActions,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -110,6 +118,16 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                           _buildActionButtons(p, cat),
                         ],
                       ),
+                    )
+                  else if (widget.embeddedInScheda && widget.inlineInPraticaCard)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_busy)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (_busy) const SizedBox(height: 6),
+                        _buildActionButtons(p, cat),
+                      ],
                     )
                   else ...[
                     if (_busy)
@@ -180,7 +198,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                 ],
               );
 
-    if (widget.embeddedInScheda) {
+    if (widget.embeddedInScheda || widget.inlineInPraticaCard) {
       return body;
     }
 
@@ -202,10 +220,40 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
     );
   }
 
+  void _showInfoSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _setOnboardingStatus(
+    StudentProfile p,
+    StudentOnboardingStatus status, {
+    required String okMessage,
+    required String alreadyMessage,
+  }) async {
+    if (p.onboardingStatus == status) {
+      _showInfoSnack(alreadyMessage);
+      return;
+    }
+    await _run(
+      () => widget.repository.updateStudentOnboardingStatus(
+        studentId: p.id,
+        status: status,
+      ),
+      okMessage,
+    );
+  }
+
   Widget _buildActionButtons(
     StudentProfile p,
     LicenseCategoryId cat,
   ) {
+    final awaitingContact =
+        p.onboardingStatus == StudentOnboardingStatus.awaitingContact;
+    final awaitingDocuments =
+        p.onboardingStatus == StudentOnboardingStatus.awaitingDocuments;
     final dense = widget.compactActions;
     final iconSize = dense ? 16.0 : 18.0;
     final btnStyle = dense
@@ -237,33 +285,78 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                         label: const Text('Approva iscritto'),
                       ),
                       OutlinedButton.icon(
-                        style: btnStyle,
+                        style: btnStyle?.merge(
+                          awaitingContact
+                              ? ButtonStyle(
+                                  side: WidgetStatePropertyAll(
+                                    BorderSide(
+                                      color: BackofficeUiTokens.primary,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  foregroundColor: WidgetStatePropertyAll(
+                                    BackofficeUiTokens.primary,
+                                  ),
+                                )
+                              : null,
+                        ),
                         onPressed: _busy
                             ? null
-                            : () => _run(
-                                  () => widget.repository.updateStudentOnboardingStatus(
-                                    studentId: p.id,
-                                    status: StudentOnboardingStatus.awaitingContact,
-                                  ),
-                                  'Segnato: da contattare.',
+                            : () => _setOnboardingStatus(
+                                  p,
+                                  StudentOnboardingStatus.awaitingContact,
+                                  okMessage: 'Segnato: da contattare.',
+                                  alreadyMessage:
+                                      'Allievo già segnato da contattare.',
                                 ),
-                        icon: Icon(Icons.phone_callback_outlined, size: iconSize),
-                        label: const Text('Segna da contattare'),
+                        icon: Icon(
+                          awaitingContact
+                              ? Icons.check_circle
+                              : Icons.phone_callback_outlined,
+                          size: iconSize,
+                        ),
+                        label: Text(
+                          awaitingContact
+                              ? 'Da contattare ✓'
+                              : 'Segna da contattare',
+                        ),
                       ),
                       OutlinedButton.icon(
-                        style: btnStyle,
+                        style: btnStyle?.merge(
+                          awaitingDocuments
+                              ? ButtonStyle(
+                                  side: WidgetStatePropertyAll(
+                                    BorderSide(
+                                      color: BackofficeUiTokens.primary,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  foregroundColor: WidgetStatePropertyAll(
+                                    BackofficeUiTokens.primary,
+                                  ),
+                                )
+                              : null,
+                        ),
                         onPressed: _busy
                             ? null
-                            : () => _run(
-                                  () => widget.repository.updateStudentOnboardingStatus(
-                                    studentId: p.id,
-                                    status:
-                                        StudentOnboardingStatus.awaitingDocuments,
-                                  ),
-                                  'Segnato: documenti mancanti.',
+                            : () => _setOnboardingStatus(
+                                  p,
+                                  StudentOnboardingStatus.awaitingDocuments,
+                                  okMessage: 'Segnato: documenti mancanti.',
+                                  alreadyMessage:
+                                      'Allievo già segnato con documenti mancanti.',
                                 ),
-                        icon: Icon(Icons.folder_off_outlined, size: iconSize),
-                        label: const Text('Segna documenti mancanti'),
+                        icon: Icon(
+                          awaitingDocuments
+                              ? Icons.check_circle
+                              : Icons.folder_off_outlined,
+                          size: iconSize,
+                        ),
+                        label: Text(
+                          awaitingDocuments
+                              ? 'Documenti mancanti ✓'
+                              : 'Segna documenti mancanti',
+                        ),
                       ),
                       OutlinedButton.icon(
                         style: btnStyle,
@@ -306,19 +399,20 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                         icon: Icon(Icons.play_circle_outline, size: iconSize),
                         label: const Text('Attiva percorso'),
                       ),
-                      OutlinedButton.icon(
-                        style: btnStyle,
-                        onPressed: _busy
-                            ? null
-                            : () => showOnboardingRegistrationFeeDialog(
-                                  context,
-                                  view: widget.view,
-                                  repository: widget.repository,
-                                  onRefreshDetail: widget.onRefreshDetail,
-                                ),
-                        icon: Icon(Icons.euro_symbol, size: iconSize),
-                        label: const Text('Imposta quota iscrizione'),
-                      ),
+                      if (!widget.hideRegistrationFee)
+                        OutlinedButton.icon(
+                          style: btnStyle,
+                          onPressed: _busy
+                              ? null
+                              : () => showOnboardingRegistrationFeeDialog(
+                                    context,
+                                    view: widget.view,
+                                    repository: widget.repository,
+                                    onRefreshDetail: widget.onRefreshDetail,
+                                  ),
+                          icon: Icon(Icons.euro_symbol, size: iconSize),
+                          label: const Text('Imposta quota iscrizione'),
+                        ),
                       OutlinedButton.icon(
                         style: btnStyle,
                         onPressed: _busy

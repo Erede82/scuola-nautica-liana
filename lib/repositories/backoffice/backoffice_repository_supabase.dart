@@ -1126,6 +1126,26 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   }
 
   @override
+  Future<void> deleteStudentDocument({
+    required String documentId,
+    String? storagePath,
+  }) async {
+    final path = storagePath?.trim();
+    if (path != null && path.isNotEmpty) {
+      try {
+        await _client.storage.from('student-documents').remove([path]);
+      } catch (e, st) {
+        debugPrint(
+          'deleteStudentDocument: rimozione storage non riuscita '
+          '(path=$path): $e\n$st',
+        );
+      }
+    }
+
+    await _client.from('student_documents').delete().eq('id', documentId);
+  }
+
+  @override
   Future<StudentPhoto> uploadStudentPhoto({
     required StudentId studentId,
     required String photoKind,
@@ -1765,7 +1785,13 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       patch['onboarding_notes'] = notesUpdate;
     }
 
+    if (old == status && onboardingNotes == null) {
+      return;
+    }
+
     await _client.from('students').update(patch).eq('id', studentId);
+
+    if (old == status) return;
 
     await _insertActivity(
       studentId: studentId,

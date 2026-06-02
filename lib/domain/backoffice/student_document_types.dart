@@ -176,6 +176,13 @@ abstract final class StudentDocumentTypes {
     }
   }
 
+  /// Titolo automatico per upload: etichetta italiana del tipo documento (chiave UI).
+  static String autoTitleForDocumentUiType(String uiType) {
+    final label = uploadDocumentOptions[uiType];
+    if (label != null && label.isNotEmpty) return label;
+    return documentTypeLabel(uiType);
+  }
+
   static String photoKindToDb(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return dbPhotoKindOther;

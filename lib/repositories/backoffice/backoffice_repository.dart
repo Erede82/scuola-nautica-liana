@@ -86,6 +86,12 @@ abstract class BackofficeRepository {
     String? notes,
   });
 
+  /// Elimina documento allievo (record DB + file storage se presente).
+  Future<void> deleteStudentDocument({
+    required String documentId,
+    String? storagePath,
+  });
+
   Future<StudentPhoto> uploadStudentPhoto({
     required StudentId studentId,
     required String photoKind,

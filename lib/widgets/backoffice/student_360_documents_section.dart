@@ -250,17 +250,11 @@ class Student360DocumentsSection extends StatelessWidget {
       documentType = StudentDocumentTypes.uiIdentityCard;
     }
 
-    final titleController = TextEditingController(
-      text: StudentDocumentTypes.defaultTitleForDocumentUiType(documentType) ??
-          '',
-    );
-    final notesController = TextEditingController();
     DateTime? expiresAt;
     Student360PickedUploadFile? pickedFile;
     var uploading = false;
 
-    try {
-      await showDialog<void>(
+    await showDialog<void>(
         context: context,
         builder: (dialogContext) {
           return StatefulBuilder(
@@ -268,12 +262,7 @@ class Student360DocumentsSection extends StatelessWidget {
               Future<void> pickFile() async {
                 final picked = await _pickUploadFile(dialogContext);
                 if (picked == null || !dialogContext.mounted) return;
-                setDialogState(() {
-                  pickedFile = picked;
-                  if (titleController.text.trim().isEmpty) {
-                    titleController.text = picked.name;
-                  }
-                });
+                setDialogState(() => pickedFile = picked);
               }
 
               Future<void> pickExpiration() async {
@@ -303,16 +292,13 @@ class Student360DocumentsSection extends StatelessWidget {
                     studentId: view.profile.id,
                     practiceDossierId: view.practiceDossier?.id,
                     documentType: documentType,
-                    title: titleController.text.trim().isEmpty
-                        ? file.name
-                        : titleController.text.trim(),
+                    title: StudentDocumentTypes.autoTitleForDocumentUiType(
+                      documentType,
+                    ),
                     fileName: file.name,
                     bytes: file.bytes,
                     mimeType: file.mimeType,
                     expiresAt: expiresAt,
-                    notes: notesController.text.trim().isEmpty
-                        ? null
-                        : notesController.text.trim(),
                   );
                   if (!dialogContext.mounted) return;
                   Navigator.of(dialogContext).pop();
@@ -352,38 +338,11 @@ class Student360DocumentsSection extends StatelessWidget {
                               ),
                             )
                             .toList(),
-                        onChanged: uploading
+                          onChanged: uploading
                             ? null
-                            : (value) => setDialogState(() {
-                                documentType = value ?? documentType;
-                                final defaultTitle =
-                                    StudentDocumentTypes.defaultTitleForDocumentUiType(
-                                  documentType,
-                                );
-                                if (defaultTitle != null &&
-                                    titleController.text.trim().isEmpty) {
-                                  titleController.text = defaultTitle;
-                                }
-                              }),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: titleController,
-                        enabled: !uploading,
-                        decoration: const InputDecoration(
-                          labelText: 'Titolo documento',
-                          hintText: 'Se vuoto usa il nome file',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: notesController,
-                        enabled: !uploading,
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: 'Note opzionali',
-                        ),
+                            : (value) => setDialogState(
+                                () => documentType = value ?? documentType,
+                              ),
                       ),
                       const SizedBox(height: 12),
                       Wrap(
@@ -442,9 +401,53 @@ class Student360DocumentsSection extends StatelessWidget {
           );
         },
       );
-    } finally {
-      titleController.dispose();
-      notesController.dispose();
+  }
+
+  Future<void> _confirmDeleteDocument(
+    BuildContext context,
+    StudentDocument doc,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Elimina documento'),
+        content: Text(
+          'Vuoi eliminare questo documento? L\'operazione non può essere annullata.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await repository.deleteStudentDocument(
+        documentId: doc.id,
+        storagePath: doc.storagePath,
+      );
+      if (!context.mounted) return;
+      _showUploadMessage(context, 'Documento eliminato.');
+      await _refreshAfterUpload(context);
+    } catch (error) {
+      debugPrint('Eliminazione documento non riuscita: $error');
+      if (!context.mounted) return;
+      _showUploadMessage(
+        context,
+        'Eliminazione non riuscita. Riprova più tardi.',
+      );
     }
   }
 
@@ -680,10 +683,42 @@ class Student360DocumentsSection extends StatelessWidget {
                     ),
                   if (path != null && path.isNotEmpty) ...[
                     const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: openFile,
+                          icon: const Icon(Icons.open_in_new_outlined, size: 18),
+                          label: const Text('Apri'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _confirmDeleteDocument(context, doc),
+                          icon: Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.red.shade700,
+                          ),
+                          label: Text(
+                            'Elimina',
+                            style: TextStyle(color: Colors.red.shade700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 8),
                     OutlinedButton.icon(
-                      onPressed: openFile,
-                      icon: const Icon(Icons.open_in_new_outlined, size: 18),
-                      label: const Text('Apri'),
+                      onPressed: () => _confirmDeleteDocument(context, doc),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: Colors.red.shade700,
+                      ),
+                      label: Text(
+                        'Elimina',
+                        style: TextStyle(color: Colors.red.shade700),
+                      ),
                     ),
                   ],
                 ],

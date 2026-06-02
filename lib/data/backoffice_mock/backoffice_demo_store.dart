@@ -261,6 +261,14 @@ class BackofficeDemoStore extends ChangeNotifier {
     return document;
   }
 
+  void deleteStudentDocument({
+    required String documentId,
+    String? storagePath,
+  }) {
+    _documents.removeWhere((d) => d.id == documentId);
+    notifyListeners();
+  }
+
   StudentPhoto uploadStudentPhoto({
     required StudentId studentId,
     required String photoKind,
@@ -854,20 +862,23 @@ class BackofficeDemoStore extends ChangeNotifier {
     if (i < 0) return;
     final p = _profiles[i];
     final old = p.onboardingStatus;
+    if (old == status && onboardingNotes == null) return;
     _profiles[i] = _patchProfile(
       p,
       onboardingStatus: status,
       updateOnboardingNotes: onboardingNotes != null,
       onboardingNotes: onboardingNotes,
     );
-    _appendActivity(
-      studentId: studentId,
-      type: BackofficeActivityType.onboardingStatusChanged,
-      title: 'Onboarding aggiornato',
-      description:
-          '${studentOnboardingStatusLabelIt(old)} → '
-          '${studentOnboardingStatusLabelIt(status)}',
-    );
+    if (old != status) {
+      _appendActivity(
+        studentId: studentId,
+        type: BackofficeActivityType.onboardingStatusChanged,
+        title: 'Onboarding aggiornato',
+        description:
+            '${studentOnboardingStatusLabelIt(old)} → '
+            '${studentOnboardingStatusLabelIt(status)}',
+      );
+    }
     notifyListeners();
   }
 

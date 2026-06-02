@@ -221,7 +221,7 @@ class Student360SchedaSection extends StatelessWidget {
     TextTheme textTheme,
   ) {
     return Student360InfoCard(
-      title: 'Pratica e registro',
+      title: 'Pratica',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -339,6 +339,18 @@ class Student360SchedaSection extends StatelessWidget {
             icon: const Icon(Icons.folder_shared_outlined, size: 18),
             label: const Text('Aggiorna fascicolo'),
           ),
+          const SizedBox(height: 12),
+          student360SubsectionTitle('Azioni', textTheme),
+          const SizedBox(height: 8),
+          StudentOnboardingSection(
+            view: view,
+            repository: repository,
+            onRefreshDetail: onRefreshDetail,
+            embeddedInScheda: true,
+            compactActions: true,
+            inlineInPraticaCard: true,
+            hideRegistrationFee: true,
+          ),
         ],
       ),
     );
@@ -350,14 +362,6 @@ class Student360SchedaSection extends StatelessWidget {
     final d = view.practiceDossier;
     final textTheme = Theme.of(context).textTheme;
     final addr = p.address;
-
-    final azioni = StudentOnboardingSection(
-      view: view,
-      repository: repository,
-      onRefreshDetail: onRefreshDetail,
-      embeddedInScheda: true,
-      compactActions: true,
-    );
 
     return Student360SectionScroll(
       child: LayoutBuilder(
@@ -417,8 +421,6 @@ class Student360SchedaSection extends StatelessWidget {
               schedaAllievo,
               const SizedBox(height: 12),
               iscrizionePratica,
-              const SizedBox(height: 12),
-              azioni,
             ],
           );
         },
