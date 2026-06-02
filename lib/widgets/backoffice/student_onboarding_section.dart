@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
+import '../../models/license_models.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
@@ -14,11 +15,19 @@ class StudentOnboardingSection extends StatefulWidget {
     required this.view,
     required this.repository,
     required this.onRefreshDetail,
+    this.embeddedInScheda = false,
+    this.compactActions = false,
   });
 
   final StudentAdmin360View view;
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
+
+  /// Se true: solo card «Azioni segreteria» (tab Scheda), senza titolo onboarding né «Stato e date».
+  final bool embeddedInScheda;
+
+  /// Pulsanti più compatti (tab Scheda, in fondo).
+  final bool compactActions;
 
   @override
   State<StudentOnboardingSection> createState() =>
@@ -67,6 +76,114 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
     final p = widget.view.profile;
     final cat = p.enrolledLicenseCategory;
 
+    final body = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!widget.embeddedInScheda) ...[
+                    Text(
+                      'Onboarding',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: BackofficeUiTokens.text,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Azioni rapide',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: BackofficeUiTokens.text,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (widget.embeddedInScheda)
+                    _InfoCard(
+                      title: 'Azioni segreteria',
+                      compact: widget.compactActions,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_busy)
+                            const LinearProgressIndicator(minHeight: 2),
+                          if (_busy) const SizedBox(height: 6),
+                          _buildActionButtons(p, cat),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    if (_busy)
+                      const LinearProgressIndicator(minHeight: 3),
+                    if (_busy) const SizedBox(height: 8),
+                    _buildActionButtons(p, cat),
+                  ],
+                  if (!widget.embeddedInScheda) ...[
+                    const SizedBox(height: 14),
+                    _InfoCard(
+                      title: 'Stato e date',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _kv(
+                            'Stato onboarding',
+                            BackofficeFormatters.onboardingStatus(
+                              p.onboardingStatus,
+                            ),
+                          ),
+                          _kv(
+                            'Stato iscrizione',
+                            BackofficeFormatters.registrationStatus(
+                              p.registrationStatus,
+                            ),
+                          ),
+                          _kv(
+                            'Percorso iscritto',
+                            BackofficeFormatters.enrollmentCoursePath(
+                              p.enrolledCoursePath,
+                            ),
+                          ),
+                          _kv(
+                            'Data registrazione',
+                            p.createdAt != null
+                                ? BackofficeFormatters.dateUi(p.createdAt)
+                                : '—',
+                          ),
+                          _kv(
+                            'Primo contatto',
+                            p.firstContactedAt != null
+                                ? BackofficeFormatters.dateTimeUi(
+                                    p.firstContactedAt,
+                                  )
+                                : 'Non ancora registrato',
+                          ),
+                          _kv('Documenti', _documentiLine(widget.view)),
+                          if (p.onboardingNotes != null &&
+                              p.onboardingNotes!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Note onboarding',
+                              style: textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: BackofficeUiTokens.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SelectableText(
+                              p.onboardingNotes!,
+                              style: textTheme.bodyMedium,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              );
+
+    if (widget.embeddedInScheda) {
+      return body;
+    }
+
     return ColoredBox(
       color: BackofficeUiTokens.background,
       child: LayoutBuilder(
@@ -77,33 +194,36 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
             padding: EdgeInsets.all(pad),
             child: SizedBox(
               width: constraints.maxWidth,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Onboarding',
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Azioni rapide',
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_busy)
-                    const LinearProgressIndicator(minHeight: 3),
-                  if (_busy) const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
+              child: body,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(
+    StudentProfile p,
+    LicenseCategoryId cat,
+  ) {
+    final dense = widget.compactActions;
+    final iconSize = dense ? 16.0 : 18.0;
+    final btnStyle = dense
+        ? const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          )
+        : null;
+
+    return Wrap(
+      spacing: dense ? 6 : 8,
+      runSpacing: dense ? 6 : 8,
+      children: [
                       FilledButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -113,10 +233,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Iscrizione approvata (onboarding).',
                                 ),
-                        icon: const Icon(Icons.check_circle_outline),
+                        icon: Icon(Icons.check_circle_outline, size: iconSize),
                         label: const Text('Approva iscritto'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -126,10 +247,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Segnato: da contattare.',
                                 ),
-                        icon: const Icon(Icons.phone_callback_outlined),
+                        icon: Icon(Icons.phone_callback_outlined, size: iconSize),
                         label: const Text('Segna da contattare'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -140,10 +262,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Segnato: documenti mancanti.',
                                 ),
-                        icon: const Icon(Icons.folder_off_outlined),
+                        icon: Icon(Icons.folder_off_outlined, size: iconSize),
                         label: const Text('Segna documenti mancanti'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -152,14 +275,26 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Primo contatto registrato.',
                                 ),
-                        icon: const Icon(Icons.mark_chat_read_outlined),
+                        icon: Icon(Icons.mark_chat_read_outlined, size: iconSize),
                         label: const Text('Registra primo contatto'),
                       ),
                       FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: BackofficeUiTokens.success,
-                          foregroundColor: Colors.white,
-                        ),
+                        style: btnStyle?.merge(
+                          FilledButton.styleFrom(
+                            backgroundColor: BackofficeUiTokens.success,
+                            foregroundColor: Colors.white,
+                          ),
+                        ) ??
+                            FilledButton.styleFrom(
+                              backgroundColor: BackofficeUiTokens.success,
+                              foregroundColor: Colors.white,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -168,10 +303,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Percorso attivato.',
                                 ),
-                        icon: const Icon(Icons.play_circle_outline),
+                        icon: Icon(Icons.play_circle_outline, size: iconSize),
                         label: const Text('Attiva percorso'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => showOnboardingRegistrationFeeDialog(
@@ -180,10 +316,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   repository: widget.repository,
                                   onRefreshDetail: widget.onRefreshDetail,
                                 ),
-                        icon: const Icon(Icons.euro_symbol),
+                        icon: Icon(Icons.euro_symbol, size: iconSize),
                         label: const Text('Imposta quota iscrizione'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => showAddStaffNoteDialog(
@@ -192,10 +329,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   repository: widget.repository,
                                   onRefreshDetail: widget.onRefreshDetail,
                                 ),
-                        icon: const Icon(Icons.note_add_outlined),
+                        icon: Icon(Icons.note_add_outlined, size: iconSize),
                         label: const Text('Aggiungi nota iniziale'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -208,10 +346,11 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Prima scheda lezione 1 sbloccata.',
                                 ),
-                        icon: const Icon(Icons.lock_open_outlined),
+                        icon: Icon(Icons.lock_open_outlined, size: iconSize),
                         label: const Text('Sblocca prima scheda (lez. 1)'),
                       ),
                       OutlinedButton.icon(
+                        style: btnStyle,
                         onPressed: _busy
                             ? null
                             : () => _run(
@@ -222,71 +361,10 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                                   ),
                                   'Quiz esame disabilitato per categoria.',
                                 ),
-                        icon: const Icon(Icons.quiz_outlined),
+                        icon: Icon(Icons.quiz_outlined, size: iconSize),
                         label: const Text('Quiz esame non abilitato'),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _InfoCard(
-                    title: 'Stato e date',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _kv(
-                        'Stato onboarding',
-                        BackofficeFormatters.onboardingStatus(p.onboardingStatus),
-                      ),
-                      _kv(
-                        'Stato iscrizione',
-                        BackofficeFormatters.registrationStatus(
-                          p.registrationStatus,
-                        ),
-                      ),
-                      _kv(
-                        'Percorso iscritto',
-                        BackofficeFormatters.enrollmentCoursePath(
-                          p.enrolledCoursePath,
-                        ),
-                      ),
-                      _kv(
-                        'Data registrazione',
-                        p.createdAt != null
-                            ? BackofficeFormatters.dateUi(p.createdAt)
-                            : '—',
-                      ),
-                      _kv(
-                        'Primo contatto',
-                        p.firstContactedAt != null
-                            ? BackofficeFormatters.dateTimeUi(p.firstContactedAt)
-                            : 'Non ancora registrato',
-                      ),
-                      _kv('Documenti', _documentiLine(widget.view)),
-                      if (p.onboardingNotes != null &&
-                          p.onboardingNotes!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Note onboarding',
-                          style: textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: BackofficeUiTokens.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(
-                          p.onboardingNotes!,
-                          style: textTheme.bodyMedium,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-        },
-      ),
+      ],
     );
   }
 
@@ -322,14 +400,21 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
 }
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.child});
+  const _InfoCard({
+    required this.title,
+    required this.child,
+    this.compact = false,
+  });
 
   final String title;
   final Widget child;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final pad = compact ? 10.0 : 16.0;
+    final gap = compact ? 8.0 : 12.0;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: BackofficeUiTokens.card,
@@ -337,7 +422,7 @@ class _InfoCard extends StatelessWidget {
         border: Border.all(color: BackofficeUiTokens.neutral),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(pad),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -346,9 +431,10 @@ class _InfoCard extends StatelessWidget {
               style: textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: BackofficeUiTokens.text,
+                fontSize: compact ? 14 : null,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: gap),
             child,
           ],
         ),
