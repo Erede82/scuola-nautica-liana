@@ -205,6 +205,8 @@ abstract class BackofficeRepository {
     required StudentId studentId,
     required StudentOnboardingStatus status,
     String? onboardingNotes,
+    String? activityTitle,
+    String? activityDescription,
   });
 
   /// Registra primo contatto con l’allievo.

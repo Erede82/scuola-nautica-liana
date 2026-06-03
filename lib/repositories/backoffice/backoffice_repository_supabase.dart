@@ -1760,6 +1760,8 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     required StudentId studentId,
     required StudentOnboardingStatus status,
     String? onboardingNotes,
+    String? activityTitle,
+    String? activityDescription,
   }) async {
     final existing = await _client
         .from('students')
@@ -1793,13 +1795,18 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     if (old == status) return;
 
+    final logTitle = activityTitle ?? 'Onboarding aggiornato';
+    final logDescription = activityDescription ??
+        (activityTitle != null
+            ? null
+            : '${studentOnboardingStatusLabelIt(old)} → '
+                '${studentOnboardingStatusLabelIt(status)}');
+
     await _insertActivity(
       studentId: studentId,
       type: BackofficeActivityType.onboardingStatusChanged,
-      title: 'Onboarding aggiornato',
-      description:
-          '${studentOnboardingStatusLabelIt(old)} → '
-          '${studentOnboardingStatusLabelIt(status)}',
+      title: logTitle,
+      description: logDescription,
     );
   }
 

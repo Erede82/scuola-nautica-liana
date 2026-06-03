@@ -48,10 +48,22 @@ class Student360SectionContent extends StatelessWidget {
 }
 
 class Student360InfoCard extends StatelessWidget {
-  const Student360InfoCard({super.key, required this.title, required this.child});
+  const Student360InfoCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.stretch = false,
+    this.minHeight,
+  });
 
   final String title;
   final Widget child;
+
+  /// Riempie l’altezza quando la card è in una riga [Student360SiblingCardsRow].
+  final bool stretch;
+
+  /// Altezza minima per bilanciare card sorelle su desktop.
+  final double? minHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +71,20 @@ class Student360InfoCard extends StatelessWidget {
     final padding = compact ? 12.0 : 16.0;
     final titleGap = compact ? 8.0 : 12.0;
     final textTheme = Theme.of(context).textTheme;
+    final body = stretch
+        ? Expanded(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: child,
+            ),
+          )
+        : child;
+
     return Container(
       width: double.infinity,
+      constraints: minHeight != null
+          ? BoxConstraints(minHeight: minHeight!)
+          : null,
       padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: AppVisual.ivory,
@@ -69,7 +93,7 @@ class Student360InfoCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Text(
             title,
@@ -80,9 +104,58 @@ class Student360InfoCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: titleGap),
-          child,
+          body,
         ],
       ),
+    );
+  }
+}
+
+/// Due card affiancate con stessa altezza su desktop ([IntrinsicHeight], senza scroll risk).
+class Student360SiblingCardsRow extends StatelessWidget {
+  const Student360SiblingCardsRow({
+    super.key,
+    required this.left,
+    required this.right,
+    this.spacing = 12,
+    this.breakpoint = student360TwoColumnBreakpoint,
+  });
+
+  final Widget left;
+  final Widget right;
+  final double spacing;
+  final double breakpoint;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final wide = maxW.isFinite && maxW > 0 && maxW >= breakpoint;
+
+        if (!wide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              left,
+              SizedBox(height: spacing),
+              right,
+            ],
+          );
+        }
+
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: left),
+              SizedBox(width: spacing),
+              Expanded(child: right),
+            ],
+          ),
+        );
+      },
     );
   }
 }

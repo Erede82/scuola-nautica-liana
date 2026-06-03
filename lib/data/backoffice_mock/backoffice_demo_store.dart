@@ -857,6 +857,8 @@ class BackofficeDemoStore extends ChangeNotifier {
     required StudentId studentId,
     required StudentOnboardingStatus status,
     String? onboardingNotes,
+    String? activityTitle,
+    String? activityDescription,
   }) {
     final i = _profiles.indexWhere((p) => p.id == studentId);
     if (i < 0) return;
@@ -870,13 +872,17 @@ class BackofficeDemoStore extends ChangeNotifier {
       onboardingNotes: onboardingNotes,
     );
     if (old != status) {
+      final logTitle = activityTitle ?? 'Onboarding aggiornato';
+      final logDescription = activityDescription ??
+          (activityTitle != null
+              ? null
+              : '${studentOnboardingStatusLabelIt(old)} → '
+                  '${studentOnboardingStatusLabelIt(status)}');
       _appendActivity(
         studentId: studentId,
         type: BackofficeActivityType.onboardingStatusChanged,
-        title: 'Onboarding aggiornato',
-        description:
-            '${studentOnboardingStatusLabelIt(old)} → '
-            '${studentOnboardingStatusLabelIt(status)}',
+        title: logTitle,
+        description: logDescription,
       );
     }
     notifyListeners();

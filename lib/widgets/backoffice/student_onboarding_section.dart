@@ -227,22 +227,67 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
     );
   }
 
-  Future<void> _setOnboardingStatus(
-    StudentProfile p,
-    StudentOnboardingStatus status, {
-    required String okMessage,
-    required String alreadyMessage,
-  }) async {
-    if (p.onboardingStatus == status) {
-      _showInfoSnack(alreadyMessage);
+  Future<void> _markNeedsContact(StudentProfile p) async {
+    if (p.onboardingStatus == StudentOnboardingStatus.awaitingContact) {
+      _showInfoSnack('Allievo già segnato da contattare.');
       return;
     }
     await _run(
       () => widget.repository.updateStudentOnboardingStatus(
         studentId: p.id,
-        status: status,
+        status: StudentOnboardingStatus.awaitingContact,
+        activityTitle: 'Allievo segnato da contattare',
       ),
-      okMessage,
+      'Segnato: da contattare.',
+    );
+  }
+
+  Future<void> _markContactCompleted(StudentProfile p) async {
+    if (p.onboardingStatus != StudentOnboardingStatus.awaitingContact) {
+      _showInfoSnack('Nessun richiamo aperto da chiudere.');
+      return;
+    }
+    final next = onboardingStatusAfterFollowUpCleared(p.registrationStatus);
+    await _run(
+      () => widget.repository.updateStudentOnboardingStatus(
+        studentId: p.id,
+        status: next,
+        activityTitle: 'Contatto effettuato',
+        activityDescription: 'Richiamo gestito dalla segreteria.',
+      ),
+      'Richiamo segnato come gestito.',
+    );
+  }
+
+  Future<void> _markDocumentsMissing(StudentProfile p) async {
+    if (p.onboardingStatus == StudentOnboardingStatus.awaitingDocuments) {
+      _showInfoSnack('Allievo già segnato con documenti mancanti.');
+      return;
+    }
+    await _run(
+      () => widget.repository.updateStudentOnboardingStatus(
+        studentId: p.id,
+        status: StudentOnboardingStatus.awaitingDocuments,
+        activityTitle: 'Documenti mancanti segnalati',
+      ),
+      'Segnato: documenti mancanti.',
+    );
+  }
+
+  Future<void> _markDocumentsVerified(StudentProfile p) async {
+    if (p.onboardingStatus != StudentOnboardingStatus.awaitingDocuments) {
+      _showInfoSnack('Nessuna segnalazione documenti aperta da chiudere.');
+      return;
+    }
+    final next = onboardingStatusAfterFollowUpCleared(p.registrationStatus);
+    await _run(
+      () => widget.repository.updateStudentOnboardingStatus(
+        studentId: p.id,
+        status: next,
+        activityTitle: 'Verifica documenti completata',
+        activityDescription: 'Documenti mancanti gestiti dalla segreteria.',
+      ),
+      'Documenti segnati come verificati.',
     );
   }
 
@@ -284,80 +329,70 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
                         icon: Icon(Icons.check_circle_outline, size: iconSize),
                         label: const Text('Approva iscritto'),
                       ),
-                      OutlinedButton.icon(
-                        style: btnStyle?.merge(
-                          awaitingContact
-                              ? ButtonStyle(
-                                  side: WidgetStatePropertyAll(
-                                    BorderSide(
-                                      color: BackofficeUiTokens.primary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  foregroundColor: WidgetStatePropertyAll(
-                                    BackofficeUiTokens.primary,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        onPressed: _busy
-                            ? null
-                            : () => _setOnboardingStatus(
-                                  p,
-                                  StudentOnboardingStatus.awaitingContact,
-                                  okMessage: 'Segnato: da contattare.',
-                                  alreadyMessage:
-                                      'Allievo già segnato da contattare.',
+                      if (awaitingContact) ...[
+                        OutlinedButton.icon(
+                          style: btnStyle?.merge(
+                            ButtonStyle(
+                              side: WidgetStatePropertyAll(
+                                BorderSide(
+                                  color: BackofficeUiTokens.primary,
+                                  width: 1.5,
                                 ),
-                        icon: Icon(
-                          awaitingContact
-                              ? Icons.check_circle
-                              : Icons.phone_callback_outlined,
-                          size: iconSize,
+                              ),
+                              foregroundColor: WidgetStatePropertyAll(
+                                BackofficeUiTokens.primary,
+                              ),
+                            ),
+                          ),
+                          onPressed: null,
+                          icon: Icon(Icons.check_circle, size: iconSize),
+                          label: const Text('Da contattare ✓'),
                         ),
-                        label: Text(
-                          awaitingContact
-                              ? 'Da contattare ✓'
-                              : 'Segna da contattare',
+                        OutlinedButton.icon(
+                          style: btnStyle,
+                          onPressed: _busy ? null : () => _markContactCompleted(p),
+                          icon: Icon(Icons.done_outlined, size: iconSize),
+                          label: const Text('Segna contattato'),
                         ),
-                      ),
-                      OutlinedButton.icon(
-                        style: btnStyle?.merge(
-                          awaitingDocuments
-                              ? ButtonStyle(
-                                  side: WidgetStatePropertyAll(
-                                    BorderSide(
-                                      color: BackofficeUiTokens.primary,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  foregroundColor: WidgetStatePropertyAll(
-                                    BackofficeUiTokens.primary,
-                                  ),
-                                )
-                              : null,
+                      ] else
+                        OutlinedButton.icon(
+                          style: btnStyle,
+                          onPressed: _busy ? null : () => _markNeedsContact(p),
+                          icon: Icon(Icons.phone_callback_outlined, size: iconSize),
+                          label: const Text('Segna da contattare'),
                         ),
-                        onPressed: _busy
-                            ? null
-                            : () => _setOnboardingStatus(
-                                  p,
-                                  StudentOnboardingStatus.awaitingDocuments,
-                                  okMessage: 'Segnato: documenti mancanti.',
-                                  alreadyMessage:
-                                      'Allievo già segnato con documenti mancanti.',
+                      if (awaitingDocuments) ...[
+                        OutlinedButton.icon(
+                          style: btnStyle?.merge(
+                            ButtonStyle(
+                              side: WidgetStatePropertyAll(
+                                BorderSide(
+                                  color: BackofficeUiTokens.primary,
+                                  width: 1.5,
                                 ),
-                        icon: Icon(
-                          awaitingDocuments
-                              ? Icons.check_circle
-                              : Icons.folder_off_outlined,
-                          size: iconSize,
+                              ),
+                              foregroundColor: WidgetStatePropertyAll(
+                                BackofficeUiTokens.primary,
+                              ),
+                            ),
+                          ),
+                          onPressed: null,
+                          icon: Icon(Icons.check_circle, size: iconSize),
+                          label: const Text('Documenti mancanti ✓'),
                         ),
-                        label: Text(
-                          awaitingDocuments
-                              ? 'Documenti mancanti ✓'
-                              : 'Segna documenti mancanti',
+                        OutlinedButton.icon(
+                          style: btnStyle,
+                          onPressed: _busy ? null : () => _markDocumentsVerified(p),
+                          icon: Icon(Icons.task_alt_outlined, size: iconSize),
+                          label: const Text('Documenti verificati'),
                         ),
-                      ),
+                      ] else
+                        OutlinedButton.icon(
+                          style: btnStyle,
+                          onPressed: _busy ? null : () => _markDocumentsMissing(p),
+                          icon: Icon(Icons.folder_off_outlined, size: iconSize),
+                          label: const Text('Segna documenti mancanti'),
+                        ),
                       OutlinedButton.icon(
                         style: btnStyle,
                         onPressed: _busy

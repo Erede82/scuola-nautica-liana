@@ -440,11 +440,15 @@ class BackofficeRepositoryMock implements BackofficeRepository {
     required StudentId studentId,
     required StudentOnboardingStatus status,
     String? onboardingNotes,
+    String? activityTitle,
+    String? activityDescription,
   }) async {
     _store.updateStudentOnboardingStatus(
       studentId: studentId,
       status: status,
       onboardingNotes: onboardingNotes,
+      activityTitle: activityTitle,
+      activityDescription: activityDescription,
     );
   }
 

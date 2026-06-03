@@ -131,9 +131,17 @@ class Student360SchedaSection extends StatelessWidget {
     );
   }
 
-  Widget _iscrizioneCard(StudentProfile p, TextTheme textTheme) {
+  static const double _siblingCardMinHeight = 320;
+
+  Widget _iscrizioneCard(
+    StudentProfile p,
+    TextTheme textTheme, {
+    bool stretch = false,
+  }) {
     return Student360InfoCard(
       title: 'Iscrizione',
+      stretch: stretch,
+      minHeight: stretch ? _siblingCardMinHeight : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -218,10 +226,13 @@ class Student360SchedaSection extends StatelessWidget {
   Widget _praticaCard(
     BuildContext context,
     PracticeLicenseDossier? d,
-    TextTheme textTheme,
-  ) {
+    TextTheme textTheme, {
+    bool stretch = false,
+  }) {
     return Student360InfoCard(
       title: 'Pratica',
+      stretch: stretch,
+      minHeight: stretch ? _siblingCardMinHeight : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -398,21 +409,11 @@ class Student360SchedaSection extends StatelessWidget {
                   ),
           );
 
-          final iscrizionePratica = wide
-              ? Student360ResponsiveRow(
-                  spacing: 12,
-                  left: _iscrizioneCard(p, textTheme),
-                  right: _praticaCard(context, d, textTheme),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _iscrizioneCard(p, textTheme),
-                    const SizedBox(height: 12),
-                    _praticaCard(context, d, textTheme),
-                  ],
-                );
+          final iscrizionePratica = Student360SiblingCardsRow(
+            spacing: 12,
+            left: _iscrizioneCard(p, textTheme, stretch: wide),
+            right: _praticaCard(context, d, textTheme, stretch: wide),
+          );
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

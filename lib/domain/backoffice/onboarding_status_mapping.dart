@@ -40,6 +40,24 @@ String studentOnboardingStatusLabelIt(StudentOnboardingStatus s) {
   }
 }
 
+/// Stato onboarding dopo aver chiuso «da contattare» / «documenti mancanti» (senza nuovi campi DB).
+StudentOnboardingStatus onboardingStatusAfterFollowUpCleared(
+  StudentRegistrationStatus registration,
+) {
+  switch (registration) {
+    case StudentRegistrationStatus.active:
+      return StudentOnboardingStatus.activeCourse;
+    case StudentRegistrationStatus.suspended:
+      return StudentOnboardingStatus.suspended;
+    case StudentRegistrationStatus.completed:
+      return StudentOnboardingStatus.completed;
+    case StudentRegistrationStatus.withdrawn:
+      return StudentOnboardingStatus.pendingReview;
+    case StudentRegistrationStatus.pending:
+      return StudentOnboardingStatus.pendingReview;
+  }
+}
+
 StudentOnboardingStatus studentOnboardingStatusFromDb(String raw) {
   switch (raw) {
     case 'pending_review':
