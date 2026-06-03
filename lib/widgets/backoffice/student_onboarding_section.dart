@@ -238,7 +238,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
         status: StudentOnboardingStatus.awaitingContact,
         activityTitle: 'Allievo segnato da contattare',
       ),
-      'Segnato: da contattare.',
+      'OK, allievo segnato da contattare.',
     );
   }
 
@@ -255,7 +255,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
         activityTitle: 'Contatto effettuato',
         activityDescription: 'Richiamo gestito dalla segreteria.',
       ),
-      'Richiamo segnato come gestito.',
+      'OK, contatto effettuato.',
     );
   }
 
@@ -270,7 +270,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
         status: StudentOnboardingStatus.awaitingDocuments,
         activityTitle: 'Documenti mancanti segnalati',
       ),
-      'Segnato: documenti mancanti.',
+      'OK, documenti mancanti segnalati.',
     );
   }
 
@@ -287,7 +287,7 @@ class _StudentOnboardingSectionState extends State<StudentOnboardingSection> {
         activityTitle: 'Verifica documenti completata',
         activityDescription: 'Documenti mancanti gestiti dalla segreteria.',
       ),
-      'Documenti segnati come verificati.',
+      'OK, verifica documenti completata.',
     );
   }
 

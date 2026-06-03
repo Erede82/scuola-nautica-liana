@@ -203,6 +203,33 @@ abstract final class BackofficeFormatters {
     }
   }
 
+  /// Etichetta chip Registro interno per titoli evento follow-up (nessun campo DB).
+  static String? activityFollowUpChipLabel(String eventTitle) {
+    switch (eventTitle.trim()) {
+      case 'Allievo segnato da contattare':
+        return 'Da contattare';
+      case 'Contatto effettuato':
+        return 'Contatto effettuato';
+      case 'Documenti mancanti segnalati':
+        return 'Documenti mancanti';
+      case 'Verifica documenti completata':
+        return 'Documenti verificati';
+      default:
+        return null;
+    }
+  }
+
+  /// Chip “gestito/chiuso” vs “aperto/segnalato” (solo resa grafica).
+  static bool activityFollowUpChipIsResolved(String eventTitle) {
+    switch (eventTitle.trim()) {
+      case 'Contatto effettuato':
+      case 'Verifica documenti completata':
+        return true;
+      default:
+        return false;
+    }
+  }
+
   static String lessonType(GuidanceLessonType t) {
     switch (t) {
       case GuidanceLessonType.theory:

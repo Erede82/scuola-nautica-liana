@@ -1350,6 +1350,19 @@ class _SectionRegistroInterno extends StatelessWidget {
                 Text('Nessun evento ancora.', style: textTheme.bodyMedium)
               else
                 ...acts.take(80).map((e) {
+                  final chipLabel =
+                      BackofficeFormatters.activityFollowUpChipLabel(e.title);
+                  final chipResolved = chipLabel != null &&
+                      BackofficeFormatters.activityFollowUpChipIsResolved(
+                        e.title,
+                      );
+                  final chipBg = chipResolved
+                      ? BackofficeUiTokens.success.withValues(alpha: 0.14)
+                      : BackofficeUiTokens.primary.withValues(alpha: 0.12);
+                  final chipFg = chipResolved
+                      ? BackofficeUiTokens.success
+                      : BackofficeUiTokens.primary;
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Container(
@@ -1381,11 +1394,43 @@ class _SectionRegistroInterno extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  e.title,
-                                  style: textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      e.title,
+                                      style: textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    if (chipLabel != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: chipBg,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: chipFg.withValues(
+                                              alpha: 0.35,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          chipLabel,
+                                          style: textTheme.labelSmall?.copyWith(
+                                            color: chipFg,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
