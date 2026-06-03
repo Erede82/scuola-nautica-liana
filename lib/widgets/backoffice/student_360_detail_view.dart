@@ -35,7 +35,7 @@ class Student360DetailView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return DefaultTabController(
-      length: 7,
+      length: 6,
       child: ColoredBox(
         color: _bg,
         child: Column(
@@ -131,7 +131,6 @@ class Student360DetailView extends StatelessWidget {
                   Tab(text: 'Guide'),
                   Tab(text: 'Esami'),
                   Tab(text: 'Contabilità'),
-                  Tab(text: 'Registro interno'),
                 ],
               ),
             ),
@@ -164,11 +163,6 @@ class Student360DetailView extends StatelessWidget {
                     onRefreshDetail: onRefreshDetail,
                   ),
                   _SectionContabilita(
-                    view: view,
-                    repository: repository,
-                    onRefreshDetail: onRefreshDetail,
-                  ),
-                  _SectionRegistroInterno(
                     view: view,
                     repository: repository,
                     onRefreshDetail: onRefreshDetail,
@@ -1226,6 +1220,8 @@ class _SectionContabilita extends StatelessWidget {
 }
 
 
+// UI non esposta in TabBarView; log attività restano su repository/DB.
+// ignore: unused_element
 class _SectionRegistroInterno extends StatelessWidget {
   const _SectionRegistroInterno({
     required this.view,
