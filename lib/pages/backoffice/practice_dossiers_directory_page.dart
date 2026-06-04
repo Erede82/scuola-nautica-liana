@@ -6,6 +6,42 @@ import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../theme/app_visual_tokens.dart';
 
+/// Opzione per filtri a tendina directory Pratiche.
+class _PracticeFilterOption<T> {
+  const _PracticeFilterOption({required this.value, required this.label});
+
+  final T? value;
+  final String label;
+}
+
+/// Voci filtro avanzamento pratica (senza attesa documenti).
+const _practiceAdvancementFilterOptions = <_PracticeFilterOption<PracticeFileStatus?>>[
+  _PracticeFilterOption(value: null, label: 'Tutti'),
+  _PracticeFilterOption(
+    value: PracticeFileStatus.notOpen,
+    label: 'Non avviato',
+  ),
+  _PracticeFilterOption(
+    value: PracticeFileStatus.inProgress,
+    label: 'In lavorazione',
+  ),
+  _PracticeFilterOption(
+    value: PracticeFileStatus.submitted,
+    label: 'Inviata',
+  ),
+  _PracticeFilterOption(
+    value: PracticeFileStatus.closed,
+    label: 'Chiusa',
+  ),
+];
+
+const _practiceTypeFilterOptions = <_PracticeFilterOption<String?>>[
+  _PracticeFilterOption(value: null, label: 'Tutte'),
+  _PracticeFilterOption(value: 'new_license', label: 'Nuova patente'),
+  _PracticeFilterOption(value: 'renewal', label: 'Rinnovo'),
+  _PracticeFilterOption(value: 'duplicate', label: 'Duplicato'),
+];
+
 /// Directory pratiche (V1): elenco da `practice_dossiers` + apertura Scheda 360 allievo.
 class PracticeDossiersDirectoryPage extends StatefulWidget {
   const PracticeDossiersDirectoryPage({
@@ -36,7 +72,6 @@ class _PracticeDossiersDirectoryPageState
   String? _practiceTypeFilter;
 
   PracticeFileStatus? _practiceStatusFilter;
-  LicenseDocumentStatus? _documentStatusFilter;
   bool _onlyWithoutRegistry = false;
   bool _onlyDocsIncomplete = false;
 
@@ -57,7 +92,6 @@ class _PracticeDossiersDirectoryPageState
       _searchCtrl.clear();
       _practiceTypeFilter = null;
       _practiceStatusFilter = null;
-      _documentStatusFilter = null;
       _onlyWithoutRegistry = false;
       _onlyDocsIncomplete = false;
     });
@@ -108,10 +142,6 @@ class _PracticeDossiersDirectoryPageState
       }
       if (_practiceStatusFilter != null &&
           i.practiceStatus != _practiceStatusFilter) {
-        continue;
-      }
-      if (_documentStatusFilter != null &&
-          i.documentStatus != _documentStatusFilter) {
         continue;
       }
       if (_onlyWithoutRegistry && i.hasRegistryNumberAssigned) continue;
@@ -201,113 +231,35 @@ class _PracticeDossiersDirectoryPageState
               children: [
                 LayoutBuilder(
                   builder: (context, c) {
-                    final dropW = (c.maxWidth - 16) / 3;
-                    final w = dropW.clamp(200.0, 320.0);
-                    Widget drop<T>({
-                      required Widget child,
-                    }) {
-                      return SizedBox(
-                        width: w,
-                        child: child,
-                      );
-                    }
+                    final dropW = (c.maxWidth - 8) / 2;
+                    final w = dropW.clamp(220.0, 360.0);
 
                     return Wrap(
                       spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.end,
                       children: [
-                        drop<String?>(
-                          child: DropdownButtonFormField<String?>(
-                            key: ValueKey('ptype_${_practiceTypeFilter ?? 'all'}'),
-                            initialValue: _practiceTypeFilter,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Tipo pratica',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: const [
-                              DropdownMenuItem(value: null, child: Text('Tutte')),
-                              DropdownMenuItem(
-                                value: 'new_license',
-                                child: Text('Nuova patente'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'renewal',
-                                child: Text('Rinnovo'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'duplicate',
-                                child: Text('Duplicato'),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _practiceTypeFilter = v),
-                          ),
+                        _PracticeFilterField<String?>(
+                          key: ValueKey('ptype_${_practiceTypeFilter ?? 'all'}'),
+                          label: 'Tipo pratica',
+                          width: w,
+                          value: _practiceTypeFilter,
+                          options: _practiceTypeFilterOptions,
+                          menuMaxHeight: 220,
+                          onChanged: (v) =>
+                              setState(() => _practiceTypeFilter = v),
                         ),
-                        drop<PracticeFileStatus?>(
-                          child: DropdownButtonFormField<PracticeFileStatus?>(
-                            key: ValueKey(
-                              'pstat_${_practiceStatusFilter ?? 'all'}',
-                            ),
-                            initialValue: _practiceStatusFilter,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Stato pratica',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text('Tutti'),
-                              ),
-                              ...PracticeFileStatus.values.map(
-                                (s) => DropdownMenuItem(
-                                  value: s,
-                                  child: Text(
-                                    BackofficeFormatters.practiceStatus(s),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _practiceStatusFilter = v),
+                        _PracticeFilterField<PracticeFileStatus?>(
+                          key: ValueKey(
+                            'pstat_${_practiceStatusFilter?.name ?? 'all'}',
                           ),
-                        ),
-                        drop<LicenseDocumentStatus?>(
-                          child: DropdownButtonFormField<
-                              LicenseDocumentStatus?>(
-                            key: ValueKey(
-                              'dstat_${_documentStatusFilter ?? 'all'}',
-                            ),
-                            initialValue: _documentStatusFilter,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Stato documenti',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text('Tutti'),
-                              ),
-                              ...LicenseDocumentStatus.values.map(
-                                (s) => DropdownMenuItem(
-                                  value: s,
-                                  child: Text(
-                                    BackofficeFormatters.documentStatus(s),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _documentStatusFilter = v),
-                          ),
+                          label: 'Avanzamento pratica',
+                          width: w,
+                          value: _practiceStatusFilter,
+                          options: _practiceAdvancementFilterOptions,
+                          menuMaxHeight: 260,
+                          onChanged: (v) =>
+                              setState(() => _practiceStatusFilter = v),
                         ),
                         FilterChip(
                           label: const Text('Senza n. registro'),
@@ -599,6 +551,134 @@ class _PracticeRowCard extends StatelessWidget {
                   ],
                 ),
         ),
+      ),
+    );
+  }
+}
+
+/// Campo filtro: etichetta sopra, riquadro valore sotto; menu [MenuAnchor] sotto il riquadro.
+class _PracticeFilterField<T> extends StatelessWidget {
+  const _PracticeFilterField({
+    super.key,
+    required this.label,
+    required this.width,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.menuMaxHeight = 260,
+  });
+
+  final String label;
+  final double width;
+  final T? value;
+  final List<_PracticeFilterOption<T>> options;
+  final ValueChanged<T?> onChanged;
+  final double menuMaxHeight;
+
+  String get _selectedLabel {
+    for (final opt in options) {
+      if (opt.value == value) return opt.label;
+    }
+    return options.first.label;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppVisual.ink.withValues(alpha: 0.72),
+            ),
+          ),
+          const SizedBox(height: 6),
+          MenuAnchor(
+            style: MenuStyle(
+              alignment: AlignmentDirectional.topStart,
+              maximumSize: WidgetStatePropertyAll(Size(width, menuMaxHeight)),
+              minimumSize: WidgetStatePropertyAll(Size(width, 0)),
+              padding: WidgetStatePropertyAll(
+                const EdgeInsets.symmetric(vertical: 6),
+              ),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              elevation: WidgetStatePropertyAll(6),
+              shadowColor: WidgetStatePropertyAll(
+                Colors.black.withValues(alpha: 0.12),
+              ),
+              backgroundColor: WidgetStatePropertyAll(AppVisual.surface),
+            ),
+            alignmentOffset: const Offset(0, 6),
+            crossAxisUnconstrained: false,
+            builder: (context, controller, _) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    if (controller.isOpen) {
+                      controller.close();
+                    } else {
+                      controller.open();
+                    }
+                  },
+                  child: Container(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppVisual.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppVisual.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _selectedLabel,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppVisual.ink,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppVisual.inkMuted,
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+            menuChildren: [
+              for (final opt in options)
+                MenuItemButton(
+                  onPressed: () => onChanged(opt.value),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      opt.label,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
