@@ -600,83 +600,115 @@ class _PracticeFilterField<T> extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          MenuAnchor(
-            style: MenuStyle(
-              alignment: AlignmentDirectional.topStart,
-              maximumSize: WidgetStatePropertyAll(Size(width, menuMaxHeight)),
-              minimumSize: WidgetStatePropertyAll(Size(width, 0)),
-              padding: WidgetStatePropertyAll(
-                const EdgeInsets.symmetric(vertical: 6),
-              ),
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              elevation: WidgetStatePropertyAll(6),
-              shadowColor: WidgetStatePropertyAll(
-                Colors.black.withValues(alpha: 0.12),
-              ),
-              backgroundColor: WidgetStatePropertyAll(AppVisual.surface),
-            ),
-            alignmentOffset: const Offset(0, 6),
-            crossAxisUnconstrained: false,
-            builder: (context, controller, _) {
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    if (controller.isOpen) {
-                      controller.close();
-                    } else {
-                      controller.open();
-                    }
-                  },
-                  child: Container(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppVisual.surface,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fieldWidth = constraints.maxWidth;
+
+              MenuStyle menuStyle(double menuWidth) {
+                return MenuStyle(
+                  alignment: AlignmentDirectional.topStart,
+                  minimumSize: WidgetStatePropertyAll(Size(menuWidth, 0)),
+                  maximumSize: WidgetStatePropertyAll(
+                    Size(menuWidth, menuMaxHeight),
+                  ),
+                  padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppVisual.border),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _selectedLabel,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppVisual.ink,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                  ),
+                  elevation: WidgetStatePropertyAll(6),
+                  shadowColor: WidgetStatePropertyAll(
+                    Colors.black.withValues(alpha: 0.12),
+                  ),
+                  backgroundColor: WidgetStatePropertyAll(AppVisual.surface),
+                  surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+                );
+              }
+
+              ButtonStyle menuItemStyle(double menuWidth) {
+                return MenuItemButton.styleFrom(
+                  minimumSize: Size(menuWidth, 40),
+                  maximumSize: Size(menuWidth, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                );
+              }
+
+              return MenuAnchor(
+                style: menuStyle(fieldWidth),
+                alignmentOffset: const Offset(0, 4),
+                crossAxisUnconstrained: false,
+                builder: (context, controller, _) {
+                  return SizedBox(
+                    width: fieldWidth,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          if (controller.isOpen) {
+                            controller.close();
+                          } else {
+                            controller.open();
+                          }
+                        },
+                        child: Container(
+                          width: fieldWidth,
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppVisual.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppVisual.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _selectedLabel,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppVisual.ink,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: AppVisual.inkMuted,
+                                size: 22,
+                              ),
+                            ],
                           ),
                         ),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: AppVisual.inkMuted,
-                          size: 22,
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
+                menuChildren: [
+                  for (final opt in options)
+                    SizedBox(
+                      width: fieldWidth,
+                      child: MenuItemButton(
+                        style: menuItemStyle(fieldWidth),
+                        onPressed: () => onChanged(opt.value),
+                        child: Text(
+                          opt.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium,
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
-            menuChildren: [
-              for (final opt in options)
-                MenuItemButton(
-                  onPressed: () => onChanged(opt.value),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      opt.label,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-            ],
           ),
         ],
       ),
