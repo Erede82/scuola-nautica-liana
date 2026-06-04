@@ -448,6 +448,61 @@ StudentDocument? _firstOtherDocumentMatching(
 DateTime _dateOnly(DateTime value) =>
     DateTime(value.year, value.month, value.day);
 
+/// Sintesi checklist per riga directory Pratiche (nessun campo DB).
+enum PracticeMedicalCertificateSummaryKind {
+  notApplicable,
+  ok,
+  missing,
+  expired,
+  expiringSoon,
+}
+
+class PracticeDocumentChecklistSummary {
+  const PracticeDocumentChecklistSummary({
+    required this.applicable,
+    this.missingRequiredCount = 0,
+    this.isRequiredChecklistComplete = false,
+    this.medicalCertificate = PracticeMedicalCertificateSummaryKind.notApplicable,
+  });
+
+  static const notApplicable = PracticeDocumentChecklistSummary(
+    applicable: false,
+  );
+
+  final bool applicable;
+  final int missingRequiredCount;
+  final bool isRequiredChecklistComplete;
+  final PracticeMedicalCertificateSummaryKind medicalCertificate;
+
+  factory PracticeDocumentChecklistSummary.fromChecklist(
+    PracticeDocumentChecklist checklist,
+  ) {
+    if (!checklist.applicable) return notApplicable;
+
+    var medical = PracticeMedicalCertificateSummaryKind.ok;
+    final medicalItem = checklist.medicalCertificateItem;
+    if (medicalItem != null) {
+      switch (medicalItem.status) {
+        case PracticeDocumentChecklistItemStatus.missing:
+          medical = PracticeMedicalCertificateSummaryKind.missing;
+        case PracticeDocumentChecklistItemStatus.expired:
+          medical = PracticeMedicalCertificateSummaryKind.expired;
+        case PracticeDocumentChecklistItemStatus.expiringSoon:
+          medical = PracticeMedicalCertificateSummaryKind.expiringSoon;
+        default:
+          medical = PracticeMedicalCertificateSummaryKind.ok;
+      }
+    }
+
+    return PracticeDocumentChecklistSummary(
+      applicable: true,
+      missingRequiredCount: checklist.missingRequiredCount,
+      isRequiredChecklistComplete: checklist.isRequiredChecklistComplete,
+      medicalCertificate: medical,
+    );
+  }
+}
+
 String practiceTypeLabelIt(String? practiceType) {
   switch (practiceType) {
     case 'new_license':

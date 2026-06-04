@@ -1,5 +1,6 @@
 import 'backoffice_enums.dart';
 import 'ids.dart';
+import 'practice_document_requirements.dart';
 
 /// Riga directory pratiche (lettura-only): fascicolo + identificazione minima allievo.
 class PracticeListItem {
@@ -17,6 +18,7 @@ class PracticeListItem {
     this.practiceNumber,
     required this.documentStatus,
     required this.practiceStatus,
+    this.documentChecklistSummary = PracticeDocumentChecklistSummary.notApplicable,
   });
 
   final PracticeDossierId practiceDossierId;
@@ -36,6 +38,9 @@ class PracticeListItem {
   final LicenseDocumentStatus documentStatus;
   final PracticeFileStatus practiceStatus;
 
+  /// Riepilogo checklist client-side (directory Pratiche).
+  final PracticeDocumentChecklistSummary documentChecklistSummary;
+
   bool get hasRegistryNumberAssigned =>
       registryNumber != null &&
       registryCode != null &&
@@ -48,4 +53,10 @@ class PracticeListItem {
   bool get isDocumentFlowIncomplete =>
       documentStatus == LicenseDocumentStatus.notStarted ||
       practiceStatus == PracticeFileStatus.waitingDocuments;
+
+  /// Filtro “documenti incompleti”: checklist se applicabile, altrimenti stati DB.
+  bool get isDocumentIncompleteForFilter =>
+      documentChecklistSummary.applicable
+          ? !documentChecklistSummary.isRequiredChecklistComplete
+          : isDocumentFlowIncomplete;
 }

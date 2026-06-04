@@ -114,6 +114,12 @@ class BackofficeRepositoryMock implements BackofficeRepository {
       final view = _store.aggregateFor(p.id);
       final d = view?.practiceDossier;
       if (d == null) continue;
+      final checklist = evaluatePracticeDocumentChecklist(
+        practiceType: d.practiceType,
+        documents: view?.documents ?? const [],
+        photos: view?.photos ?? const [],
+      );
+      final summary = PracticeDocumentChecklistSummary.fromChecklist(checklist);
       out.add(
         PracticeListItem(
           practiceDossierId: d.id,
@@ -129,6 +135,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
           practiceNumber: d.practiceNumber,
           documentStatus: d.documentStatus,
           practiceStatus: d.practiceStatus,
+          documentChecklistSummary: summary,
         ),
       );
     }

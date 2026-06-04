@@ -242,8 +242,10 @@ ExamAttempt mapExamAttemptRowToDomain(ExamAttemptRow r) {
 
 PracticeListItem mapPracticeListItemFromRows(
   PracticeDossierRow d,
-  StudentRow? student,
-) {
+  StudentRow? student, {
+  PracticeDocumentChecklistSummary documentChecklistSummary =
+      PracticeDocumentChecklistSummary.notApplicable,
+}) {
   final name = student == null
       ? 'Allievo (dati non caricati)'
       : '${student.firstName} ${student.lastName}'.trim();
@@ -269,6 +271,7 @@ PracticeListItem mapPracticeListItemFromRows(
       d.practiceStatus,
       PracticeFileStatus.notOpen,
     ),
+    documentChecklistSummary: documentChecklistSummary,
   );
 }
 

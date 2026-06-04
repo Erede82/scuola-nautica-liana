@@ -115,7 +115,7 @@ class _PracticeDossiersDirectoryPageState
         continue;
       }
       if (_onlyWithoutRegistry && i.hasRegistryNumberAssigned) continue;
-      if (_onlyDocsIncomplete && !i.isDocumentFlowIncomplete) continue;
+      if (_onlyDocsIncomplete && !i.isDocumentIncompleteForFilter) continue;
       if (q.isNotEmpty) {
         final regNum = i.registryNumber?.toString() ?? '';
         final regYear = i.registryYear?.toString() ?? '';
@@ -412,9 +412,6 @@ class _PracticeRowCard extends StatelessWidget {
             if (item.registryYear != null) 'anno ${item.registryYear}',
           ].join(' · ')
         : 'Senza numero registro assegnato';
-    final docHint = item.isDocumentFlowIncomplete
-        ? 'Documenti da completare'
-        : null;
     final contact = [
       if (item.studentEmail != null && item.studentEmail!.trim().isNotEmpty)
         item.studentEmail,
@@ -472,17 +469,10 @@ class _PracticeRowCard extends StatelessWidget {
                                 visualDensity: VisualDensity.compact,
                                 labelStyle: textTheme.labelSmall,
                               ),
-                              if (docHint != null)
-                                Chip(
-                                  label: Text(docHint),
-                                  visualDensity: VisualDensity.compact,
-                                  backgroundColor:
-                                      const Color(0xFFFFF4E5),
-                                  labelStyle: textTheme.labelSmall?.copyWith(
-                                    color: const Color(0xFFB45309),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                              ..._PracticeDocumentSummaryChips.build(
+                                item: item,
+                                textTheme: textTheme,
+                              ),
                             ],
                           ),
                         ],
@@ -590,17 +580,17 @@ class _PracticeRowCard extends StatelessWidget {
                       'Pratica: ${BackofficeFormatters.practiceStatus(item.practiceStatus)} · '
                       'Documenti: ${BackofficeFormatters.documentStatus(item.documentStatus)}',
                     ),
-                    if (docHint != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          docHint,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: const Color(0xFFB45309),
-                            fontWeight: FontWeight.w800,
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _PracticeDocumentSummaryChips.build(
+                          item: item,
+                          textTheme: textTheme,
                         ),
                       ),
+                    ),
                     const SizedBox(height: 10),
                     FilledButton.tonal(
                       onPressed: onOpen360,
@@ -608,6 +598,107 @@ class _PracticeRowCard extends StatelessWidget {
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge checklist documenti compatti per riga directory (Fase C).
+abstract final class _PracticeDocumentSummaryChips {
+  static List<Widget> build({
+    required PracticeListItem item,
+    required TextTheme textTheme,
+  }) {
+    final summary = item.documentChecklistSummary;
+    if (!summary.applicable) {
+      if (!item.isDocumentFlowIncomplete) return const [];
+      return [
+        _pill(
+          label: 'Documenti da completare',
+          bg: const Color(0xFFFFF4E5),
+          fg: const Color(0xFFB45309),
+          textTheme: textTheme,
+        ),
+      ];
+    }
+
+    final chips = <Widget>[];
+    if (summary.isRequiredChecklistComplete) {
+      chips.add(
+        _pill(
+          label: 'Completa',
+          bg: Colors.green.shade50,
+          fg: Colors.green.shade900,
+          textTheme: textTheme,
+        ),
+      );
+    } else {
+      chips.add(
+        _pill(
+          label: 'Mancano ${summary.missingRequiredCount}',
+          bg: Colors.orange.shade50,
+          fg: Colors.orange.shade900,
+          textTheme: textTheme,
+        ),
+      );
+    }
+
+    switch (summary.medicalCertificate) {
+      case PracticeMedicalCertificateSummaryKind.missing:
+        chips.add(
+          _pill(
+            label: 'Cert. medico assente',
+            bg: Colors.orange.shade50,
+            fg: Colors.orange.shade900,
+            textTheme: textTheme,
+          ),
+        );
+      case PracticeMedicalCertificateSummaryKind.expired:
+        chips.add(
+          _pill(
+            label: 'Cert. medico scaduto',
+            bg: Colors.red.shade50,
+            fg: Colors.red.shade900,
+            textTheme: textTheme,
+          ),
+        );
+      case PracticeMedicalCertificateSummaryKind.expiringSoon:
+        chips.add(
+          _pill(
+            label: 'Cert. medico in scadenza',
+            bg: Colors.amber.shade50,
+            fg: Colors.amber.shade900,
+            textTheme: textTheme,
+          ),
+        );
+      case PracticeMedicalCertificateSummaryKind.ok:
+      case PracticeMedicalCertificateSummaryKind.notApplicable:
+        break;
+    }
+
+    return chips;
+  }
+
+  static Widget _pill({
+    required String label,
+    required Color bg,
+    required Color fg,
+    required TextTheme textTheme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
         ),
       ),
     );

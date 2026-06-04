@@ -561,12 +561,80 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     }
 
     final out = <PracticeListItem>[];
+    final documentsByStudent = await _loadStudentDocumentsByStudentIds(
+      studentIds,
+    );
+    final photosByStudent = await _loadStudentPhotosByStudentIds(studentIds);
+
     for (final d in dossierRows) {
       try {
-        out.add(mapPracticeListItemFromRows(d, studentById[d.studentId]));
+        final docs = documentsByStudent[d.studentId] ?? const <StudentDocument>[];
+        final photos = photosByStudent[d.studentId] ?? const <StudentPhoto>[];
+        final checklist = evaluatePracticeDocumentChecklist(
+          practiceType: d.practiceType,
+          documents: docs,
+          photos: photos,
+        );
+        final summary = PracticeDocumentChecklistSummary.fromChecklist(
+          checklist,
+        );
+        out.add(
+          mapPracticeListItemFromRows(
+            d,
+            studentById[d.studentId],
+            documentChecklistSummary: summary,
+          ),
+        );
       } catch (err, st) {
         debugPrint('listPracticeDossiers: voce lista non mappabile: $err\n$st');
       }
+    }
+    return out;
+  }
+
+  Future<Map<String, List<StudentDocument>>> _loadStudentDocumentsByStudentIds(
+    List<String> studentIds,
+  ) async {
+    if (studentIds.isEmpty) return {};
+    final res = await _client
+        .from('student_documents')
+        .select(
+          'id, student_id, practice_dossier_id, document_type, title, '
+          'storage_path, file_name, mime_type, status, expires_at, notes, '
+          'uploaded_by_staff_id, created_at, updated_at',
+        )
+        .inFilter('student_id', studentIds);
+
+    final out = <String, List<StudentDocument>>{};
+    for (final row in _mapRowsSafe(
+      res as List<dynamic>,
+      (j) => mapStudentDocumentRowToDomain(StudentDocumentRow.fromJson(j)),
+      'listPracticeDossiers student_documents',
+    )) {
+      out.putIfAbsent(row.studentId, () => []).add(row);
+    }
+    return out;
+  }
+
+  Future<Map<String, List<StudentPhoto>>> _loadStudentPhotosByStudentIds(
+    List<String> studentIds,
+  ) async {
+    if (studentIds.isEmpty) return {};
+    final res = await _client
+        .from('student_photos')
+        .select(
+          'id, student_id, photo_kind, storage_path, file_name, mime_type, '
+          'notes, uploaded_by_staff_id, created_at, updated_at',
+        )
+        .inFilter('student_id', studentIds);
+
+    final out = <String, List<StudentPhoto>>{};
+    for (final row in _mapRowsSafe(
+      res as List<dynamic>,
+      (j) => mapStudentPhotoRowToDomain(StudentPhotoRow.fromJson(j)),
+      'listPracticeDossiers student_photos',
+    )) {
+      out.putIfAbsent(row.studentId, () => []).add(row);
     }
     return out;
   }
