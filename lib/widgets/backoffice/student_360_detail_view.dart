@@ -18,11 +18,18 @@ class Student360DetailView extends StatelessWidget {
     required this.view,
     required this.repository,
     required this.onRefreshDetail,
+    this.initialTabIndex = tabIndexScheda,
   });
 
   final StudentAdmin360View view;
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
+
+  /// Indice tab iniziale (`DefaultTabController`).
+  final int initialTabIndex;
+
+  static const int tabIndexScheda = 0;
+  static const int tabIndexDocumenti = 1;
 
   static const Color _primary = AppVisual.logoBlue;
   static const Color _accent = AppVisual.brandAzure;
@@ -34,8 +41,10 @@ class Student360DetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    final tabIndex = initialTabIndex.clamp(0, 5);
     return DefaultTabController(
       length: 6,
+      initialIndex: tabIndex,
       child: ColoredBox(
         color: _bg,
         child: Column(

@@ -206,18 +206,6 @@ List<PracticeDocumentRequirementDef> _requirementsForPracticeType(
           level: PracticeDocumentRequirementLevel.required,
           documentUiType: StudentDocumentTypes.uiPracticeForm,
         ),
-        PracticeDocumentRequirementDef(
-          id: PracticeDocumentRequirementId.paymentReceipt,
-          label: 'Ricevuta pagamento',
-          level: PracticeDocumentRequirementLevel.recommended,
-          documentUiType: StudentDocumentTypes.uiPaymentReceipt,
-        ),
-        PracticeDocumentRequirementDef(
-          id: PracticeDocumentRequirementId.privacyForm,
-          label: 'Modulo privacy',
-          level: PracticeDocumentRequirementLevel.recommended,
-          documentUiType: StudentDocumentTypes.uiPrivacyForm,
-        ),
       ];
     case 'renewal':
       return const [
@@ -251,12 +239,6 @@ List<PracticeDocumentRequirementDef> _requirementsForPracticeType(
           label: 'Foto patente',
           level: PracticeDocumentRequirementLevel.recommended,
           photoUiType: StudentDocumentTypes.uiPhotoKindLicense,
-        ),
-        PracticeDocumentRequirementDef(
-          id: PracticeDocumentRequirementId.paymentReceipt,
-          label: 'Ricevuta pagamento',
-          level: PracticeDocumentRequirementLevel.recommended,
-          documentUiType: StudentDocumentTypes.uiPaymentReceipt,
         ),
       ];
     case 'duplicate':

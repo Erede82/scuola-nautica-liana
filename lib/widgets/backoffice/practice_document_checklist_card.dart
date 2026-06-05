@@ -29,12 +29,6 @@ class PracticeDocumentChecklistCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final medical = checklist.medicalCertificateItem;
-    final showMedicalAlert = medical != null &&
-        (medical.status == PracticeDocumentChecklistItemStatus.missing ||
-            medical.status == PracticeDocumentChecklistItemStatus.expired ||
-            medical.status == PracticeDocumentChecklistItemStatus.expiringSoon);
-
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -88,10 +82,6 @@ class PracticeDocumentChecklistCard extends StatelessWidget {
                     : Colors.orange.shade900,
               ),
             ),
-            if (showMedicalAlert) ...[
-              const SizedBox(height: 10),
-              _MedicalCertificateAlert(item: medical),
-            ],
             const SizedBox(height: 12),
             ...checklist.items.map(
               (item) => _ChecklistRow(
@@ -142,66 +132,6 @@ class _StatusBadge extends StatelessWidget {
           color: fg,
           fontWeight: FontWeight.w800,
         ),
-      ),
-    );
-  }
-}
-
-class _MedicalCertificateAlert extends StatelessWidget {
-  const _MedicalCertificateAlert({required this.item});
-
-  final PracticeDocumentChecklistItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final Color bg;
-    final Color fg;
-    final String message;
-
-    switch (item.status) {
-      case PracticeDocumentChecklistItemStatus.missing:
-        bg = Colors.orange.shade50;
-        fg = Colors.orange.shade900;
-        message = 'Certificato medico assente.';
-      case PracticeDocumentChecklistItemStatus.expired:
-        bg = Colors.red.shade50;
-        fg = Colors.red.shade900;
-        final expiry = item.matchedDocument?.expiresAt;
-        message = expiry != null
-            ? 'Certificato medico scaduto il ${BackofficeFormatters.dateUi(expiry)}.'
-            : 'Certificato medico scaduto.';
-      case PracticeDocumentChecklistItemStatus.expiringSoon:
-        bg = Colors.amber.shade50;
-        fg = Colors.amber.shade900;
-        final expiry = item.matchedDocument?.expiresAt;
-        message = expiry != null
-            ? 'Certificato medico in scadenza il ${BackofficeFormatters.dateUi(expiry)}.'
-            : 'Certificato medico in scadenza entro 30 giorni.';
-      default:
-        return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: fg.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.medical_information_outlined, size: 18, color: fg),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: textTheme.bodySmall?.copyWith(color: fg, height: 1.35),
-            ),
-          ),
-        ],
       ),
     );
   }

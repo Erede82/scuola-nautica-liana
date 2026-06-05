@@ -5,6 +5,7 @@ import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../theme/app_visual_tokens.dart';
+import '../../widgets/backoffice/student_360_detail_view.dart';
 
 /// Opzione per filtri a tendina directory Pratiche.
 class _PracticeFilterOption<T> {
@@ -52,8 +53,9 @@ class PracticeDossiersDirectoryPage extends StatefulWidget {
 
   final bool embedded;
 
-  /// Passa al modulo Allievi e focalizza la scheda dell’allievo (niente duplicazione 360).
-  final ValueChanged<StudentId> onOpenStudent360;
+  /// Apre Scheda 360; al ritorno la directory può ricaricare l’elenco.
+  final Future<void> Function(StudentId studentId, {int initialTabIndex})
+      onOpenStudent360;
 
   @override
   State<PracticeDossiersDirectoryPage> createState() =>
@@ -95,6 +97,18 @@ class _PracticeDossiersDirectoryPageState
       _onlyWithoutRegistry = false;
       _onlyDocsIncomplete = false;
     });
+  }
+
+  Future<void> _openStudent360AndRefresh(
+    StudentId studentId, {
+    int initialTabIndex = Student360DetailView.tabIndexScheda,
+  }) async {
+    await widget.onOpenStudent360(
+      studentId,
+      initialTabIndex: initialTabIndex,
+    );
+    if (!mounted) return;
+    await _load();
   }
 
   Future<void> _load() async {
@@ -332,7 +346,11 @@ class _PracticeDossiersDirectoryPageState
               item: i,
               wide: wide,
               typeLabel: _practiceTypeLabelIt(i.practiceType),
-              onOpen360: () => widget.onOpenStudent360(i.studentId),
+              onOpen360: () => _openStudent360AndRefresh(i.studentId),
+              onOpenDocuments360: () => _openStudent360AndRefresh(
+                i.studentId,
+                initialTabIndex: Student360DetailView.tabIndexDocumenti,
+              ),
             );
           },
         );
@@ -347,12 +365,14 @@ class _PracticeRowCard extends StatelessWidget {
     required this.wide,
     required this.typeLabel,
     required this.onOpen360,
+    required this.onOpenDocuments360,
   });
 
   final PracticeListItem item;
   final bool wide;
   final String typeLabel;
   final VoidCallback onOpen360;
+  final VoidCallback onOpenDocuments360;
 
   @override
   Widget build(BuildContext context) {
@@ -424,6 +444,7 @@ class _PracticeRowCard extends StatelessWidget {
                               ..._PracticeDocumentSummaryChips.build(
                                 item: item,
                                 textTheme: textTheme,
+                                onMissingDocumentsTap: onOpenDocuments360,
                               ),
                             ],
                           ),
@@ -540,6 +561,7 @@ class _PracticeRowCard extends StatelessWidget {
                         children: _PracticeDocumentSummaryChips.build(
                           item: item,
                           textTheme: textTheme,
+                          onMissingDocumentsTap: onOpenDocuments360,
                         ),
                       ),
                     ),
@@ -721,6 +743,7 @@ abstract final class _PracticeDocumentSummaryChips {
   static List<Widget> build({
     required PracticeListItem item,
     required TextTheme textTheme,
+    VoidCallback? onMissingDocumentsTap,
   }) {
     final summary = item.documentChecklistSummary;
     if (!summary.applicable) {
@@ -731,6 +754,7 @@ abstract final class _PracticeDocumentSummaryChips {
           bg: const Color(0xFFFFF4E5),
           fg: const Color(0xFFB45309),
           textTheme: textTheme,
+          onTap: onMissingDocumentsTap,
         ),
       ];
     }
@@ -747,49 +771,64 @@ abstract final class _PracticeDocumentSummaryChips {
       );
     } else {
       chips.add(
-        _pill(
-          label: 'Mancano ${summary.missingRequiredCount}',
+        _missingCountPill(
+          count: summary.missingRequiredCount,
           bg: Colors.orange.shade50,
           fg: Colors.orange.shade900,
           textTheme: textTheme,
+          onTap: onMissingDocumentsTap,
         ),
       );
     }
 
-    switch (summary.medicalCertificate) {
-      case PracticeMedicalCertificateSummaryKind.missing:
-        chips.add(
-          _pill(
-            label: 'Cert. medico assente',
-            bg: Colors.orange.shade50,
-            fg: Colors.orange.shade900,
-            textTheme: textTheme,
-          ),
-        );
-      case PracticeMedicalCertificateSummaryKind.expired:
-        chips.add(
-          _pill(
-            label: 'Cert. medico scaduto',
-            bg: Colors.red.shade50,
-            fg: Colors.red.shade900,
-            textTheme: textTheme,
-          ),
-        );
-      case PracticeMedicalCertificateSummaryKind.expiringSoon:
-        chips.add(
-          _pill(
-            label: 'Cert. medico in scadenza',
-            bg: Colors.amber.shade50,
-            fg: Colors.amber.shade900,
-            textTheme: textTheme,
-          ),
-        );
-      case PracticeMedicalCertificateSummaryKind.ok:
-      case PracticeMedicalCertificateSummaryKind.notApplicable:
-        break;
-    }
-
     return chips;
+  }
+
+  static Widget _missingCountPill({
+    required int count,
+    required Color bg,
+    required Color fg,
+    required TextTheme textTheme,
+    VoidCallback? onTap,
+  }) {
+    final labelStyle = textTheme.labelSmall?.copyWith(
+      color: fg,
+      fontWeight: FontWeight.w800,
+      fontSize: 11,
+    );
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.28)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: labelStyle,
+          children: [
+            const TextSpan(text: 'Mancano '),
+            TextSpan(
+              text: '$count',
+              style: labelStyle?.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+            const TextSpan(text: ' documenti'),
+          ],
+        ),
+      ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: content,
+      ),
+    );
   }
 
   static Widget _pill({
@@ -797,8 +836,9 @@ abstract final class _PracticeDocumentSummaryChips {
     required Color bg,
     required Color fg,
     required TextTheme textTheme,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
@@ -812,6 +852,15 @@ abstract final class _PracticeDocumentSummaryChips {
           fontWeight: FontWeight.w800,
           fontSize: 11,
         ),
+      ),
+    );
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: content,
       ),
     );
   }

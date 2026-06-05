@@ -579,10 +579,16 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
       GlobalKey<SchoolManagementShellPageState>();
   StudentId? _shellBootstrapStudentId;
 
-  void _openStudent360(StudentId studentId) {
-    Navigator.of(context).push(
+  Future<void> _openStudent360(
+    StudentId studentId, {
+    int initialTabIndex = 0,
+  }) async {
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => Student360DirectPage(studentId: studentId),
+        builder: (_) => Student360DirectPage(
+          studentId: studentId,
+          initialTabIndex: initialTabIndex,
+        ),
       ),
     );
   }

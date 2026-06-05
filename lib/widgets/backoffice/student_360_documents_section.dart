@@ -23,18 +23,6 @@ class Student360DocumentsSection extends StatelessWidget {
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
 
-  static String _readableToken(String raw) {
-    final cleaned = raw.replaceAll('_', ' ').replaceAll('-', ' ').trim();
-    if (cleaned.isEmpty) return '—';
-    return cleaned
-        .split(RegExp(r'\s+'))
-        .map((part) {
-          if (part.isEmpty) return part;
-          return part[0].toUpperCase() + part.substring(1).toLowerCase();
-        })
-        .join(' ');
-  }
-
   static void _showOpenError(BuildContext context) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -625,7 +613,6 @@ class Student360DocumentsSection extends StatelessWidget {
     final isPdf = _isPdfFile(mimeType: doc.mimeType, fileName: doc.fileName);
     final path = doc.storagePath;
     final typeLabel = StudentDocumentTypes.documentTypeLabel(doc.documentType);
-    final statusLabel = _readableToken(doc.status);
 
     Future<void> openFile() => _openDocument(context, doc);
 
@@ -666,14 +653,8 @@ class Student360DocumentsSection extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Stato: $statusLabel',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppVisual.inkMuted,
-                    ),
-                  ),
-                  if (doc.expiresAt != null)
+                  if (doc.expiresAt != null) ...[
+                    const SizedBox(height: 4),
                     Text(
                       'Scadenza: ${BackofficeFormatters.dateUi(doc.expiresAt)}',
                       style: textTheme.labelSmall?.copyWith(
@@ -681,6 +662,7 @@ class Student360DocumentsSection extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ],
                   if (path != null && path.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(

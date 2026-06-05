@@ -191,15 +191,6 @@ class Student360SchedaSection extends StatelessWidget {
             bottomPadding: 8,
           ),
           student360KvRow(
-            'Primo contatto',
-            p.firstContactedAt != null
-                ? BackofficeFormatters.dateTimeUi(p.firstContactedAt)
-                : 'Non registrato',
-            textTheme,
-            labelWidth: 140,
-            bottomPadding: 8,
-          ),
-          student360KvRow(
             'Stato documenti',
             _documentiLine(view),
             textTheme,

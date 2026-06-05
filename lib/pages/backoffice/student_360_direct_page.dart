@@ -7,9 +7,14 @@ import '../../widgets/backoffice/student_360_detail_view.dart';
 
 /// Scheda 360 a schermo intero — apertura diretta senza elenco allievi.
 class Student360DirectPage extends StatefulWidget {
-  const Student360DirectPage({super.key, required this.studentId});
+  const Student360DirectPage({
+    super.key,
+    required this.studentId,
+    this.initialTabIndex = Student360DetailView.tabIndexScheda,
+  });
 
   final StudentId studentId;
+  final int initialTabIndex;
 
   @override
   State<Student360DirectPage> createState() => _Student360DirectPageState();
@@ -102,6 +107,7 @@ class _Student360DirectPageState extends State<Student360DirectPage> {
               view: _view!,
               repository: backofficeRepository,
               onRefreshDetail: _refreshDetail,
+              initialTabIndex: widget.initialTabIndex,
             ),
     );
   }
