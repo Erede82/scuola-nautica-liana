@@ -21,7 +21,10 @@ class Student360SectionScroll extends StatelessWidget {
               : outer.maxWidth;
 
           return SingleChildScrollView(
-            padding: EdgeInsets.all(pad),
+            // TabBarView: evita conflitto con PrimaryScrollController (tab Documenti).
+            primary: false,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + 32),
             child: Align(
               alignment: Alignment.topLeft,
               child: SizedBox(
