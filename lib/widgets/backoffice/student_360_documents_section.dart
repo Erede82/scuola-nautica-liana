@@ -124,6 +124,47 @@ class Student360DocumentsSection extends StatelessWidget {
     );
   }
 
+  Future<void> _openPhoto(BuildContext context, StudentPhoto photo) {
+    final path = photo.storagePath;
+    if (path == null || path.isEmpty) return Future.value();
+    return _openSignedUrl(
+      context,
+      () => repository.createStudentPhotoSignedUrl(path),
+      fileName: photo.fileName,
+      mimeType: photo.mimeType,
+    );
+  }
+
+  /// Foto checklist (es. patente) in [view.photos], escluse profilo/firma (tab Scheda).
+  static List<StudentPhoto> _checklistRelevantPhotos({
+    required List<StudentPhoto> photos,
+    required List<StudentDocument> documents,
+  }) {
+    final hasLicensePhotoDocument = documents.any(
+      (doc) =>
+          StudentDocumentTypes.normalizeDocumentDbValue(doc.documentType) ==
+          StudentDocumentTypes.dbPhoto,
+    );
+
+    final out = <StudentPhoto>[];
+    for (final photo in photos) {
+      if (StudentDocumentTypes.isSignaturePhoto(
+        photoKind: photo.photoKind,
+        notes: photo.notes,
+        fileName: photo.fileName,
+      )) {
+        continue;
+      }
+      final kind = StudentDocumentTypes.normalizePhotoDbValue(photo.photoKind);
+      if (kind == StudentDocumentTypes.dbPhotoKindProfile) continue;
+      if (kind == StudentDocumentTypes.dbPhotoKindLicense &&
+          !hasLicensePhotoDocument) {
+        out.add(photo);
+      }
+    }
+    return out;
+  }
+
   static bool _isImageFile({String? mimeType, String? fileName}) {
     final mime = (mimeType ?? '').toLowerCase();
     if (mime.startsWith('image/')) return true;
@@ -607,6 +648,73 @@ class Student360DocumentsSection extends StatelessWidget {
     }
   }
 
+  Widget _photoTile(BuildContext context, StudentPhoto photo) {
+    final textTheme = Theme.of(context).textTheme;
+    final path = photo.storagePath;
+    final typeLabel = StudentDocumentTypes.photoKindLabel(
+      photo.photoKind,
+      notes: photo.notes,
+      fileName: photo.fileName,
+    );
+    final isImage = _isImageFile(
+      mimeType: photo.mimeType,
+      fileName: photo.fileName,
+    );
+
+    Future<void> openFile() => _openPhoto(context, photo);
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppVisual.inkMuted.withValues(alpha: 0.16)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Student360StorageThumbnailPreview(
+              storagePath: path,
+              fileName: photo.fileName,
+              mimeType: photo.mimeType,
+              createSignedUrl: repository.createStudentPhotoSignedUrl,
+              onTap: path != null && path.isNotEmpty ? openFile : null,
+              fallbackIcon: Icons.image_outlined,
+              showImagePreview: isImage,
+              previewWidth: 88,
+              height: 88,
+              hideFileNameInPlaceholder: true,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    typeLabel,
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (path != null && path.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: openFile,
+                      icon: const Icon(Icons.open_in_new_outlined, size: 18),
+                      label: const Text('Apri'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _documentTile(BuildContext context, StudentDocument doc) {
     final textTheme = Theme.of(context).textTheme;
     final isImage = _isImageFile(mimeType: doc.mimeType, fileName: doc.fileName);
@@ -718,6 +826,10 @@ class Student360DocumentsSection extends StatelessWidget {
     final d = view.practiceDossier;
     final documents = view.documents;
     final photos = view.photos;
+    final checklistPhotos = _checklistRelevantPhotos(
+      photos: photos,
+      documents: documents,
+    );
 
     return Student360SectionScroll(
       child: Student360SectionContent(
@@ -725,7 +837,7 @@ class Student360DocumentsSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Foto e firma sono nella tab Scheda.',
+              'Foto profilo e firma sono nella tab Scheda.',
               style: textTheme.bodySmall?.copyWith(
                 color: AppVisual.inkMuted,
                 fontStyle: FontStyle.italic,
@@ -781,15 +893,22 @@ class Student360DocumentsSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (documents.isEmpty)
+            if (documents.isEmpty && checklistPhotos.isEmpty)
               Text('Nessun documento caricato.', style: textTheme.bodyMedium)
-            else
+            else ...[
               ...documents.map(
                 (doc) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _documentTile(context, doc),
                 ),
               ),
+              ...checklistPhotos.map(
+                (photo) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _photoTile(context, photo),
+                ),
+              ),
+            ],
           ],
         ),
       ),
