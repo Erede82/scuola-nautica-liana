@@ -485,6 +485,19 @@ class PracticeDocumentChecklistSummary {
   }
 }
 
+/// Opzioni upload documento filtrate per tipo pratica (allineate alla checklist).
+Map<String, String> practiceDocumentUploadOptionsForType(String? practiceType) {
+  final requirements = _requirementsForPracticeType(practiceType);
+  final out = <String, String>{};
+  for (final req in requirements) {
+    final key = req.documentUiType;
+    if (key == null) continue;
+    final label = StudentDocumentTypes.uploadDocumentOptions[key];
+    if (label != null) out.putIfAbsent(key, () => label);
+  }
+  return Map.unmodifiable(out);
+}
+
 String practiceTypeLabelIt(String? practiceType) {
   switch (practiceType) {
     case 'new_license':

@@ -253,30 +253,45 @@ class Student360DocumentsSection extends StatelessWidget {
     String? documentUiType,
     String? photoUiType,
   }) async {
+    final practiceType = view.practiceDossier?.practiceType;
     if (photoUiType != null &&
         (documentUiType == null ||
             photoUiType == StudentDocumentTypes.uiPhotoKindLicense)) {
       await _showUploadPhotoDialog(
         context,
         initialPhotoUiType: photoUiType,
+        hideKindDropdown: true,
+        dialogTitle: StudentDocumentTypes.uploadPhotoOptions[photoUiType] ??
+            'Carica foto',
       );
       return;
     }
     await _showUploadDocumentDialog(
       context,
       initialDocumentUiType: documentUiType,
+      practiceType: practiceType,
+      lockDocumentType: documentUiType != null,
     );
   }
 
   Future<void> _showUploadDocumentDialog(
     BuildContext context, {
     String? initialDocumentUiType,
+    String? practiceType,
+    bool lockDocumentType = false,
   }) async {
-    final documentTypes = StudentDocumentTypes.uploadDocumentOptions;
-    var documentType =
-        initialDocumentUiType ?? StudentDocumentTypes.uiIdentityCard;
+    final documentTypes = practiceDocumentUploadOptionsForType(practiceType);
+    if (documentTypes.isEmpty) {
+      _showUploadMessage(
+        context,
+        'Nessun tipo documento disponibile per questo fascicolo pratica.',
+      );
+      return;
+    }
+
+    var documentType = initialDocumentUiType ?? documentTypes.keys.first;
     if (!documentTypes.containsKey(documentType)) {
-      documentType = StudentDocumentTypes.uiIdentityCard;
+      documentType = documentTypes.keys.first;
     }
 
     DateTime? expiresAt;
@@ -354,25 +369,39 @@ class Student360DocumentsSection extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: documentType,
-                        decoration: const InputDecoration(
-                          labelText: 'Tipo documento',
-                        ),
-                        items: documentTypes.entries
-                            .map(
-                              (entry) => DropdownMenuItem(
-                                value: entry.key,
-                                child: Text(entry.value),
-                              ),
-                            )
-                            .toList(),
+                      if (lockDocumentType)
+                        InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo documento',
+                          ),
+                          child: Text(
+                            documentTypes[documentType] ?? documentType,
+                            style: Theme.of(dialogContext)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          initialValue: documentType,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo documento',
+                          ),
+                          items: documentTypes.entries
+                              .map(
+                                (entry) => DropdownMenuItem(
+                                  value: entry.key,
+                                  child: Text(entry.value),
+                                ),
+                              )
+                              .toList(),
                           onChanged: uploading
-                            ? null
-                            : (value) => setDialogState(
-                                () => documentType = value ?? documentType,
-                              ),
-                      ),
+                              ? null
+                              : (value) => setDialogState(
+                                    () => documentType = value ?? documentType,
+                                  ),
+                        ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -869,29 +898,7 @@ class Student360DocumentsSection extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  'Documenti allievo',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: BackofficeUiTokens.text,
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    foregroundColor: BackofficeUiTokens.primary,
-                  ),
-                  onPressed: () => _showUploadDocumentDialog(context),
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Carica documento'),
-                ),
-              ],
-            ),
+            student360SubsectionTitle('Documenti allievo', textTheme),
             const SizedBox(height: 8),
             if (documents.isEmpty && checklistPhotos.isEmpty)
               Text('Nessun documento caricato.', style: textTheme.bodyMedium)
