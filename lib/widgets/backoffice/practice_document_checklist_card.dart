@@ -10,16 +10,24 @@ typedef PracticeDocumentUploadRequest = void Function({
   String? photoUiType,
 });
 
+typedef PracticeDocumentWaiverAction = Future<void> Function(
+  PracticeDocumentRequirementId requirementId,
+);
+
 /// Card checklist documenti richiesti per fascicolo pratica (Fase A — client-side).
 class PracticeDocumentChecklistCard extends StatelessWidget {
   const PracticeDocumentChecklistCard({
     super.key,
     required this.checklist,
     required this.onUploadRequested,
+    this.onWaiveRequested,
+    this.onRestoreWaived,
   });
 
   final PracticeDocumentChecklist checklist;
   final PracticeDocumentUploadRequest onUploadRequested;
+  final PracticeDocumentWaiverAction? onWaiveRequested;
+  final PracticeDocumentWaiverAction? onRestoreWaived;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +102,14 @@ class PracticeDocumentChecklistCard extends StatelessWidget {
                         photoUiType: item.requirement.photoUiType,
                       )
                     : null,
+                onMarkNotRequired: _canMarkNotRequired(item) &&
+                        onWaiveRequested != null
+                    ? () => onWaiveRequested!(item.requirement.id)
+                    : null,
+                onRestoreWaived: _canRestoreWaived(item) &&
+                        onRestoreWaived != null
+                    ? () => onRestoreWaived!(item.requirement.id)
+                    : null,
               ),
             ),
           ],
@@ -101,6 +117,14 @@ class PracticeDocumentChecklistCard extends StatelessWidget {
       ),
     );
   }
+
+  static bool _canMarkNotRequired(PracticeDocumentChecklistItem item) =>
+      item.isRequired &&
+      item.status == PracticeDocumentChecklistItemStatus.missing;
+
+  static bool _canRestoreWaived(PracticeDocumentChecklistItem item) =>
+      item.isRequired &&
+      item.status == PracticeDocumentChecklistItemStatus.notRequired;
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -141,10 +165,14 @@ class _ChecklistRow extends StatelessWidget {
   const _ChecklistRow({
     required this.item,
     this.onUpload,
+    this.onMarkNotRequired,
+    this.onRestoreWaived,
   });
 
   final PracticeDocumentChecklistItem item;
   final VoidCallback? onUpload;
+  final VoidCallback? onMarkNotRequired;
+  final VoidCallback? onRestoreWaived;
 
   @override
   Widget build(BuildContext context) {
@@ -175,6 +203,16 @@ class _ChecklistRow extends StatelessWidget {
                   statusLabel,
                   style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
                 ),
+                if (status == PracticeDocumentChecklistItemStatus.notRequired &&
+                    item.matchedWaiver?.note != null &&
+                    item.matchedWaiver!.note!.trim().isNotEmpty)
+                  Text(
+                    item.matchedWaiver!.note!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppVisual.inkMuted,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 if (item.matchedDocument?.expiresAt != null &&
                     (status == PracticeDocumentChecklistItemStatus.expired ||
                         status ==
@@ -186,11 +224,43 @@ class _ChecklistRow extends StatelessWidget {
               ],
             ),
           ),
-          if (onUpload != null)
-            TextButton(
-              onPressed: onUpload,
-              child: const Text('Carica'),
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (onUpload != null)
+                TextButton(
+                  onPressed: onUpload,
+                  child: const Text('Carica'),
+                ),
+              if (onMarkNotRequired != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: false,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (_) => onMarkNotRequired!(),
+                    ),
+                    GestureDetector(
+                      onTap: onMarkNotRequired,
+                      child: Text(
+                        'Non necessario',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: AppVisual.inkMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              if (onRestoreWaived != null)
+                TextButton(
+                  onPressed: onRestoreWaived,
+                  child: const Text('Ripristina come richiesto'),
+                ),
+            ],
+          ),
         ],
       ),
     );

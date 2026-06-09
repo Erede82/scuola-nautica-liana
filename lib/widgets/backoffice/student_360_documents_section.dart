@@ -248,6 +248,157 @@ class Student360DocumentsSection extends StatelessWidget {
     await onRefreshDetail(updated);
   }
 
+  String _requirementLabel(PracticeDocumentRequirementId requirementId) {
+    final dossier = view.practiceDossier;
+    if (dossier == null) return requirementId.name;
+    final checklist = evaluatePracticeDocumentChecklist(
+      practiceType: dossier.practiceType,
+      documents: view.documents,
+      photos: view.photos,
+      waivers: view.documentWaivers,
+    );
+    for (final item in checklist.items) {
+      if (item.requirement.id == requirementId) {
+        return item.requirement.label;
+      }
+    }
+    return requirementId.name;
+  }
+
+  Future<({String? note})?> _promptOptionalWaiverNote(
+    BuildContext context,
+    String requirementLabel,
+  ) async {
+    final controller = TextEditingController();
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Documento non necessario'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Segnare "$requirementLabel" come non necessario per questa pratica?',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Nota opzionale',
+                  hintText: 'Motivo breve per la segreteria',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Conferma'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return null;
+      final note = controller.text.trim();
+      return (note: note.isEmpty ? null : note);
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _handleWaiveRequirement(
+    BuildContext context,
+    PracticeDocumentRequirementId requirementId,
+  ) async {
+    final dossier = view.practiceDossier;
+    if (dossier == null) {
+      _showUploadMessage(context, 'Fascicolo pratica non disponibile.');
+      return;
+    }
+
+    final prompt = await _promptOptionalWaiverNote(
+      context,
+      _requirementLabel(requirementId),
+    );
+    if (!context.mounted || prompt == null) return;
+
+    try {
+      await repository.setPracticeDocumentRequirementWaived(
+        practiceDossierId: dossier.id,
+        requirementId: requirementId,
+        note: prompt.note,
+      );
+      if (!context.mounted) return;
+      _showUploadMessage(context, 'Documento segnato come non necessario.');
+      await _refreshAfterUpload(context);
+    } catch (error) {
+      debugPrint('Waiver documento non riuscito: $error');
+      if (!context.mounted) return;
+      _showUploadMessage(
+        context,
+        'Operazione non riuscita. Riprova più tardi.',
+      );
+    }
+  }
+
+  Future<void> _handleRestoreWaivedRequirement(
+    BuildContext context,
+    PracticeDocumentRequirementId requirementId,
+  ) async {
+    final dossier = view.practiceDossier;
+    if (dossier == null) {
+      _showUploadMessage(context, 'Fascicolo pratica non disponibile.');
+      return;
+    }
+
+    final label = _requirementLabel(requirementId);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Ripristina documento richiesto'),
+        content: Text(
+          'Vuoi ripristinare "$label" come documento obbligatorio mancante?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Ripristina'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    try {
+      await repository.clearPracticeDocumentRequirementWaiver(
+        practiceDossierId: dossier.id,
+        requirementId: requirementId,
+      );
+      if (!context.mounted) return;
+      _showUploadMessage(context, 'Documento ripristinato come richiesto.');
+      await _refreshAfterUpload(context);
+    } catch (error) {
+      debugPrint('Ripristino waiver non riuscito: $error');
+      if (!context.mounted) return;
+      _showUploadMessage(
+        context,
+        'Operazione non riuscita. Riprova più tardi.',
+      );
+    }
+  }
+
   Future<void> _handleChecklistUpload(
     BuildContext context, {
     String? documentUiType,
@@ -896,6 +1047,10 @@ class Student360DocumentsSection extends StatelessWidget {
                       documentUiType: documentUiType,
                       photoUiType: photoUiType,
                     ),
+                onWaiveRequested: (requirementId) =>
+                    _handleWaiveRequirement(context, requirementId),
+                onRestoreWaived: (requirementId) =>
+                    _handleRestoreWaivedRequirement(context, requirementId),
               ),
             ],
             const SizedBox(height: 16),
