@@ -338,6 +338,22 @@ StudentPhoto mapStudentPhotoRowToDomain(StudentPhotoRow r) {
   );
 }
 
+PracticeDocumentWaiver? mapPracticeDocumentWaiverRowToDomain(
+  PracticeDocumentWaiverRow r,
+) {
+  final requirementId = practiceDocumentRequirementIdFromDb(r.requirementId);
+  if (requirementId == null) return null;
+  return PracticeDocumentWaiver(
+    id: r.id,
+    practiceDossierId: r.practiceDossierId,
+    requirementId: requirementId,
+    note: r.note,
+    waivedByStaffId: r.waivedByStaffId,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  );
+}
+
 StaffInternalNote mapStaffNoteRowToDomain(StaffInternalNoteRow r) {
   return StaffInternalNote(
     id: r.id,

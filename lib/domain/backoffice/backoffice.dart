@@ -12,6 +12,7 @@ export 'onboarding_status_mapping.dart';
 export 'ids.dart';
 export 'management_foundation.dart';
 export 'practice_document.dart';
+export 'practice_document_waiver.dart';
 export 'practice_document_requirements.dart';
 export 'practice_list_item.dart';
 export 'student_document_types.dart';

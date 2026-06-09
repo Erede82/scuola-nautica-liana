@@ -12,6 +12,7 @@ class BackofficeDemoSeed {
     required this.practice,
     this.documents = const [],
     this.photos = const [],
+    this.documentWaivers = const [],
   });
 
   final List<StudentProfile> profiles;
@@ -23,4 +24,5 @@ class BackofficeDemoSeed {
   final Map<StudentId, PracticeLicenseDossier?> practice;
   final List<StudentDocument> documents;
   final List<StudentPhoto> photos;
+  final List<PracticeDocumentWaiver> documentWaivers;
 }

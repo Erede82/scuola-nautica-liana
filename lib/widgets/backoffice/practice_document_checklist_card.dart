@@ -201,6 +201,8 @@ class _ChecklistRow extends StatelessWidget {
       case PracticeDocumentChecklistItemStatus.present:
       case PracticeDocumentChecklistItemStatus.recommendedPresent:
         return Icons.check_circle_outline;
+      case PracticeDocumentChecklistItemStatus.notRequired:
+        return Icons.do_not_disturb_on_outlined;
       case PracticeDocumentChecklistItemStatus.missing:
       case PracticeDocumentChecklistItemStatus.recommendedMissing:
         return Icons.radio_button_unchecked;
@@ -216,6 +218,8 @@ class _ChecklistRow extends StatelessWidget {
       case PracticeDocumentChecklistItemStatus.present:
       case PracticeDocumentChecklistItemStatus.recommendedPresent:
         return Colors.green.shade700;
+      case PracticeDocumentChecklistItemStatus.notRequired:
+        return AppVisual.inkMuted;
       case PracticeDocumentChecklistItemStatus.missing:
       case PracticeDocumentChecklistItemStatus.recommendedMissing:
         return Colors.orange.shade800;
@@ -233,6 +237,8 @@ class _ChecklistRow extends StatelessWidget {
     switch (status) {
       case PracticeDocumentChecklistItemStatus.present:
         return 'Presente';
+      case PracticeDocumentChecklistItemStatus.notRequired:
+        return 'Non necessario';
       case PracticeDocumentChecklistItemStatus.missing:
         return 'Mancante';
       case PracticeDocumentChecklistItemStatus.expired:

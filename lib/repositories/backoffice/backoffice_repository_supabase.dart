@@ -565,15 +565,19 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       studentIds,
     );
     final photosByStudent = await _loadStudentPhotosByStudentIds(studentIds);
+    final dossierIds = dossierRows.map((d) => d.id).toList(growable: false);
+    final waiversByDossier = await _loadDocumentWaiversByDossierIds(dossierIds);
 
     for (final d in dossierRows) {
       try {
         final docs = documentsByStudent[d.studentId] ?? const <StudentDocument>[];
         final photos = photosByStudent[d.studentId] ?? const <StudentPhoto>[];
+        final waivers = waiversByDossier[d.id] ?? const <PracticeDocumentWaiver>[];
         final checklist = evaluatePracticeDocumentChecklist(
           practiceType: d.practiceType,
           documents: docs,
           photos: photos,
+          waivers: waivers,
         );
         final summary = PracticeDocumentChecklistSummary.fromChecklist(
           checklist,
@@ -590,6 +594,53 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       }
     }
     return out;
+  }
+
+  Future<Map<String, List<PracticeDocumentWaiver>>> _loadDocumentWaiversByDossierIds(
+    List<String> dossierIds,
+  ) async {
+    if (dossierIds.isEmpty) return {};
+    try {
+      final res = await _client
+          .from('practice_document_waivers')
+          .select(
+            'id, practice_dossier_id, requirement_id, note, '
+            'waived_by_staff_id, created_at, updated_at',
+          )
+          .inFilter('practice_dossier_id', dossierIds);
+
+      final out = <String, List<PracticeDocumentWaiver>>{};
+      for (final item in res as List<dynamic>) {
+        try {
+          final mapped = mapPracticeDocumentWaiverRowToDomain(
+            PracticeDocumentWaiverRow.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          );
+          if (mapped == null) continue;
+          out.putIfAbsent(mapped.practiceDossierId, () => []).add(mapped);
+        } catch (e, st) {
+          debugPrint(
+            'listPracticeDossiers practice_document_waivers: riga non mappabile: '
+            '$e\n$st',
+          );
+        }
+      }
+      return out;
+    } catch (e, st) {
+      debugPrint(
+        'listPracticeDossiers: practice_document_waivers non disponibile '
+        '(migration non applicata?): $e\n$st',
+      );
+      return {};
+    }
+  }
+
+  Future<List<PracticeDocumentWaiver>> _loadDocumentWaiversForDossier(
+    PracticeDossierId practiceDossierId,
+  ) async {
+    final map = await _loadDocumentWaiversByDossierIds([practiceDossierId]);
+    return map[practiceDossierId] ?? const [];
   }
 
   Future<Map<String, List<StudentDocument>>> _loadStudentDocumentsByStudentIds(
@@ -1092,6 +1143,15 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       errorReviewAssignments: errorReviewAssignments,
     );
 
+    final documentWaivers = practice == null
+        ? const <PracticeDocumentWaiver>[]
+        : await _load360SectionSafe<List<PracticeDocumentWaiver>>(
+            studentId: studentId,
+            section: 'practice_document_waivers',
+            fallback: const [],
+            load: () => _loadDocumentWaiversForDossier(practice!.id),
+          );
+
     return StudentAdmin360View(
       profile: profile,
       studyProgress: studyProgress,
@@ -1106,6 +1166,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       practiceDossier: practice,
       documents: documents,
       photos: photos,
+      documentWaivers: documentWaivers,
       staffNotes: staffNotes,
       activityLog: activityLog,
     );
@@ -1211,6 +1272,37 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     }
 
     await _client.from('student_documents').delete().eq('id', documentId);
+  }
+
+  @override
+  Future<void> setPracticeDocumentRequirementWaived({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+    String? note,
+  }) async {
+    final trimmedNote = note?.trim();
+    final payload = <String, dynamic>{
+      'practice_dossier_id': practiceDossierId,
+      'requirement_id': requirementId.name,
+      'note': (trimmedNote == null || trimmedNote.isEmpty) ? null : trimmedNote,
+      'waived_by_staff_id': _staffUserId,
+    };
+    await _client.from('practice_document_waivers').upsert(
+      payload,
+      onConflict: 'practice_dossier_id,requirement_id',
+    );
+  }
+
+  @override
+  Future<void> clearPracticeDocumentRequirementWaiver({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+  }) async {
+    await _client
+        .from('practice_document_waivers')
+        .delete()
+        .eq('practice_dossier_id', practiceDossierId)
+        .eq('requirement_id', requirementId.name);
   }
 
   @override

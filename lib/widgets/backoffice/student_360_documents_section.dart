@@ -885,6 +885,7 @@ class Student360DocumentsSection extends StatelessWidget {
                   practiceType: d.practiceType,
                   documents: documents,
                   photos: photos,
+                  waivers: view.documentWaivers,
                 ),
                 onUploadRequested: ({
                   documentUiType,

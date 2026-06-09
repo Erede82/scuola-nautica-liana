@@ -92,6 +92,19 @@ abstract class BackofficeRepository {
     String? storagePath,
   });
 
+  /// Segna un requisito checklist come non necessario per il fascicolo pratica.
+  Future<void> setPracticeDocumentRequirementWaived({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+    String? note,
+  });
+
+  /// Rimuove l'esenzione "non necessario" per un requisito checklist.
+  Future<void> clearPracticeDocumentRequirementWaiver({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+  });
+
   Future<StudentPhoto> uploadStudentPhoto({
     required StudentId studentId,
     required String photoKind,

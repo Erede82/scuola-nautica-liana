@@ -1,4 +1,5 @@
 import 'practice_document.dart';
+import 'practice_document_waiver.dart';
 import 'student_document_types.dart';
 
 /// Identificatore stabile di un requisito documentale pratica.
@@ -24,6 +25,7 @@ enum PracticeDocumentRequirementLevel {
 enum PracticeDocumentChecklistItemStatus {
   present,
   missing,
+  notRequired,
   expired,
   expiringSoon,
   recommendedMissing,
@@ -58,12 +60,14 @@ class PracticeDocumentChecklistItem {
     required this.status,
     this.matchedDocument,
     this.matchedPhoto,
+    this.matchedWaiver,
   });
 
   final PracticeDocumentRequirementDef requirement;
   final PracticeDocumentChecklistItemStatus status;
   final StudentDocument? matchedDocument;
   final StudentPhoto? matchedPhoto;
+  final PracticeDocumentWaiver? matchedWaiver;
 
   bool get isRequired => requirement.isRequired;
 
@@ -71,6 +75,9 @@ class PracticeDocumentChecklistItem {
       isRequired &&
       (status == PracticeDocumentChecklistItemStatus.missing ||
           status == PracticeDocumentChecklistItemStatus.expired);
+
+  bool get isNotRequired =>
+      status == PracticeDocumentChecklistItemStatus.notRequired;
 
   bool get isExpired => status == PracticeDocumentChecklistItemStatus.expired;
 
@@ -107,6 +114,12 @@ class PracticeDocumentChecklist {
       .where((i) => i.countsAsMissingRequired)
       .toList(growable: false);
 
+  List<PracticeDocumentChecklistItem> get notRequiredItems => items
+      .where((i) => i.isNotRequired)
+      .toList(growable: false);
+
+  int get notRequiredCount => notRequiredItems.length;
+
   List<PracticeDocumentChecklistItem> get expiredItems => items
       .where((i) => i.status == PracticeDocumentChecklistItemStatus.expired)
       .toList(growable: false);
@@ -137,6 +150,7 @@ PracticeDocumentChecklist evaluatePracticeDocumentChecklist({
   required String? practiceType,
   required List<StudentDocument> documents,
   required List<StudentPhoto> photos,
+  List<PracticeDocumentWaiver> waivers = const [],
   DateTime? now,
 }) {
   final reference = _dateOnly(now ?? DateTime.now());
@@ -150,12 +164,18 @@ PracticeDocumentChecklist evaluatePracticeDocumentChecklist({
     );
   }
 
+  final waiversByRequirement = <PracticeDocumentRequirementId, PracticeDocumentWaiver>{};
+  for (final w in waivers) {
+    waiversByRequirement[w.requirementId] = w;
+  }
+
   final items = requirements
       .map(
         (req) => _evaluateRequirement(
           requirement: req,
           documents: documents,
           photos: photos,
+          waiver: waiversByRequirement[req.id],
           reference: reference,
           expiringWithinDays: kPracticeDocumentExpiringSoonDays,
         ),
@@ -278,12 +298,20 @@ PracticeDocumentChecklistItem _evaluateRequirement({
   required PracticeDocumentRequirementDef requirement,
   required List<StudentDocument> documents,
   required List<StudentPhoto> photos,
+  PracticeDocumentWaiver? waiver,
   required DateTime reference,
   required int expiringWithinDays,
 }) {
   final match = _findMatch(requirement: requirement, documents: documents, photos: photos);
 
   if (match.document == null && match.photo == null) {
+    if (waiver != null) {
+      return PracticeDocumentChecklistItem(
+        requirement: requirement,
+        status: PracticeDocumentChecklistItemStatus.notRequired,
+        matchedWaiver: waiver,
+      );
+    }
     return PracticeDocumentChecklistItem(
       requirement: requirement,
       status: requirement.isRequired
@@ -443,6 +471,7 @@ class PracticeDocumentChecklistSummary {
   const PracticeDocumentChecklistSummary({
     required this.applicable,
     this.missingRequiredCount = 0,
+    this.notRequiredCount = 0,
     this.isRequiredChecklistComplete = false,
     this.medicalCertificate = PracticeMedicalCertificateSummaryKind.notApplicable,
   });
@@ -453,6 +482,7 @@ class PracticeDocumentChecklistSummary {
 
   final bool applicable;
   final int missingRequiredCount;
+  final int notRequiredCount;
   final bool isRequiredChecklistComplete;
   final PracticeMedicalCertificateSummaryKind medicalCertificate;
 
@@ -479,6 +509,7 @@ class PracticeDocumentChecklistSummary {
     return PracticeDocumentChecklistSummary(
       applicable: true,
       missingRequiredCount: checklist.missingRequiredCount,
+      notRequiredCount: checklist.notRequiredCount,
       isRequiredChecklistComplete: checklist.isRequiredChecklistComplete,
       medicalCertificate: medical,
     );

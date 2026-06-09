@@ -118,6 +118,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
         practiceType: d.practiceType,
         documents: view?.documents ?? const [],
         photos: view?.photos ?? const [],
+        waivers: view?.documentWaivers ?? const [],
       );
       final summary = PracticeDocumentChecklistSummary.fromChecklist(checklist);
       out.add(
@@ -478,5 +479,29 @@ class BackofficeRepositoryMock implements BackofficeRepository {
   @override
   Future<void> activateStudentCourse(StudentId studentId) async {
     _store.activateStudentCourse(studentId);
+  }
+
+  @override
+  Future<void> setPracticeDocumentRequirementWaived({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+    String? note,
+  }) async {
+    _store.setPracticeDocumentRequirementWaived(
+      practiceDossierId: practiceDossierId,
+      requirementId: requirementId,
+      note: note,
+    );
+  }
+
+  @override
+  Future<void> clearPracticeDocumentRequirementWaiver({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+  }) async {
+    _store.clearPracticeDocumentRequirementWaiver(
+      practiceDossierId: practiceDossierId,
+      requirementId: requirementId,
+    );
   }
 }

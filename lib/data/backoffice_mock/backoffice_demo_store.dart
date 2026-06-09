@@ -25,6 +25,7 @@ class BackofficeDemoStore extends ChangeNotifier {
       _practice = Map<StudentId, PracticeLicenseDossier?>.from(seed.practice),
       _documents = List<StudentDocument>.from(seed.documents),
       _photos = List<StudentPhoto>.from(seed.photos),
+      _documentWaivers = List<PracticeDocumentWaiver>.from(seed.documentWaivers),
       _staffNotes = <StaffInternalNote>[],
       _activityLog = <BackofficeActivityEvent>[];
 
@@ -42,6 +43,7 @@ class BackofficeDemoStore extends ChangeNotifier {
   Map<StudentId, PracticeLicenseDossier?> _practice;
   final List<StudentDocument> _documents;
   final List<StudentPhoto> _photos;
+  final List<PracticeDocumentWaiver> _documentWaivers;
   final List<StaffInternalNote> _staffNotes;
   final List<BackofficeActivityEvent> _activityLog;
   final Map<int, int> _mockRegistrySeqByYear = {};
@@ -203,6 +205,11 @@ class BackofficeDemoStore extends ChangeNotifier {
             .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
       );
 
+    final dossier = _practice[studentId];
+    final waivers = dossier == null
+        ? const <PracticeDocumentWaiver>[]
+        : documentWaiversForDossier(dossier.id);
+
     return StudentAdmin360View(
       profile: profile,
       studyProgress: prog,
@@ -214,12 +221,72 @@ class BackofficeDemoStore extends ChangeNotifier {
       ),
       financialSummary: fin,
       payments: pay,
-      practiceDossier: _practice[studentId],
+      practiceDossier: dossier,
       documents: docs,
       photos: photos,
+      documentWaivers: waivers,
       staffNotes: notes,
       activityLog: acts,
     );
+  }
+
+  List<PracticeDocumentWaiver> documentWaiversForDossier(
+    PracticeDossierId practiceDossierId,
+  ) {
+    return _documentWaivers
+        .where((w) => w.practiceDossierId == practiceDossierId)
+        .toList(growable: false);
+  }
+
+  void setPracticeDocumentRequirementWaived({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+    String? note,
+    StaffId? waivedByStaffId,
+  }) {
+    final now = DateTime.now();
+    final index = _documentWaivers.indexWhere(
+      (w) =>
+          w.practiceDossierId == practiceDossierId &&
+          w.requirementId == requirementId,
+    );
+    if (index >= 0) {
+      final existing = _documentWaivers[index];
+      _documentWaivers[index] = PracticeDocumentWaiver(
+        id: existing.id,
+        practiceDossierId: practiceDossierId,
+        requirementId: requirementId,
+        note: note,
+        waivedByStaffId: waivedByStaffId ?? existing.waivedByStaffId,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+      );
+    } else {
+      _documentWaivers.add(
+        PracticeDocumentWaiver(
+          id: 'waiver-mock-$practiceDossierId-${requirementId.name}',
+          practiceDossierId: practiceDossierId,
+          requirementId: requirementId,
+          note: note,
+          waivedByStaffId: waivedByStaffId,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
+  void clearPracticeDocumentRequirementWaiver({
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+  }) {
+    _documentWaivers.removeWhere(
+      (w) =>
+          w.practiceDossierId == practiceDossierId &&
+          w.requirementId == requirementId,
+    );
+    notifyListeners();
   }
 
   StudentDocument uploadStudentDocument({

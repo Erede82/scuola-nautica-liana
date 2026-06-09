@@ -534,6 +534,38 @@ class StudentPhotoRow {
   }
 }
 
+class PracticeDocumentWaiverRow {
+  const PracticeDocumentWaiverRow({
+    required this.id,
+    required this.practiceDossierId,
+    required this.requirementId,
+    this.note,
+    this.waivedByStaffId,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String practiceDossierId;
+  final String requirementId;
+  final String? note;
+  final String? waivedByStaffId;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  factory PracticeDocumentWaiverRow.fromJson(Map<String, dynamic> j) {
+    return PracticeDocumentWaiverRow(
+      id: j['id'] as String,
+      practiceDossierId: j['practice_dossier_id'] as String,
+      requirementId: j['requirement_id'] as String,
+      note: j['note'] as String?,
+      waivedByStaffId: j['waived_by_staff_id'] as String?,
+      createdAt: _parseTs(j['created_at']),
+      updatedAt: _parseTs(j['updated_at']),
+    );
+  }
+}
+
 DateTime? _parseTs(Object? v) {
   if (v == null) return null;
   if (v is DateTime) return v;

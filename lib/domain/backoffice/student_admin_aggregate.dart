@@ -3,6 +3,7 @@ import 'activity_log.dart';
 import 'exam_records.dart';
 import 'guidance_appointment.dart';
 import 'practice_document.dart';
+import 'practice_document_waiver.dart';
 import 'staff_internal_note.dart';
 import 'student_profile.dart';
 import 'student_study_progress.dart';
@@ -22,6 +23,7 @@ class StudentAdmin360View {
     this.practiceDossier,
     this.documents = const [],
     this.photos = const [],
+    this.documentWaivers = const [],
     this.staffNotes = const [],
     this.activityLog = const [],
   });
@@ -35,6 +37,9 @@ class StudentAdmin360View {
   final PracticeLicenseDossier? practiceDossier;
   final List<StudentDocument> documents;
   final List<StudentPhoto> photos;
+
+  /// Esenzioni checklist documenti per il fascicolo pratica corrente.
+  final List<PracticeDocumentWaiver> documentWaivers;
 
   /// Note interne strutturate staff (storico; ordinate desc in DTO).
   final List<StaffInternalNote> staffNotes;
