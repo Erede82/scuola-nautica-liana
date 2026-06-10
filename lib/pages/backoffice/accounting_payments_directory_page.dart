@@ -5,6 +5,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
+import '../../widgets/backoffice/student_360_detail_view.dart';
 import '../../theme/app_visual_tokens.dart';
 
 enum _AccountingQuickFilter { none, today, thisMonth, last30 }
@@ -18,7 +19,10 @@ class AccountingPaymentsDirectoryPage extends StatefulWidget {
   });
 
   final bool embedded;
-  final ValueChanged<StudentId> onOpenStudent360;
+
+  /// Apre Scheda 360; dalla directory Contabilità si passa [Student360DetailView.tabIndexContabilita].
+  final Future<void> Function(StudentId studentId, {int initialTabIndex})
+      onOpenStudent360;
 
   @override
   State<AccountingPaymentsDirectoryPage> createState() =>
@@ -134,6 +138,13 @@ class _AccountingPaymentsDirectoryPageState
       if (!hay.contains(token)) return false;
     }
     return true;
+  }
+
+  Future<void> _openStudent360(StudentId studentId) async {
+    await widget.onOpenStudent360(
+      studentId,
+      initialTabIndex: Student360DetailView.tabIndexContabilita,
+    );
   }
 
   Iterable<AccountingPaymentListItem> _filtered(
@@ -391,7 +402,7 @@ class _AccountingPaymentsDirectoryPageState
             return _PaymentRowCard(
               item: p,
               wide: wide,
-              onOpen360: () => widget.onOpenStudent360(p.studentId),
+              onOpen360: () => _openStudent360(p.studentId),
             );
           },
         );

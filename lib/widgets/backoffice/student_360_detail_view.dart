@@ -30,6 +30,7 @@ class Student360DetailView extends StatelessWidget {
 
   static const int tabIndexScheda = 0;
   static const int tabIndexDocumenti = 1;
+  static const int tabIndexContabilita = 5;
 
   static const Color _primary = AppVisual.logoBlue;
   static const Color _accent = AppVisual.brandAzure;
@@ -1194,34 +1195,127 @@ class _SectionContabilita extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _InfoCard(
-                title: 'Movimenti (incassi)',
+                title: 'Movimenti (${view.payments.length})',
                 child: view.payments.isEmpty
                     ? Text(
                         'Nessun pagamento registrato',
                         style: textTheme.bodySmall,
                       )
                     : Column(
-                        children: view.payments.map((pay) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            title: Text(
-                              BackofficeFormatters.moneyEur(pay.amountCents),
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: view.payments
+                            .map(
+                              (pay) => _PaymentHistoryRow(
+                                payment: pay,
+                                textTheme: textTheme,
                               ),
-                            ),
-                            subtitle: Text(
-                              '${BackofficeFormatters.dateUi(pay.receivedAt)} · '
-                              '${BackofficeFormatters.paymentMethod(pay.method)}\n'
-                              '${pay.receiptReference ?? ''}',
-                              style: textTheme.bodySmall,
-                            ),
-                          );
-                        }).toList(),
+                            )
+                            .toList(),
                       ),
               ),
             ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentHistoryRow extends StatelessWidget {
+  const _PaymentHistoryRow({
+    required this.payment,
+    required this.textTheme,
+  });
+
+  final PaymentReceived payment;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final receipt = payment.receiptReference?.trim();
+    final notes = payment.notes?.trim();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: BackofficeUiTokens.neutral),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 88,
+              child: Text(
+                BackofficeFormatters.dateUi(payment.receivedAt),
+                style: textTheme.labelSmall?.copyWith(
+                  color: BackofficeUiTokens.text.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          BackofficeFormatters.moneyEur(payment.amountCents),
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: BackofficeUiTokens.primary,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: BackofficeUiTokens.primary.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          BackofficeFormatters.paymentMethod(payment.method),
+                          style: textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: BackofficeUiTokens.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (receipt != null && receipt.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ricevuta: $receipt',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: BackofficeUiTokens.text.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ],
+                  if (notes != null && notes.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      notes,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
