@@ -4,6 +4,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
+import 'student_360_activity_log_section.dart';
 import 'student_360_photo_signature_section.dart';
 import 'student_360_section_layout.dart';
 import 'student_onboarding_section.dart';
@@ -413,6 +414,8 @@ class Student360SchedaSection extends StatelessWidget {
               schedaAllievo,
               const SizedBox(height: 12),
               iscrizionePratica,
+              const SizedBox(height: 12),
+              Student360ActivityLogSection(view: view),
             ],
           );
         },
