@@ -13,6 +13,17 @@ String? dateOnlyIso(DateTime? d) {
   return '$y-$m-$day';
 }
 
+String practiceDocumentWaiverActivityDescription({
+  required String requirementLabel,
+  String? note,
+}) {
+  final trimmedNote = note?.trim();
+  if (trimmedNote == null || trimmedNote.isEmpty) {
+    return requirementLabel;
+  }
+  return '$requirementLabel · Nota: $trimmedNote';
+}
+
 bool isActivityEventTypePersisted(BackofficeActivityType type) {
   switch (type) {
     case BackofficeActivityType.studentRegisteredFromApp:

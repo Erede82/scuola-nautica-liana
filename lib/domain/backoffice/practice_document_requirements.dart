@@ -529,6 +529,17 @@ Map<String, String> practiceDocumentUploadOptionsForType(String? practiceType) {
   return Map.unmodifiable(out);
 }
 
+/// Etichetta italiana di un requisito checklist per tipo pratica.
+String practiceDocumentRequirementLabel(
+  PracticeDocumentRequirementId id, {
+  String? practiceType,
+}) {
+  for (final def in _requirementsForPracticeType(practiceType)) {
+    if (def.id == id) return def.label;
+  }
+  return id.name;
+}
+
 String practiceTypeLabelIt(String? practiceType) {
   switch (practiceType) {
     case 'new_license':

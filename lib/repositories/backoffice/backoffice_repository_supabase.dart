@@ -1276,8 +1276,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
   @override
   Future<void> setPracticeDocumentRequirementWaived({
+    required StudentId studentId,
     required PracticeDossierId practiceDossierId,
     required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
     String? note,
   }) async {
     final trimmedNote = note?.trim();
@@ -1291,18 +1293,77 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       payload,
       onConflict: 'practice_dossier_id,requirement_id',
     );
+
+    await _insertPracticeDocumentWaiverActivity(
+      studentId: studentId,
+      practiceDossierId: practiceDossierId,
+      requirementId: requirementId,
+      practiceType: practiceType,
+      waived: true,
+      note: trimmedNote,
+    );
   }
 
   @override
   Future<void> clearPracticeDocumentRequirementWaiver({
+    required StudentId studentId,
     required PracticeDossierId practiceDossierId,
     required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
   }) async {
     await _client
         .from('practice_document_waivers')
         .delete()
         .eq('practice_dossier_id', practiceDossierId)
         .eq('requirement_id', requirementId.name);
+
+    await _insertPracticeDocumentWaiverActivity(
+      studentId: studentId,
+      practiceDossierId: practiceDossierId,
+      requirementId: requirementId,
+      practiceType: practiceType,
+      waived: false,
+    );
+  }
+
+  /// Stesso helper di [updatePracticeDossier]: [_insertActivity] con studentId noto.
+  Future<void> _insertPracticeDocumentWaiverActivity({
+    required StudentId studentId,
+    required PracticeDossierId practiceDossierId,
+    required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
+    required bool waived,
+    String? note,
+  }) async {
+    final label = practiceDocumentRequirementLabel(
+      requirementId,
+      practiceType: practiceType,
+    );
+    final title = waived
+        ? 'Documento segnato non necessario'
+        : 'Documento ripristinato come richiesto';
+    final description = waived
+        ? practiceDocumentWaiverActivityDescription(
+            requirementLabel: label,
+            note: note,
+          )
+        : label;
+
+    try {
+      await _insertActivity(
+        studentId: studentId,
+        type: BackofficeActivityType.practiceDossierUpdated,
+        title: title,
+        description: description,
+      );
+    } catch (e, st) {
+      debugPrint(
+        '[Backoffice] activity log waiver FALLITO: title="$title" '
+        'studentId=$studentId dossierId=$practiceDossierId '
+        'requirement=${requirementId.name} staffId=$_staffUserId',
+      );
+      debugPrint('[Backoffice] activity log waiver errore: $e\n$st');
+    }
   }
 
   @override

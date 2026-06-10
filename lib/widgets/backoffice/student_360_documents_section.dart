@@ -332,8 +332,10 @@ class Student360DocumentsSection extends StatelessWidget {
 
     try {
       await repository.setPracticeDocumentRequirementWaived(
+        studentId: view.profile.id,
         practiceDossierId: dossier.id,
         requirementId: requirementId,
+        practiceType: dossier.practiceType,
         note: prompt.note,
       );
       if (!context.mounted) return;
@@ -383,8 +385,10 @@ class Student360DocumentsSection extends StatelessWidget {
 
     try {
       await repository.clearPracticeDocumentRequirementWaiver(
+        studentId: view.profile.id,
         practiceDossierId: dossier.id,
         requirementId: requirementId,
+        practiceType: dossier.practiceType,
       );
       if (!context.mounted) return;
       _showUploadMessage(context, 'Documento ripristinato come richiesto.');

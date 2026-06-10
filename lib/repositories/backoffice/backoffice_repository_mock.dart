@@ -2,6 +2,7 @@ import '../../data/backoffice_mock/backoffice_demo_store.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../models/license_models.dart';
 import 'backoffice_repository.dart';
+import 'backoffice_supabase_write_helpers.dart';
 
 /// Adattatore [BackofficeRepository] → [BackofficeDemoStore] (memoria / demo).
 ///
@@ -483,8 +484,10 @@ class BackofficeRepositoryMock implements BackofficeRepository {
 
   @override
   Future<void> setPracticeDocumentRequirementWaived({
+    required StudentId studentId,
     required PracticeDossierId practiceDossierId,
     required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
     String? note,
   }) async {
     _store.setPracticeDocumentRequirementWaived(
@@ -492,16 +495,61 @@ class BackofficeRepositoryMock implements BackofficeRepository {
       requirementId: requirementId,
       note: note,
     );
+    _appendPracticeDocumentWaiverActivity(
+      studentId: studentId,
+      requirementId: requirementId,
+      practiceType: practiceType,
+      waived: true,
+      note: note,
+    );
   }
 
   @override
   Future<void> clearPracticeDocumentRequirementWaiver({
+    required StudentId studentId,
     required PracticeDossierId practiceDossierId,
     required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
   }) async {
     _store.clearPracticeDocumentRequirementWaiver(
       practiceDossierId: practiceDossierId,
       requirementId: requirementId,
+    );
+    _appendPracticeDocumentWaiverActivity(
+      studentId: studentId,
+      requirementId: requirementId,
+      practiceType: practiceType,
+      waived: false,
+    );
+  }
+
+  void _appendPracticeDocumentWaiverActivity({
+    required StudentId studentId,
+    required PracticeDocumentRequirementId requirementId,
+    String? practiceType,
+    required bool waived,
+    String? note,
+  }) {
+    final label = practiceDocumentRequirementLabel(
+      requirementId,
+      practiceType: practiceType,
+    );
+    _store.appendActivityEvent(
+      BackofficeActivityEvent(
+        id: 'act-waiver-${DateTime.now().microsecondsSinceEpoch}',
+        studentId: studentId,
+        occurredAt: DateTime.now(),
+        type: BackofficeActivityType.practiceDossierUpdated,
+        title: waived
+            ? 'Documento segnato non necessario'
+            : 'Documento ripristinato come richiesto',
+        description: waived
+            ? practiceDocumentWaiverActivityDescription(
+                requirementLabel: label,
+                note: note,
+              )
+            : label,
+      ),
     );
   }
 }

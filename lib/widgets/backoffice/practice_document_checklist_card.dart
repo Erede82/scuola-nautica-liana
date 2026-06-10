@@ -199,9 +199,10 @@ class _ChecklistRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  statusLabel,
-                  style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
+                const SizedBox(height: 4),
+                _ItemStatusChip(
+                  label: statusLabel,
+                  status: status,
                 ),
                 if (status == PracticeDocumentChecklistItemStatus.notRequired &&
                     item.matchedWaiver?.note != null &&
@@ -317,10 +318,43 @@ class _ChecklistRow extends StatelessWidget {
         return 'In scadenza';
       case PracticeDocumentChecklistItemStatus.recommendedMissing:
         return level == PracticeDocumentRequirementLevel.recommended
-            ? 'Consigliato / da verificare'
+            ? 'Consigliato'
             : 'Da verificare';
       case PracticeDocumentChecklistItemStatus.recommendedPresent:
         return 'Consigliato — presente';
     }
+  }
+}
+
+class _ItemStatusChip extends StatelessWidget {
+  const _ItemStatusChip({
+    required this.label,
+    required this.status,
+  });
+
+  final String label;
+  final PracticeDocumentChecklistItemStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final fg = _ChecklistRow._colorForStatus(status);
+    final bg = fg.withValues(alpha: 0.12);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
