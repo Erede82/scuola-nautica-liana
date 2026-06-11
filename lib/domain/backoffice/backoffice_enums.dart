@@ -112,7 +112,9 @@ enum ExamAttemptType {
 }
 
 /// Metodo incasso (fatturazione semplificata).
-
+///
+/// [other] è etichettato «Welfare» in UI staff; bonifico/assegno non sono
+/// selezionabili nei form ma possono comparire su incassi storici.
 enum PaymentMethod {
   card,
   sepaBankTransfer,

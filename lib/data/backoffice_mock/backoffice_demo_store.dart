@@ -794,7 +794,7 @@ class BackofficeDemoStore extends ChangeNotifier {
       case PaymentMethod.check:
         return 'Assegno';
       case PaymentMethod.other:
-        return 'Altro';
+        return 'Welfare';
     }
   }
 

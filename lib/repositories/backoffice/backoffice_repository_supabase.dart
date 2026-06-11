@@ -1630,7 +1630,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       case PaymentMethod.check:
         return 'Assegno';
       case PaymentMethod.other:
-        return 'Altro';
+        return 'Welfare';
     }
   }
 
