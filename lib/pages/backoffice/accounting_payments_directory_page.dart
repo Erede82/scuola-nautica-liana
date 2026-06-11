@@ -160,21 +160,36 @@ class _AccountingPaymentsDirectoryPageState
     }
   }
 
-  ({int sumToday, int sumMonth, int count}) _summaryFor(
+  bool _hasActiveFilters() {
+    return _methodFilter != null ||
+        _quick != _AccountingQuickFilter.none ||
+        _fromDay != null ||
+        _toDay != null ||
+        _searchCtrl.text.trim().isNotEmpty;
+  }
+
+  ({int sumToday, int sumMonth, int sumFiltered, int count}) _summaryFor(
     List<AccountingPaymentListItem> filtered,
   ) {
     final now = DateTime.now();
     final t0 = DateTime(now.year, now.month, now.day);
     var sumToday = 0;
     var sumMonth = 0;
+    var sumFiltered = 0;
     for (final p in filtered) {
+      sumFiltered += p.amountCents;
       final d = _localDateOnly(p.receivedAt);
       if (d == t0) sumToday += p.amountCents;
       if (d.year == now.year && d.month == now.month) {
         sumMonth += p.amountCents;
       }
     }
-    return (sumToday: sumToday, sumMonth: sumMonth, count: filtered.length);
+    return (
+      sumToday: sumToday,
+      sumMonth: sumMonth,
+      sumFiltered: sumFiltered,
+      count: filtered.length,
+    );
   }
 
   @override
@@ -185,6 +200,7 @@ class _AccountingPaymentsDirectoryPageState
         ? const <AccountingPaymentListItem>[]
         : _filtered(raw).toList(growable: false);
     final summary = _summaryFor(filtered);
+    final filtersActive = _hasActiveFilters();
 
     return ColoredBox(
       color: AppVisual.canvas,
@@ -210,7 +226,9 @@ class _AccountingPaymentsDirectoryPageState
             child: _AccountingSummaryRow(
               sumToday: summary.sumToday,
               sumMonth: summary.sumMonth,
+              sumFiltered: summary.sumFiltered,
               count: summary.count,
+              filtersActive: filtersActive,
               loading: _loading && raw == null,
               searchCtrl: _searchCtrl,
               onSearchChanged: () => setState(() {}),
@@ -259,7 +277,12 @@ class _AccountingPaymentsDirectoryPageState
                     children: [
                       SizedBox(width: 160, child: methodField),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildFilterStrip(context)),
+                      Expanded(
+                        child: _buildFilterStrip(
+                          context,
+                          filtersActive: filtersActive,
+                        ),
+                      ),
                     ],
                   );
                 }
@@ -268,7 +291,10 @@ class _AccountingPaymentsDirectoryPageState
                   children: [
                     methodField,
                     const SizedBox(height: 8),
-                    _buildFilterStrip(context),
+                    _buildFilterStrip(
+                      context,
+                      filtersActive: filtersActive,
+                    ),
                   ],
                 );
               },
@@ -280,7 +306,10 @@ class _AccountingPaymentsDirectoryPageState
     );
   }
 
-  Widget _buildFilterStrip(BuildContext context) {
+  Widget _buildFilterStrip(
+    BuildContext context, {
+    required bool filtersActive,
+  }) {
     return Wrap(
       spacing: 6,
       runSpacing: 6,
@@ -353,6 +382,20 @@ class _AccountingPaymentsDirectoryPageState
             style: Theme.of(context).textTheme.labelLarge,
           ),
         ),
+        if (filtersActive)
+          Chip(
+            label: const Text('Filtri attivi'),
+            visualDensity: VisualDensity.compact,
+            backgroundColor: AppVisual.logoBlue.withValues(alpha: 0.1),
+            labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppVisual.logoBlueDeep,
+              fontWeight: FontWeight.w700,
+            ),
+            side: BorderSide(
+              color: AppVisual.logoBlue.withValues(alpha: 0.35),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
         TextButton(
           onPressed: _clearFilters,
           child: const Text('Reimposta filtri'),
@@ -415,7 +458,9 @@ class _AccountingSummaryRow extends StatelessWidget {
   const _AccountingSummaryRow({
     required this.sumToday,
     required this.sumMonth,
+    required this.sumFiltered,
     required this.count,
+    required this.filtersActive,
     required this.loading,
     required this.searchCtrl,
     required this.onSearchChanged,
@@ -425,7 +470,9 @@ class _AccountingSummaryRow extends StatelessWidget {
 
   final int sumToday;
   final int sumMonth;
+  final int sumFiltered;
   final int count;
+  final bool filtersActive;
   final bool loading;
   final TextEditingController searchCtrl;
   final VoidCallback onSearchChanged;
@@ -444,6 +491,12 @@ class _AccountingSummaryRow extends StatelessWidget {
         ? '—'
         : BackofficeFormatters.moneyEur(sumMonth);
     final countValue = loading ? '—' : '$count';
+    final filteredValue = loading
+        ? '—'
+        : BackofficeFormatters.moneyEur(sumFiltered);
+    final filteredSubtitle = filtersActive && !loading
+        ? 'Selezione corrente'
+        : null;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -474,6 +527,17 @@ class _AccountingSummaryRow extends StatelessWidget {
               title: 'Movimenti',
               value: countValue,
               icon: Icons.view_list_outlined,
+              subtitle: filtersActive && !loading ? 'Con filtri' : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: _tileWidth,
+            child: _SummaryTile(
+              title: 'Totale filtrato',
+              value: filteredValue,
+              icon: Icons.filter_alt_outlined,
+              subtitle: filteredSubtitle,
             ),
           ),
           const SizedBox(width: 8),
@@ -644,11 +708,13 @@ class _SummaryTile extends StatelessWidget {
     required this.title,
     required this.value,
     required this.icon,
+    this.subtitle,
   });
 
   final String title;
   final String value;
   final IconData icon;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -690,6 +756,20 @@ class _SummaryTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: AppVisual.inkMuted,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                        fontSize: 10,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -711,6 +791,34 @@ class _PaymentRowCard extends StatelessWidget {
   final bool wide;
   final VoidCallback onOpen360;
 
+  Widget _methodChip(TextTheme textTheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: BackofficeUiTokens.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        BackofficeFormatters.paymentMethod(item.method),
+        style: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: BackofficeUiTokens.primary,
+        ),
+      ),
+    );
+  }
+
+  String? _receiptLine() {
+    final ref = item.receiptReference?.trim();
+    final fiscal = item.fiscalReceiptNumber?.trim();
+    final parts = <String>[
+      if (ref != null && ref.isNotEmpty) ref,
+      if (fiscal != null && fiscal.isNotEmpty) 'Fisc. $fiscal',
+    ];
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -720,19 +828,8 @@ class _PaymentRowCard extends StatelessWidget {
       if (item.studentPhone != null && item.studentPhone!.trim().isNotEmpty)
         item.studentPhone,
     ].join(' · ');
-
-    final ref = item.receiptReference?.trim();
-    final fiscal = item.fiscalReceiptNumber?.trim();
-    final refLine = [
-      if (ref != null && ref.isNotEmpty) ref,
-      if (fiscal != null && fiscal.isNotEmpty) fiscal,
-    ].join(' · ');
-
-    final metaLine = [
-      BackofficeFormatters.dateUi(item.receivedAt),
-      BackofficeFormatters.paymentMethod(item.method),
-      if (refLine.isNotEmpty) refLine,
-    ].join(' · ');
+    final receiptLine = _receiptLine();
+    final notes = item.notes?.trim();
 
     return Material(
       color: AppVisual.surface,
@@ -751,9 +848,21 @@ class _PaymentRowCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: wide
               ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    SizedBox(
+                      width: 88,
+                      child: Text(
+                        BackofficeFormatters.dateUi(item.receivedAt),
+                        style: textTheme.labelSmall?.copyWith(
+                          color: BackofficeUiTokens.text.withValues(alpha: 0.72),
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
-                      flex: 3,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -775,24 +884,50 @@ class _PaymentRowCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          Text(
-                            metaLine,
-                            style: textTheme.bodySmall,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Text(
+                                BackofficeFormatters.moneyEur(item.amountCents),
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppVisual.logoBlueDeep,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _methodChip(textTheme),
+                            ],
                           ),
+                          if (receiptLine != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Ricevuta: $receiptLine',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: BackofficeUiTokens.text.withValues(
+                                  alpha: 0.78,
+                                ),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          if (notes != null && notes.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              notes,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: BackofficeUiTokens.text.withValues(
+                                  alpha: 0.68,
+                                ),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      BackofficeFormatters.moneyEur(item.amountCents),
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppVisual.logoBlueDeep,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     TextButton(
                       onPressed: onOpen360,
                       style: TextButton.styleFrom(
@@ -807,32 +942,83 @@ class _PaymentRowCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        SizedBox(
+                          width: 72,
+                          child: Text(
+                            BackofficeFormatters.dateUi(item.receivedAt),
+                            style: textTheme.labelSmall?.copyWith(
+                              color: BackofficeUiTokens.text.withValues(
+                                alpha: 0.72,
+                              ),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             item.studentFullName,
                             style: textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
-                          ),
-                        ),
-                        Text(
-                          BackofficeFormatters.moneyEur(item.amountCents),
-                          style: textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppVisual.logoBlueDeep,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                     if (contact.isNotEmpty)
-                      Text(
-                        contact,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppVisual.inkMuted,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          contact,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppVisual.inkMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    Text(metaLine, style: textTheme.bodySmall),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          Text(
+                            BackofficeFormatters.moneyEur(item.amountCents),
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppVisual.logoBlueDeep,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _methodChip(textTheme),
+                        ],
+                      ),
+                    ),
+                    if (receiptLine != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Ricevuta: $receiptLine',
+                          style: textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    if (notes != null && notes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          notes,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
