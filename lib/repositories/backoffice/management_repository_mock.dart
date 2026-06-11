@@ -218,12 +218,56 @@ class ManagementRepositoryMock implements ManagementRepository {
     return List<ExpenseCategory>.unmodifiable(_expenseCategories);
   }
 
+  static List<NauticalExpense> _demoExpenses() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return [
+      NauticalExpense(
+        id: 'mock-expense-benzina-1',
+        title: 'Rifornimento barca scuola',
+        amountCents: 12500,
+        expenseDate: today.subtract(const Duration(days: 2)),
+        categoryId: 'mock-expense-benzina',
+        notes: 'Demo locale — benzina',
+      ),
+      NauticalExpense(
+        id: 'mock-expense-istruttore-1',
+        title: 'Compenso guida maggio',
+        amountCents: 18000,
+        expenseDate: today.subtract(const Duration(days: 8)),
+        categoryId: 'mock-expense-pagamento-istruttori',
+      ),
+      NauticalExpense(
+        id: 'mock-expense-pontile-1',
+        title: 'Canone pontile mensile',
+        amountCents: 45000,
+        expenseDate: DateTime(now.year, now.month, 5),
+        categoryId: 'mock-expense-affitto-pontile',
+        notes: 'Demo locale — affitto pontile',
+      ),
+    ];
+  }
+
   @override
   Future<List<NauticalExpense>> listExpenses({
     DateTime? from,
     DateTime? to,
   }) async {
-    return const <NauticalExpense>[];
+    var list = _demoExpenses();
+    if (from != null) {
+      final f = DateTime(from.year, from.month, from.day);
+      list = list
+          .where((e) => !e.expenseDate.isBefore(f))
+          .toList(growable: false);
+    }
+    if (to != null) {
+      final t = DateTime(to.year, to.month, to.day);
+      list = list
+          .where((e) => !e.expenseDate.isAfter(t))
+          .toList(growable: false);
+    }
+    list.sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
+    return List<NauticalExpense>.unmodifiable(list);
   }
 
   @override

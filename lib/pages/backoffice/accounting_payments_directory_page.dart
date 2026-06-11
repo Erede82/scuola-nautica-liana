@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../constants/backoffice_payment_methods.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
+import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../widgets/backoffice/student_360_detail_view.dart';
@@ -10,7 +11,7 @@ import '../../theme/app_visual_tokens.dart';
 
 enum _AccountingQuickFilter { none, today, thisMonth, last30 }
 
-/// Directory contabilità (V1): elenco incassi da `payments` + dati minimi allievo (**solo lettura**).
+/// Directory contabilità (V1): incassi da `payments` e uscite da `expenses` (**solo lettura**).
 class AccountingPaymentsDirectoryPage extends StatefulWidget {
   const AccountingPaymentsDirectoryPage({
     super.key,
@@ -34,6 +35,8 @@ class _AccountingPaymentsDirectoryPageState
   final _searchCtrl = TextEditingController();
 
   List<AccountingPaymentListItem>? _items;
+  List<NauticalExpense>? _expenses;
+  List<ExpenseCategory>? _expenseCategories;
   Object? _error;
   bool _loading = true;
 
@@ -70,10 +73,26 @@ class _AccountingPaymentsDirectoryPageState
       _error = null;
     });
     try {
-      final list = await backofficeRepository.listAccountingPayments();
+      final payments = await backofficeRepository.listAccountingPayments();
+      var categories = const <ExpenseCategory>[];
+      var expenses = const <NauticalExpense>[];
+      try {
+        categories = await managementRepository.listExpenseCategories();
+      } catch (e, st) {
+        debugPrint(
+          'AccountingPaymentsDirectoryPage expense categories: $e\n$st',
+        );
+      }
+      try {
+        expenses = await managementRepository.listExpenses();
+      } catch (e, st) {
+        debugPrint('AccountingPaymentsDirectoryPage expenses: $e\n$st');
+      }
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = payments;
+        _expenseCategories = categories;
+        _expenses = expenses;
         _loading = false;
       });
     } catch (e, st) {
@@ -83,6 +102,8 @@ class _AccountingPaymentsDirectoryPageState
         _error = e;
         _loading = false;
         _items = null;
+        _expenses = null;
+        _expenseCategories = null;
       });
     }
   }
@@ -168,6 +189,49 @@ class _AccountingPaymentsDirectoryPageState
         _searchCtrl.text.trim().isNotEmpty;
   }
 
+  bool _hasExpenseDateFilters() {
+    return _quick != _AccountingQuickFilter.none ||
+        _fromDay != null ||
+        _toDay != null;
+  }
+
+  Iterable<NauticalExpense> _filteredExpenses(
+    List<NauticalExpense> raw,
+  ) sync* {
+    for (final e in raw) {
+      final day = _localDateOnly(e.expenseDate);
+      if (!_matchesQuick(day)) continue;
+      if (!_matchesCustomRange(day)) continue;
+      yield e;
+    }
+  }
+
+  ({int sumMonth, int sumFiltered, int count}) _expenseSummaryFor(
+    List<NauticalExpense> filtered,
+  ) {
+    final now = DateTime.now();
+    var sumMonth = 0;
+    var sumFiltered = 0;
+    for (final e in filtered) {
+      sumFiltered += e.amountCents;
+      final d = _localDateOnly(e.expenseDate);
+      if (d.year == now.year && d.month == now.month) {
+        sumMonth += e.amountCents;
+      }
+    }
+    return (
+      sumMonth: sumMonth,
+      sumFiltered: sumFiltered,
+      count: filtered.length,
+    );
+  }
+
+  Map<String, String> _categoryNameById() {
+    final cats = _expenseCategories;
+    if (cats == null) return const {};
+    return {for (final c in cats) c.id: c.name};
+  }
+
   ({int sumToday, int sumMonth, int sumFiltered, int count}) _summaryFor(
     List<AccountingPaymentListItem> filtered,
   ) {
@@ -201,6 +265,11 @@ class _AccountingPaymentsDirectoryPageState
         : _filtered(raw).toList(growable: false);
     final summary = _summaryFor(filtered);
     final filtersActive = _hasActiveFilters();
+    final expenseDateFilters = _hasExpenseDateFilters();
+    final expenseRaw = _expenses ?? const <NauticalExpense>[];
+    final filteredExpenses = _filteredExpenses(expenseRaw).toList(growable: false);
+    final expenseSummary = _expenseSummaryFor(filteredExpenses);
+    final categoryById = _categoryNameById();
 
     return ColoredBox(
       color: AppVisual.canvas,
@@ -229,6 +298,10 @@ class _AccountingPaymentsDirectoryPageState
               sumFiltered: summary.sumFiltered,
               count: summary.count,
               filtersActive: filtersActive,
+              sumExpensesMonth: expenseSummary.sumMonth,
+              sumExpensesFiltered: expenseSummary.sumFiltered,
+              expenseDateFilters: expenseDateFilters,
+              expensesLoading: _loading && _expenses == null,
               loading: _loading && raw == null,
               searchCtrl: _searchCtrl,
               onSearchChanged: () => setState(() {}),
@@ -300,7 +373,15 @@ class _AccountingPaymentsDirectoryPageState
               },
             ),
           ),
-          Expanded(child: _buildBody(textTheme)),
+          Expanded(
+            child: _buildBody(
+              textTheme,
+              filteredPayments: filtered,
+              filteredExpenses: filteredExpenses,
+              categoryById: categoryById,
+              paymentsRawEmpty: raw?.isEmpty ?? true,
+            ),
+          ),
         ],
       ),
     );
@@ -404,7 +485,13 @@ class _AccountingPaymentsDirectoryPageState
     );
   }
 
-  Widget _buildBody(TextTheme textTheme) {
+  Widget _buildBody(
+    TextTheme textTheme, {
+    required List<AccountingPaymentListItem> filteredPayments,
+    required List<NauticalExpense> filteredExpenses,
+    required Map<String, String> categoryById,
+    required bool paymentsRawEmpty,
+  }) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -420,34 +507,74 @@ class _AccountingPaymentsDirectoryPageState
         ),
       );
     }
-    final raw = _items ?? const <AccountingPaymentListItem>[];
-    final filtered = _filtered(raw).toList(growable: false);
-    if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          raw.isEmpty
-              ? 'Nessun pagamento in elenco.'
-              : 'Nessun risultato con i filtri correnti.',
-          style: textTheme.bodyLarge,
-        ),
-      );
-    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 720;
-        return ListView.separated(
+        return ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          itemCount: filtered.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 6),
-          itemBuilder: (context, index) {
-            final p = filtered[index];
-            return _PaymentRowCard(
-              item: p,
-              wide: wide,
-              onOpen360: () => _openStudent360(p.studentId),
-            );
-          },
+          children: [
+            Text(
+              'Incassi',
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: BackofficeUiTokens.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (filteredPayments.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  paymentsRawEmpty
+                      ? 'Nessun pagamento in elenco.'
+                      : 'Nessun risultato con i filtri correnti.',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppVisual.inkMuted,
+                  ),
+                ),
+              )
+            else
+              ...filteredPayments.map(
+                (p) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _PaymentRowCard(
+                    item: p,
+                    wide: wide,
+                    onOpen360: () => _openStudent360(p.studentId),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Text(
+              'Uscite recenti',
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: BackofficeUiTokens.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (filteredExpenses.isEmpty)
+              Text(
+                'Nessuna uscita registrata nel periodo selezionato.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppVisual.inkMuted,
+                ),
+              )
+            else
+              ...filteredExpenses.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _ExpenseRowCard(
+                    expense: e,
+                    categoryName: e.categoryId == null
+                        ? null
+                        : categoryById[e.categoryId],
+                    wide: wide,
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -461,6 +588,10 @@ class _AccountingSummaryRow extends StatelessWidget {
     required this.sumFiltered,
     required this.count,
     required this.filtersActive,
+    required this.sumExpensesMonth,
+    required this.sumExpensesFiltered,
+    required this.expenseDateFilters,
+    required this.expensesLoading,
     required this.loading,
     required this.searchCtrl,
     required this.onSearchChanged,
@@ -473,6 +604,10 @@ class _AccountingSummaryRow extends StatelessWidget {
   final int sumFiltered;
   final int count;
   final bool filtersActive;
+  final int sumExpensesMonth;
+  final int sumExpensesFiltered;
+  final bool expenseDateFilters;
+  final bool expensesLoading;
   final bool loading;
   final TextEditingController searchCtrl;
   final VoidCallback onSearchChanged;
@@ -497,6 +632,18 @@ class _AccountingSummaryRow extends StatelessWidget {
     final filteredSubtitle = filtersActive && !loading
         ? 'Selezione corrente'
         : null;
+    final expensesValueCents =
+        expenseDateFilters ? sumExpensesFiltered : sumExpensesMonth;
+    final expensesValue = expensesLoading
+        ? '—'
+        : BackofficeFormatters.moneyEur(expensesValueCents);
+    final expensesTitle =
+        expenseDateFilters ? 'Totale uscite' : 'Uscite nel mese';
+    final expensesSubtitle = expensesLoading
+        ? null
+        : expenseDateFilters
+        ? 'Periodo selezionato'
+        : (sumExpensesFiltered == 0 ? 'Nessuna uscita' : null);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -551,7 +698,12 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
-            child: const _UscitePlaceholder(),
+            child: _SummaryTile(
+              title: expensesTitle,
+              value: expensesValue,
+              icon: Icons.arrow_outward_rounded,
+              subtitle: expensesSubtitle,
+            ),
           ),
           const SizedBox(width: 6),
           IconButton.filledTonal(
@@ -637,66 +789,6 @@ class _SummarySearchField extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder UI — gestione uscite (Carburante, compensi, …) in patch DB dedicata.
-class _UscitePlaceholder extends StatelessWidget {
-  const _UscitePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Tooltip(
-      message: 'Funzione in arrivo',
-      child: Material(
-        color: AppVisual.surface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppVisual.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Icon(
-                Icons.arrow_outward_rounded,
-                size: 20,
-                color: AppVisual.inkMuted.withValues(alpha: 0.55),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Uscite',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: AppVisual.inkMuted,
-                        fontWeight: FontWeight.w700,
-                        height: 1.1,
-                      ),
-                    ),
-                    Text(
-                      'In arrivo',
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppVisual.inkMuted.withValues(alpha: 0.55),
-                        height: 1.15,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -1029,6 +1121,185 @@ class _PaymentRowCard extends StatelessWidget {
                   ],
                 ),
         ),
+      ),
+    );
+  }
+}
+
+class _ExpenseRowCard extends StatelessWidget {
+  const _ExpenseRowCard({
+    required this.expense,
+    required this.categoryName,
+    required this.wide,
+  });
+
+  final NauticalExpense expense;
+  final String? categoryName;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final notes = expense.notes?.trim();
+    final categoryLabel = categoryName?.trim();
+
+    Widget categoryChip() {
+      if (categoryLabel == null || categoryLabel.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppVisual.warmBeige.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          categoryLabel,
+          style: textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppVisual.logoBlueDeep,
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: AppVisual.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppVisual.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: wide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 88,
+                    child: Text(
+                      BackofficeFormatters.dateUi(expense.expenseDate),
+                      style: textTheme.labelSmall?.copyWith(
+                        color: BackofficeUiTokens.text.withValues(alpha: 0.72),
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          expense.title,
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: BackofficeUiTokens.text,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              BackofficeFormatters.moneyEur(expense.amountCents),
+                              style: textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppVisual.logoBlueDeep,
+                              ),
+                            ),
+                            if (categoryLabel != null &&
+                                categoryLabel.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              categoryChip(),
+                            ],
+                          ],
+                        ),
+                        if (notes != null && notes.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            notes,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: BackofficeUiTokens.text.withValues(
+                                alpha: 0.68,
+                              ),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 72,
+                        child: Text(
+                          BackofficeFormatters.dateUi(expense.expenseDate),
+                          style: textTheme.labelSmall?.copyWith(
+                            color: BackofficeUiTokens.text.withValues(
+                              alpha: 0.72,
+                            ),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          expense.title,
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        Text(
+                          BackofficeFormatters.moneyEur(expense.amountCents),
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppVisual.logoBlueDeep,
+                          ),
+                        ),
+                        if (categoryLabel != null &&
+                            categoryLabel.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          categoryChip(),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (notes != null && notes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        notes,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }
