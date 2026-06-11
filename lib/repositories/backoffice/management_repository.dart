@@ -7,6 +7,8 @@ abstract class ManagementRepository {
 
   Future<List<NauticalExpense>> listExpenses({DateTime? from, DateTime? to});
 
+  Future<NauticalExpense> createExpense(ExpenseCreateInput input);
+
   Future<List<ExtraProduct>> listExtraProducts();
 
   Future<List<ExtraVideoItem>> listExtraVideoItems(String productId);

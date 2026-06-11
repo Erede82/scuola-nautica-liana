@@ -6,8 +6,11 @@ class ManagementRepositoryMock implements ManagementRepository {
   final Set<String> _purchasedExtraProductIds = <String>{};
   final List<PracticeServiceTemplate> _practiceServiceTemplates =
       List<PracticeServiceTemplate>.from(_seedPracticeServiceTemplates);
+  final List<NauticalExpense> _expenses =
+      List<NauticalExpense>.from(_demoExpensesSeed());
 
   static int _mockIdSeq = 0;
+  static int _mockExpenseIdSeq = 0;
 
   static String _nextMockId() {
     _mockIdSeq += 1;
@@ -218,7 +221,7 @@ class ManagementRepositoryMock implements ManagementRepository {
     return List<ExpenseCategory>.unmodifiable(_expenseCategories);
   }
 
-  static List<NauticalExpense> _demoExpenses() {
+  static List<NauticalExpense> _demoExpensesSeed() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return [
@@ -253,7 +256,7 @@ class ManagementRepositoryMock implements ManagementRepository {
     DateTime? from,
     DateTime? to,
   }) async {
-    var list = _demoExpenses();
+    var list = List<NauticalExpense>.from(_expenses);
     if (from != null) {
       final f = DateTime(from.year, from.month, from.day);
       list = list
@@ -268,6 +271,38 @@ class ManagementRepositoryMock implements ManagementRepository {
     }
     list.sort((a, b) => b.expenseDate.compareTo(a.expenseDate));
     return List<NauticalExpense>.unmodifiable(list);
+  }
+
+  @override
+  Future<NauticalExpense> createExpense(ExpenseCreateInput input) async {
+    final title = input.title.trim();
+    if (title.isEmpty) {
+      throw ArgumentError('Il titolo dell\'uscita è obbligatorio.');
+    }
+    if (input.amountCents <= 0) {
+      throw ArgumentError.value(
+        input.amountCents,
+        'amountCents',
+        'must be > 0',
+      );
+    }
+
+    _mockExpenseIdSeq += 1;
+    final expense = NauticalExpense(
+      id: 'mock-expense-$_mockExpenseIdSeq',
+      title: title,
+      amountCents: input.amountCents,
+      expenseDate: DateTime(
+        input.expenseDate.year,
+        input.expenseDate.month,
+        input.expenseDate.day,
+      ),
+      categoryId: input.categoryId,
+      instructorId: input.instructorId,
+      notes: input.notes?.trim().isEmpty ?? true ? null : input.notes!.trim(),
+    );
+    _expenses.add(expense);
+    return expense;
   }
 
   @override

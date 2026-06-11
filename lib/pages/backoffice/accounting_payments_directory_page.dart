@@ -6,12 +6,13 @@ import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
+import '../../widgets/backoffice/accounting_expense_dialogs.dart';
 import '../../widgets/backoffice/student_360_detail_view.dart';
 import '../../theme/app_visual_tokens.dart';
 
 enum _AccountingQuickFilter { none, today, thisMonth, last30 }
 
-/// Directory contabilità (V1): incassi da `payments` e uscite da `expenses` (**solo lettura**).
+/// Directory contabilità (V1): incassi da `payments` e uscite da `expenses`.
 class AccountingPaymentsDirectoryPage extends StatefulWidget {
   const AccountingPaymentsDirectoryPage({
     super.key,
@@ -159,6 +160,33 @@ class _AccountingPaymentsDirectoryPageState
       if (!hay.contains(token)) return false;
     }
     return true;
+  }
+
+  Future<void> _openRegisterExpense(BuildContext context) async {
+    final categories = _expenseCategories;
+    if (categories == null || categories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nessuna categoria uscite disponibile.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final saved = await showCreateExpenseDialog(
+      context,
+      categories: categories,
+    );
+    if (!context.mounted || !saved) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Uscita registrata'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _load();
   }
 
   Future<void> _openStudent360(StudentId studentId) async {
@@ -546,12 +574,23 @@ class _AccountingPaymentsDirectoryPageState
                 ),
               ),
             const SizedBox(height: 12),
-            Text(
-              'Uscite recenti',
-              style: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: BackofficeUiTokens.text,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Uscite recenti',
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: BackofficeUiTokens.text,
+                    ),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _loading ? null : () => _openRegisterExpense(context),
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text('Registra uscita'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             if (filteredExpenses.isEmpty)

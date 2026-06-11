@@ -69,6 +69,55 @@ class ManagementRepositorySupabase implements ManagementRepository {
         .toList(growable: false);
   }
 
+  static const _expenseSelect =
+      'id, title, amount_cents, expense_date, category_id, '
+      'instructor_id, currency_code, notes';
+
+  @override
+  Future<NauticalExpense> createExpense(ExpenseCreateInput input) async {
+    final title = input.title.trim();
+    if (title.isEmpty) {
+      throw ArgumentError('Il titolo dell\'uscita è obbligatorio.');
+    }
+    if (input.amountCents <= 0) {
+      throw ArgumentError.value(
+        input.amountCents,
+        'amountCents',
+        'must be > 0',
+      );
+    }
+
+    final payload = <String, dynamic>{
+      'title': title,
+      'amount_cents': input.amountCents,
+      'expense_date': _dateOnly(input.expenseDate),
+      'category_id': input.categoryId,
+      'payment_method': input.paymentMethod.name,
+      'currency_code': 'EUR',
+      'recorded_by_staff_id': _client.auth.currentUser?.id,
+    };
+
+    final receipt = input.receiptReference?.trim();
+    if (receipt != null && receipt.isNotEmpty) {
+      payload['receipt_reference'] = receipt;
+    }
+    final notes = input.notes?.trim();
+    if (notes != null && notes.isNotEmpty) {
+      payload['notes'] = notes;
+    }
+    if (input.instructorId != null) {
+      payload['instructor_id'] = input.instructorId;
+    }
+
+    final row = await _client
+        .from('expenses')
+        .insert(payload)
+        .select(_expenseSelect)
+        .single();
+
+    return _mapExpense(Map<String, dynamic>.from(row));
+  }
+
   @override
   Future<List<ExtraProduct>> listExtraProducts() async {
     final rows = await _client

@@ -1,3 +1,4 @@
+import 'backoffice_enums.dart';
 import 'ids.dart';
 
 class NauticalInstructor {
@@ -50,6 +51,29 @@ class NauticalExpense {
   final String? instructorId;
   final String currencyCode;
   final String? notes;
+}
+
+/// Input per registrazione uscita scuola (`expenses`).
+class ExpenseCreateInput {
+  const ExpenseCreateInput({
+    required this.title,
+    required this.amountCents,
+    required this.expenseDate,
+    required this.categoryId,
+    required this.paymentMethod,
+    this.receiptReference,
+    this.notes,
+    this.instructorId,
+  });
+
+  final String title;
+  final int amountCents;
+  final DateTime expenseDate;
+  final String categoryId;
+  final PaymentMethod paymentMethod;
+  final String? receiptReference;
+  final String? notes;
+  final String? instructorId;
 }
 
 class ExtraProduct {
