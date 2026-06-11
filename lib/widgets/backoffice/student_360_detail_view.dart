@@ -1126,32 +1126,52 @@ class _SectionContabilita extends StatelessWidget {
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
 
+  static String _paymentStatusLabel(StudentFinancialSummary f) {
+    if (f.registrationFeeCents == 0) return 'Quota non impostata';
+    if (f.remainingBalanceCents <= 0) return 'Saldo azzerato';
+    return 'Saldo aperto';
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final f = view.financialSummary;
+    final quotaUnset = f.registrationFeeCents == 0;
 
     return _SectionScroll(
       child: _SectionContent(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: BackofficeUiTokens.primary,
-                  foregroundColor: Colors.white,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: BackofficeUiTokens.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => showAddPaymentDialog(
+                    context,
+                    view: view,
+                    repository: repository,
+                    onRefreshDetail: onRefreshDetail,
+                  ),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Aggiungi pagamento'),
                 ),
-                onPressed: () => showAddPaymentDialog(
-                  context,
-                  view: view,
-                  repository: repository,
-                  onRefreshDetail: onRefreshDetail,
+                OutlinedButton.icon(
+                  onPressed: () => showOnboardingRegistrationFeeDialog(
+                    context,
+                    view: view,
+                    repository: repository,
+                    onRefreshDetail: onRefreshDetail,
+                  ),
+                  icon: const Icon(Icons.euro_symbol),
+                  label: Text(quotaUnset ? 'Imposta quota' : 'Modifica quota'),
                 ),
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Aggiungi pagamento'),
-              ),
+              ],
             ),
             const SizedBox(height: 12),
             _InfoCard(
@@ -1160,10 +1180,21 @@ class _SectionContabilita extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _kvRow(
-                      'Quota iscrizione',
+                      'Quota pratica',
                       BackofficeFormatters.moneyEur(f.registrationFeeCents),
                       textTheme,
                     ),
+                    if (quotaUnset) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Imposta la quota pratica per calcolare correttamente '
+                        'il saldo residuo.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                     _kvRow(
                       'Incassato',
                       BackofficeFormatters.moneyEur(f.totalPaidCents),
@@ -1176,9 +1207,7 @@ class _SectionContabilita extends StatelessWidget {
                     ),
                     _kvRow(
                       'Stato pagamenti',
-                      f.remainingBalanceCents <= 0
-                          ? 'Saldo azzerato'
-                          : 'Saldo aperto',
+                      _paymentStatusLabel(f),
                       textTheme,
                     ),
                     if (f.accountingNotes != null &&

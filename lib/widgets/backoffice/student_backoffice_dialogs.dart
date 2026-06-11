@@ -1602,7 +1602,7 @@ class _AgendaSeaPracticeDialogBodyState
   }
 }
 
-/// Imposta la quota iscrizione attesa (ricalcolo saldo residuo).
+/// Imposta la quota pratica attesa (ricalcolo saldo residuo).
 Future<void> showOnboardingRegistrationFeeDialog(
   BuildContext context, {
   required StudentAdmin360View view,
@@ -1616,14 +1616,14 @@ Future<void> showOnboardingRegistrationFeeDialog(
   final saved = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Quota iscrizione'),
+      title: const Text('Quota pratica'),
       content: SizedBox(
         width: 360,
         child: TextField(
           controller: ctrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
-            labelText: 'Importo atteso (€)',
+            labelText: 'Costo pratica atteso (€)',
             hintText: 'es. 250,00',
             border: OutlineInputBorder(),
           ),
@@ -1658,7 +1658,7 @@ Future<void> showOnboardingRegistrationFeeDialog(
     final fresh = await repository.getStudentAdmin360(view.profile.id);
     if (fresh != null) await onRefreshDetail(fresh);
     if (context.mounted) {
-      _backofficeSnack(context, 'Quota iscrizione aggiornata.');
+      _backofficeSnack(context, 'Quota pratica aggiornata.');
     }
   } catch (e) {
     if (context.mounted) {
