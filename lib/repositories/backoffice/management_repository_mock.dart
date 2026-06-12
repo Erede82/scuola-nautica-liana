@@ -231,6 +231,8 @@ class ManagementRepositoryMock implements ManagementRepository {
         amountCents: 12500,
         expenseDate: today.subtract(const Duration(days: 2)),
         categoryId: 'mock-expense-benzina',
+        paymentMethod: PaymentMethod.card,
+        receiptReference: 'SCN-2026-0142',
         notes: 'Demo locale — benzina',
       ),
       NauticalExpense(
@@ -239,6 +241,7 @@ class ManagementRepositoryMock implements ManagementRepository {
         amountCents: 18000,
         expenseDate: today.subtract(const Duration(days: 8)),
         categoryId: 'mock-expense-pagamento-istruttori',
+        paymentMethod: PaymentMethod.cash,
       ),
       NauticalExpense(
         id: 'mock-expense-pontile-1',
@@ -246,6 +249,7 @@ class ManagementRepositoryMock implements ManagementRepository {
         amountCents: 45000,
         expenseDate: DateTime(now.year, now.month, 5),
         categoryId: 'mock-expense-affitto-pontile',
+        paymentMethod: PaymentMethod.other,
         notes: 'Demo locale — affitto pontile',
       ),
     ];
@@ -299,6 +303,10 @@ class ManagementRepositoryMock implements ManagementRepository {
       ),
       categoryId: input.categoryId,
       instructorId: input.instructorId,
+      paymentMethod: input.paymentMethod,
+      receiptReference: input.receiptReference?.trim().isEmpty ?? true
+          ? null
+          : input.receiptReference!.trim(),
       notes: input.notes?.trim().isEmpty ?? true ? null : input.notes!.trim(),
     );
     _expenses.add(expense);

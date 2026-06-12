@@ -41,6 +41,8 @@ class NauticalExpense {
     this.instructorId,
     this.currencyCode = 'EUR',
     this.notes,
+    this.paymentMethod,
+    this.receiptReference,
   });
 
   final String id;
@@ -51,6 +53,8 @@ class NauticalExpense {
   final String? instructorId;
   final String currencyCode;
   final String? notes;
+  final PaymentMethod? paymentMethod;
+  final String? receiptReference;
 }
 
 /// Input per registrazione uscita scuola (`expenses`).

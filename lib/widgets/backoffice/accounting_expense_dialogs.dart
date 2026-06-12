@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:postgrest/postgrest.dart';
 
+import '../../constants/backoffice_payment_methods.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import 'backoffice_formatters.dart';
@@ -8,11 +9,6 @@ import 'backoffice_ui_tokens.dart';
 import 'student_backoffice_dialogs.dart';
 
 const _instructorCategorySlug = 'pagamento-istruttori';
-
-const List<PaymentMethod> _expensePaymentMethods = [
-  PaymentMethod.cash,
-  PaymentMethod.card,
-];
 
 String _formatWriteError(Object e) {
   if (e is PostgrestException) return e.message;
@@ -60,11 +56,13 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
 
   DateTime _expenseDate = DateTime.now();
   ExpenseCategory? _category;
-  PaymentMethod _paymentMethod = _expensePaymentMethods.first;
+  PaymentMethod _paymentMethod =
+      BackofficePaymentMethods.selectableForNewExpense.first;
   String? _instructorId;
 
   List<NauticalInstructor> _instructors = const [];
   bool _instructorsLoading = true;
+  bool _instructorsUnavailable = false;
   bool _busy = false;
 
   bool get _showInstructorField =>
@@ -83,10 +81,14 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
       setState(() {
         _instructors = list;
         _instructorsLoading = false;
+        _instructorsUnavailable = list.isEmpty;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _instructorsLoading = false);
+      setState(() {
+        _instructorsLoading = false;
+        _instructorsUnavailable = true;
+      });
     }
   }
 
@@ -271,7 +273,7 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
                   child: DropdownButton<PaymentMethod>(
                     isExpanded: true,
                     value: _paymentMethod,
-                    items: _expensePaymentMethods
+                    items: BackofficePaymentMethods.selectableForNewExpense
                         .map(
                           (m) => DropdownMenuItem(
                             value: m,
@@ -289,33 +291,49 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
               ),
               if (_showInstructorField) ...[
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  key: ValueKey(_instructorId),
-                  initialValue: _instructorId,
-                  decoration: const InputDecoration(
-                    labelText: 'Istruttore (opzionale)',
-                    border: OutlineInputBorder(),
-                  ),
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Nessuno'),
+                if (_instructorsLoading)
+                  Text(
+                    'Caricamento istruttori…',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: BackofficeUiTokens.text.withValues(alpha: 0.68),
                     ),
-                    ..._instructors.map(
-                      (i) => DropdownMenuItem(
-                        value: i.id,
-                        child: Text(
-                          i.displayName,
-                          overflow: TextOverflow.ellipsis,
+                  )
+                else if (_instructorsUnavailable)
+                  Text(
+                    'Elenco istruttori non disponibile. '
+                    'Puoi salvare l\'uscita senza istruttore.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String?>(
+                    key: ValueKey(_instructorId),
+                    initialValue: _instructorId,
+                    decoration: const InputDecoration(
+                      labelText: 'Istruttore (opzionale)',
+                      border: OutlineInputBorder(),
+                    ),
+                    isExpanded: true,
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Nessuno'),
+                      ),
+                      ..._instructors.map(
+                        (i) => DropdownMenuItem(
+                          value: i.id,
+                          child: Text(
+                            i.displayName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                  onChanged: _busy || _instructorsLoading
-                      ? null
-                      : (v) => setState(() => _instructorId = v),
-                ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (v) => setState(() => _instructorId = v),
+                  ),
               ],
               const SizedBox(height: 12),
               TextField(

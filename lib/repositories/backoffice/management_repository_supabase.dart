@@ -51,10 +51,7 @@ class ManagementRepositorySupabase implements ManagementRepository {
   }) async {
     var query = _client
         .from('expenses')
-        .select(
-          'id, title, amount_cents, expense_date, category_id, '
-          'instructor_id, currency_code, notes',
-        );
+        .select(_expenseSelect);
 
     if (from != null) {
       query = query.gte('expense_date', _dateOnly(from));
@@ -71,7 +68,7 @@ class ManagementRepositorySupabase implements ManagementRepository {
 
   static const _expenseSelect =
       'id, title, amount_cents, expense_date, category_id, '
-      'instructor_id, currency_code, notes';
+      'instructor_id, currency_code, notes, payment_method, receipt_reference';
 
   @override
   Future<NauticalExpense> createExpense(ExpenseCreateInput input) async {
@@ -203,7 +200,17 @@ class ManagementRepositorySupabase implements ManagementRepository {
       instructorId: row['instructor_id'] as String?,
       currencyCode: row['currency_code'] as String? ?? 'EUR',
       notes: row['notes'] as String?,
+      paymentMethod: _parsePaymentMethod(row['payment_method'] as String?),
+      receiptReference: row['receipt_reference'] as String?,
     );
+  }
+
+  PaymentMethod? _parsePaymentMethod(String? raw) {
+    if (raw == null) return null;
+    for (final v in PaymentMethod.values) {
+      if (v.name == raw) return v;
+    }
+    return PaymentMethod.other;
   }
 
   ExtraProduct _mapExtraProduct(Map<String, dynamic> row) {

@@ -687,6 +687,7 @@ class _AccountingSummaryRow extends StatelessWidget {
     final filteredSubtitle = filtersActive && !loading
         ? 'Selezione corrente'
         : null;
+    final incomeFilterHint = filtersActive && !loading ? 'Incassi filtrati' : null;
     final expensesValueCents =
         expenseDateFilters ? sumExpensesFiltered : sumExpensesMonth;
     final expensesValue = expensesLoading
@@ -697,11 +698,24 @@ class _AccountingSummaryRow extends StatelessWidget {
     final expensesSubtitle = expensesLoading
         ? null
         : expenseDateFilters
-        ? 'Periodo selezionato'
+        ? 'Uscite per periodo'
         : (sumExpensesFiltered == 0 ? 'Nessuna uscita' : null);
     final netLoading = loading || expensesLoading;
-    final netTodayDisplay = _netTileDisplay(netToday, netLoading);
-    final netMonthDisplay = _netTileDisplay(netMonth, netLoading);
+    final netScopeHint = filtersActive && !netLoading
+        ? (expenseDateFilters
+              ? 'Incassi filtrati · uscite periodo'
+              : 'Incassi filtrati')
+        : null;
+    final netTodayDisplay = _netTileDisplay(
+      netToday,
+      netLoading,
+      extraSubtitle: netScopeHint,
+    );
+    final netMonthDisplay = _netTileDisplay(
+      netMonth,
+      netLoading,
+      extraSubtitle: netScopeHint,
+    );
     final netFilteredDisplay = _netTileDisplay(
       netFiltered,
       netLoading,
@@ -713,12 +727,14 @@ class _AccountingSummaryRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          const _SummarySectionMark(title: 'Incassi'),
           SizedBox(
             width: _tileWidth,
             child: _SummaryTile(
               title: 'Incassato oggi',
               value: todayValue,
               icon: Icons.today_outlined,
+              subtitle: incomeFilterHint,
             ),
           ),
           const SizedBox(width: 8),
@@ -728,6 +744,7 @@ class _AccountingSummaryRow extends StatelessWidget {
               title: 'Incassato nel mese',
               value: monthValue,
               icon: Icons.calendar_month_outlined,
+              subtitle: incomeFilterHint,
             ),
           ),
           const SizedBox(width: 8),
@@ -737,7 +754,7 @@ class _AccountingSummaryRow extends StatelessWidget {
               title: 'Movimenti',
               value: countValue,
               icon: Icons.view_list_outlined,
-              subtitle: filtersActive && !loading ? 'Con filtri' : null,
+              subtitle: incomeFilterHint,
             ),
           ),
           const SizedBox(width: 8),
@@ -759,6 +776,7 @@ class _AccountingSummaryRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          const _SummarySectionMark(title: 'Uscite'),
           SizedBox(
             width: _tileWidth,
             child: _SummaryTile(
@@ -769,6 +787,7 @@ class _AccountingSummaryRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          const _SummarySectionMark(title: 'Saldo netto'),
           SizedBox(
             width: _tileWidth,
             child: _SummaryTile(
@@ -831,6 +850,42 @@ class _AccountingSummaryRow extends StatelessWidget {
       );
     }
     return (value: value, valueColor: null, subtitle: extraSubtitle);
+  }
+}
+
+class _SummarySectionMark extends StatelessWidget {
+  const _SummarySectionMark({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, right: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 3,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppVisual.logoBlue.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppVisual.inkMuted,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1261,6 +1316,7 @@ class _ExpenseRowCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final notes = expense.notes?.trim();
     final categoryLabel = categoryName?.trim();
+    final receipt = expense.receiptReference?.trim();
 
     Widget categoryChip() {
       if (categoryLabel == null || categoryLabel.isEmpty) {
@@ -1279,6 +1335,47 @@ class _ExpenseRowCard extends StatelessWidget {
             color: AppVisual.logoBlueDeep,
           ),
         ),
+      );
+    }
+
+    Widget methodChip() {
+      final method = expense.paymentMethod;
+      if (method == null) return const SizedBox.shrink();
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: BackofficeUiTokens.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          BackofficeFormatters.paymentMethod(method),
+          style: textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: BackofficeUiTokens.primary,
+          ),
+        ),
+      );
+    }
+
+    Widget amountRow() {
+      return Row(
+        children: [
+          Text(
+            BackofficeFormatters.moneyEur(expense.amountCents),
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppVisual.logoBlueDeep,
+            ),
+          ),
+          if (expense.paymentMethod != null) ...[
+            const SizedBox(width: 8),
+            methodChip(),
+          ],
+          if (categoryLabel != null && categoryLabel.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            categoryChip(),
+          ],
+        ],
       );
     }
 
@@ -1321,22 +1418,20 @@ class _ExpenseRowCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Text(
-                              BackofficeFormatters.moneyEur(expense.amountCents),
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: AppVisual.logoBlueDeep,
+                        amountRow(),
+                        if (receipt != null && receipt.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ricevuta: $receipt',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: BackofficeUiTokens.text.withValues(
+                                alpha: 0.78,
                               ),
                             ),
-                            if (categoryLabel != null &&
-                                categoryLabel.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              categoryChip(),
-                            ],
-                          ],
-                        ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                         if (notes != null && notes.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
@@ -1388,23 +1483,22 @@ class _ExpenseRowCard extends StatelessWidget {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      children: [
-                        Text(
-                          BackofficeFormatters.moneyEur(expense.amountCents),
-                          style: textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppVisual.logoBlueDeep,
+                    child: amountRow(),
+                  ),
+                  if (receipt != null && receipt.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Ricevuta: $receipt',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: BackofficeUiTokens.text.withValues(
+                            alpha: 0.78,
                           ),
                         ),
-                        if (categoryLabel != null &&
-                            categoryLabel.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          categoryChip(),
-                        ],
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
                   if (notes != null && notes.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),

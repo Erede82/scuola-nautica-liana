@@ -10,4 +10,8 @@ abstract final class BackofficePaymentMethods {
     PaymentMethod.card,
     PaymentMethod.other,
   ];
+
+  /// Metodi pagamento proponibili nei form staff (nuove uscite).
+  static const List<PaymentMethod> selectableForNewExpense =
+      selectableForNewPayment;
 }
