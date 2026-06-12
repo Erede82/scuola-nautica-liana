@@ -21,6 +21,11 @@ void _accountingSnack(BuildContext context, String message) {
   );
 }
 
+List<ExpenseCategory> _sortedCategories(List<ExpenseCategory> categories) {
+  return List<ExpenseCategory>.from(categories)
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+}
+
 /// Dialog per registrare una nuova uscita in `expenses`.
 ///
 /// Restituisce `true` se l'uscita è stata salvata con successo.
@@ -28,36 +33,55 @@ Future<bool> showCreateExpenseDialog(
   BuildContext context, {
   required List<ExpenseCategory> categories,
 }) async {
-  final sorted = List<ExpenseCategory>.from(categories)
-    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-
   return await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => _CreateExpenseDialog(categories: sorted),
+        builder: (ctx) => _ExpenseFormDialog(categories: _sortedCategories(categories)),
       ) ??
       false;
 }
 
-class _CreateExpenseDialog extends StatefulWidget {
-  const _CreateExpenseDialog({required this.categories});
-
-  final List<ExpenseCategory> categories;
-
-  @override
-  State<_CreateExpenseDialog> createState() => _CreateExpenseDialogState();
+/// Dialog per modificare un'uscita esistente in `expenses`.
+///
+/// Restituisce `true` se l'uscita è stata aggiornata con successo.
+Future<bool> showEditExpenseDialog(
+  BuildContext context, {
+  required List<ExpenseCategory> categories,
+  required NauticalExpense expense,
+}) async {
+  return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _ExpenseFormDialog(
+          categories: _sortedCategories(categories),
+          existing: expense,
+        ),
+      ) ??
+      false;
 }
 
-class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
+class _ExpenseFormDialog extends StatefulWidget {
+  const _ExpenseFormDialog({
+    required this.categories,
+    this.existing,
+  });
+
+  final List<ExpenseCategory> categories;
+  final NauticalExpense? existing;
+
+  @override
+  State<_ExpenseFormDialog> createState() => _ExpenseFormDialogState();
+}
+
+class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _receiptCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
-  DateTime _expenseDate = DateTime.now();
+  late DateTime _expenseDate;
   ExpenseCategory? _category;
-  PaymentMethod _paymentMethod =
-      BackofficePaymentMethods.selectableForNewExpense.first;
+  late PaymentMethod _paymentMethod;
   String? _instructorId;
 
   List<NauticalInstructor> _instructors = const [];
@@ -65,13 +89,50 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
   bool _instructorsUnavailable = false;
   bool _busy = false;
 
+  bool get _isEdit => widget.existing != null;
+
   bool get _showInstructorField =>
       _category?.slug == _instructorCategorySlug;
 
   @override
   void initState() {
     super.initState();
+    _prefillFromExisting();
     _loadInstructors();
+  }
+
+  void _prefillFromExisting() {
+    final existing = widget.existing;
+    if (existing == null) {
+      _expenseDate = DateTime.now();
+      _paymentMethod = BackofficePaymentMethods.selectableForNewExpense.first;
+      return;
+    }
+
+    _titleCtrl.text = existing.title;
+    _amountCtrl.text = (existing.amountCents / 100)
+        .toStringAsFixed(2)
+        .replaceAll('.', ',');
+    _receiptCtrl.text = existing.receiptReference ?? '';
+    _notesCtrl.text = existing.notes ?? '';
+    _expenseDate = DateTime(
+      existing.expenseDate.year,
+      existing.expenseDate.month,
+      existing.expenseDate.day,
+    );
+    for (final c in widget.categories) {
+      if (c.id == existing.categoryId) {
+        _category = c;
+        break;
+      }
+    }
+    final method = existing.paymentMethod;
+    _paymentMethod =
+        method != null &&
+            BackofficePaymentMethods.selectableForNewExpense.contains(method)
+        ? method
+        : BackofficePaymentMethods.selectableForNewExpense.first;
+    _instructorId = existing.instructorId;
   }
 
   Future<void> _loadInstructors() async {
@@ -114,6 +175,25 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
     });
   }
 
+  ExpenseCreateInput _buildInput({
+    required String title,
+    required int cents,
+    required ExpenseCategory category,
+  }) {
+    return ExpenseCreateInput(
+      title: title,
+      amountCents: cents,
+      expenseDate: _expenseDate,
+      categoryId: category.id,
+      paymentMethod: _paymentMethod,
+      receiptReference: _receiptCtrl.text.trim().isEmpty
+          ? null
+          : _receiptCtrl.text.trim(),
+      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      instructorId: _showInstructorField ? _instructorId : null,
+    );
+  }
+
   Future<void> _submit() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
@@ -136,11 +216,15 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c2) => AlertDialog(
-        title: const Text('Conferma registrazione'),
+        title: Text(_isEdit ? 'Conferma modifiche' : 'Conferma registrazione'),
         content: Text(
-          'Registrare uscita «$title» per '
-          '${BackofficeFormatters.moneyEur(cents)} '
-          '(${BackofficeFormatters.paymentMethod(_paymentMethod)})?',
+          _isEdit
+              ? 'Salvare modifiche all\'uscita «$title» per '
+                    '${BackofficeFormatters.moneyEur(cents)} '
+                    '(${BackofficeFormatters.paymentMethod(_paymentMethod)})?'
+              : 'Registrare uscita «$title» per '
+                    '${BackofficeFormatters.moneyEur(cents)} '
+                    '(${BackofficeFormatters.paymentMethod(_paymentMethod)})?',
         ),
         actions: [
           TextButton(
@@ -157,22 +241,15 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
 
     if (confirmed != true || !mounted) return;
 
+    final input = _buildInput(title: title, cents: cents, category: category);
+
     setState(() => _busy = true);
     try {
-      await managementRepository.createExpense(
-        ExpenseCreateInput(
-          title: title,
-          amountCents: cents,
-          expenseDate: _expenseDate,
-          categoryId: category.id,
-          paymentMethod: _paymentMethod,
-          receiptReference: _receiptCtrl.text.trim().isEmpty
-              ? null
-              : _receiptCtrl.text.trim(),
-          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-          instructorId: _showInstructorField ? _instructorId : null,
-        ),
-      );
+      if (_isEdit) {
+        await managementRepository.updateExpense(widget.existing!.id, input);
+      } else {
+        await managementRepository.createExpense(input);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -188,7 +265,7 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
     final textTheme = Theme.of(context).textTheme;
 
     return AlertDialog(
-      title: const Text('Registra uscita'),
+      title: Text(_isEdit ? 'Modifica uscita' : 'Registra uscita'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -196,7 +273,9 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Registra una spesa della scuola. Importo in euro (es. 125,50).',
+                _isEdit
+                    ? 'Aggiorna i dati della spesa. Importo in euro (es. 125,50).'
+                    : 'Registra una spesa della scuola. Importo in euro (es. 125,50).',
                 style: textTheme.bodySmall?.copyWith(
                   color: BackofficeUiTokens.text.withValues(alpha: 0.72),
                 ),
@@ -373,7 +452,7 @@ class _CreateExpenseDialogState extends State<_CreateExpenseDialog> {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Salva'),
+              : Text(_isEdit ? 'Salva modifiche' : 'Registra'),
         ),
       ],
     );

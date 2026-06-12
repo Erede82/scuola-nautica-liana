@@ -9,6 +9,8 @@ abstract class ManagementRepository {
 
   Future<NauticalExpense> createExpense(ExpenseCreateInput input);
 
+  Future<NauticalExpense> updateExpense(String id, ExpenseCreateInput input);
+
   Future<List<ExtraProduct>> listExtraProducts();
 
   Future<List<ExtraVideoItem>> listExtraVideoItems(String productId);

@@ -314,6 +314,51 @@ class ManagementRepositoryMock implements ManagementRepository {
   }
 
   @override
+  Future<NauticalExpense> updateExpense(
+    String id,
+    ExpenseCreateInput input,
+  ) async {
+    final title = input.title.trim();
+    if (title.isEmpty) {
+      throw ArgumentError('Il titolo dell\'uscita è obbligatorio.');
+    }
+    if (input.amountCents <= 0) {
+      throw ArgumentError.value(
+        input.amountCents,
+        'amountCents',
+        'must be > 0',
+      );
+    }
+
+    final index = _expenses.indexWhere((e) => e.id == id);
+    if (index < 0) {
+      throw StateError('Uscita non trovata: $id');
+    }
+
+    final previous = _expenses[index];
+    final updated = NauticalExpense(
+      id: previous.id,
+      title: title,
+      amountCents: input.amountCents,
+      expenseDate: DateTime(
+        input.expenseDate.year,
+        input.expenseDate.month,
+        input.expenseDate.day,
+      ),
+      categoryId: input.categoryId,
+      instructorId: input.instructorId,
+      currencyCode: previous.currencyCode,
+      paymentMethod: input.paymentMethod,
+      receiptReference: input.receiptReference?.trim().isEmpty ?? true
+          ? null
+          : input.receiptReference!.trim(),
+      notes: input.notes?.trim().isEmpty ?? true ? null : input.notes!.trim(),
+    );
+    _expenses[index] = updated;
+    return updated;
+  }
+
+  @override
   Future<List<ExtraProduct>> listExtraProducts() async {
     return List<ExtraProduct>.unmodifiable(_extraProducts);
   }

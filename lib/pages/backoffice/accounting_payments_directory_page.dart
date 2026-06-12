@@ -189,6 +189,37 @@ class _AccountingPaymentsDirectoryPageState
     await _load();
   }
 
+  Future<void> _openEditExpense(
+    BuildContext context,
+    NauticalExpense expense,
+  ) async {
+    final categories = _expenseCategories;
+    if (categories == null || categories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nessuna categoria uscite disponibile.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final saved = await showEditExpenseDialog(
+      context,
+      categories: categories,
+      expense: expense,
+    );
+    if (!context.mounted || !saved) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Uscita aggiornata'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _load();
+  }
+
   Future<void> _openStudent360(StudentId studentId) async {
     await widget.onOpenStudent360(
       studentId,
@@ -334,6 +365,7 @@ class _AccountingPaymentsDirectoryPageState
               count: summary.count,
               filtersActive: filtersActive,
               sumExpensesMonth: expenseSummary.sumMonth,
+              sumExpensesToday: expenseSummary.sumToday,
               sumExpensesFiltered: expenseSummary.sumFiltered,
               netToday: netToday,
               netMonth: netMonth,
@@ -620,6 +652,7 @@ class _AccountingPaymentsDirectoryPageState
                         ? null
                         : categoryById[e.categoryId],
                     wide: wide,
+                    onEdit: () => _openEditExpense(context, e),
                   ),
                 ),
               ),
@@ -638,6 +671,7 @@ class _AccountingSummaryRow extends StatelessWidget {
     required this.count,
     required this.filtersActive,
     required this.sumExpensesMonth,
+    required this.sumExpensesToday,
     required this.sumExpensesFiltered,
     required this.netToday,
     required this.netMonth,
@@ -657,6 +691,7 @@ class _AccountingSummaryRow extends StatelessWidget {
   final int count;
   final bool filtersActive;
   final int sumExpensesMonth;
+  final int sumExpensesToday;
   final int sumExpensesFiltered;
   final int netToday;
   final int netMonth;
@@ -693,6 +728,9 @@ class _AccountingSummaryRow extends StatelessWidget {
     final expensesValue = expensesLoading
         ? '—'
         : BackofficeFormatters.moneyEur(expensesValueCents);
+    final expensesTodayValue = expensesLoading
+        ? '—'
+        : BackofficeFormatters.moneyEur(sumExpensesToday);
     final expensesTitle =
         expenseDateFilters ? 'Totale uscite' : 'Uscite nel mese';
     final expensesSubtitle = expensesLoading
@@ -777,6 +815,18 @@ class _AccountingSummaryRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           const _SummarySectionMark(title: 'Uscite'),
+          SizedBox(
+            width: _tileWidth,
+            child: _SummaryTile(
+              title: 'Uscite oggi',
+              value: expensesTodayValue,
+              icon: Icons.today_outlined,
+              subtitle: expenseDateFilters && !expensesLoading
+                  ? 'Uscite per periodo'
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
             child: _SummaryTile(
@@ -1305,11 +1355,13 @@ class _ExpenseRowCard extends StatelessWidget {
     required this.expense,
     required this.categoryName,
     required this.wide,
+    required this.onEdit,
   });
 
   final NauticalExpense expense;
   final String? categoryName;
   final bool wide;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1448,6 +1500,15 @@ class _ExpenseRowCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: onEdit,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: const Text('Modifica'),
+                  ),
                 ],
               )
             : Column(
@@ -1511,6 +1572,13 @@ class _ExpenseRowCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: onEdit,
+                      child: const Text('Modifica'),
+                    ),
+                  ),
                 ],
               ),
       ),

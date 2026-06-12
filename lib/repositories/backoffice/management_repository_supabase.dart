@@ -72,8 +72,40 @@ class ManagementRepositorySupabase implements ManagementRepository {
 
   @override
   Future<NauticalExpense> createExpense(ExpenseCreateInput input) async {
-    final title = input.title.trim();
-    if (title.isEmpty) {
+    _validateExpenseInput(input);
+
+    final payload = _expensePayload(input)
+      ..['currency_code'] = 'EUR'
+      ..['recorded_by_staff_id'] = _client.auth.currentUser?.id;
+
+    final row = await _client
+        .from('expenses')
+        .insert(payload)
+        .select(_expenseSelect)
+        .single();
+
+    return _mapExpense(Map<String, dynamic>.from(row));
+  }
+
+  @override
+  Future<NauticalExpense> updateExpense(
+    String id,
+    ExpenseCreateInput input,
+  ) async {
+    _validateExpenseInput(input);
+
+    final row = await _client
+        .from('expenses')
+        .update(_expensePayload(input))
+        .eq('id', id)
+        .select(_expenseSelect)
+        .single();
+
+    return _mapExpense(Map<String, dynamic>.from(row));
+  }
+
+  void _validateExpenseInput(ExpenseCreateInput input) {
+    if (input.title.trim().isEmpty) {
       throw ArgumentError('Il titolo dell\'uscita è obbligatorio.');
     }
     if (input.amountCents <= 0) {
@@ -83,36 +115,24 @@ class ManagementRepositorySupabase implements ManagementRepository {
         'must be > 0',
       );
     }
+  }
 
-    final payload = <String, dynamic>{
+  Map<String, dynamic> _expensePayload(ExpenseCreateInput input) {
+    final title = input.title.trim();
+    final receipt = input.receiptReference?.trim();
+    final notes = input.notes?.trim();
+
+    return <String, dynamic>{
       'title': title,
       'amount_cents': input.amountCents,
       'expense_date': _dateOnly(input.expenseDate),
       'category_id': input.categoryId,
       'payment_method': input.paymentMethod.name,
-      'currency_code': 'EUR',
-      'recorded_by_staff_id': _client.auth.currentUser?.id,
+      'receipt_reference':
+          receipt != null && receipt.isNotEmpty ? receipt : null,
+      'notes': notes != null && notes.isNotEmpty ? notes : null,
+      'instructor_id': input.instructorId,
     };
-
-    final receipt = input.receiptReference?.trim();
-    if (receipt != null && receipt.isNotEmpty) {
-      payload['receipt_reference'] = receipt;
-    }
-    final notes = input.notes?.trim();
-    if (notes != null && notes.isNotEmpty) {
-      payload['notes'] = notes;
-    }
-    if (input.instructorId != null) {
-      payload['instructor_id'] = input.instructorId;
-    }
-
-    final row = await _client
-        .from('expenses')
-        .insert(payload)
-        .select(_expenseSelect)
-        .single();
-
-    return _mapExpense(Map<String, dynamic>.from(row));
   }
 
   @override
