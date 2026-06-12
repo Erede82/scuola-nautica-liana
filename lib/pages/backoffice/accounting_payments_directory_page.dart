@@ -234,20 +234,24 @@ class _AccountingPaymentsDirectoryPageState
     }
   }
 
-  ({int sumMonth, int sumFiltered, int count}) _expenseSummaryFor(
+  ({int sumToday, int sumMonth, int sumFiltered, int count}) _expenseSummaryFor(
     List<NauticalExpense> filtered,
   ) {
     final now = DateTime.now();
+    final t0 = DateTime(now.year, now.month, now.day);
+    var sumToday = 0;
     var sumMonth = 0;
     var sumFiltered = 0;
     for (final e in filtered) {
       sumFiltered += e.amountCents;
       final d = _localDateOnly(e.expenseDate);
+      if (d == t0) sumToday += e.amountCents;
       if (d.year == now.year && d.month == now.month) {
         sumMonth += e.amountCents;
       }
     }
     return (
+      sumToday: sumToday,
       sumMonth: sumMonth,
       sumFiltered: sumFiltered,
       count: filtered.length,
@@ -297,6 +301,9 @@ class _AccountingPaymentsDirectoryPageState
     final expenseRaw = _expenses ?? const <NauticalExpense>[];
     final filteredExpenses = _filteredExpenses(expenseRaw).toList(growable: false);
     final expenseSummary = _expenseSummaryFor(filteredExpenses);
+    final netToday = summary.sumToday - expenseSummary.sumToday;
+    final netMonth = summary.sumMonth - expenseSummary.sumMonth;
+    final netFiltered = summary.sumFiltered - expenseSummary.sumFiltered;
     final categoryById = _categoryNameById();
 
     return ColoredBox(
@@ -328,6 +335,9 @@ class _AccountingPaymentsDirectoryPageState
               filtersActive: filtersActive,
               sumExpensesMonth: expenseSummary.sumMonth,
               sumExpensesFiltered: expenseSummary.sumFiltered,
+              netToday: netToday,
+              netMonth: netMonth,
+              netFiltered: netFiltered,
               expenseDateFilters: expenseDateFilters,
               expensesLoading: _loading && _expenses == null,
               loading: _loading && raw == null,
@@ -629,6 +639,9 @@ class _AccountingSummaryRow extends StatelessWidget {
     required this.filtersActive,
     required this.sumExpensesMonth,
     required this.sumExpensesFiltered,
+    required this.netToday,
+    required this.netMonth,
+    required this.netFiltered,
     required this.expenseDateFilters,
     required this.expensesLoading,
     required this.loading,
@@ -645,6 +658,9 @@ class _AccountingSummaryRow extends StatelessWidget {
   final bool filtersActive;
   final int sumExpensesMonth;
   final int sumExpensesFiltered;
+  final int netToday;
+  final int netMonth;
+  final int netFiltered;
   final bool expenseDateFilters;
   final bool expensesLoading;
   final bool loading;
@@ -683,6 +699,14 @@ class _AccountingSummaryRow extends StatelessWidget {
         : expenseDateFilters
         ? 'Periodo selezionato'
         : (sumExpensesFiltered == 0 ? 'Nessuna uscita' : null);
+    final netLoading = loading || expensesLoading;
+    final netTodayDisplay = _netTileDisplay(netToday, netLoading);
+    final netMonthDisplay = _netTileDisplay(netMonth, netLoading);
+    final netFilteredDisplay = _netTileDisplay(
+      netFiltered,
+      netLoading,
+      extraSubtitle: 'Selezione corrente',
+    );
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -744,6 +768,41 @@ class _AccountingSummaryRow extends StatelessWidget {
               subtitle: expensesSubtitle,
             ),
           ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: _tileWidth,
+            child: _SummaryTile(
+              title: 'Saldo oggi',
+              value: netTodayDisplay.value,
+              icon: Icons.account_balance_wallet_outlined,
+              valueColor: netTodayDisplay.valueColor,
+              subtitle: netTodayDisplay.subtitle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: _tileWidth,
+            child: _SummaryTile(
+              title: 'Saldo mese',
+              value: netMonthDisplay.value,
+              icon: Icons.savings_outlined,
+              valueColor: netMonthDisplay.valueColor,
+              subtitle: netMonthDisplay.subtitle,
+            ),
+          ),
+          if (filtersActive) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: _tileWidth,
+              child: _SummaryTile(
+                title: 'Saldo filtrato',
+                value: netFilteredDisplay.value,
+                icon: Icons.balance_outlined,
+                valueColor: netFilteredDisplay.valueColor,
+                subtitle: netFilteredDisplay.subtitle,
+              ),
+            ),
+          ],
           const SizedBox(width: 6),
           IconButton.filledTonal(
             onPressed: refreshDisabled ? null : onRefresh,
@@ -753,6 +812,25 @@ class _AccountingSummaryRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static ({String value, Color? valueColor, String? subtitle}) _netTileDisplay(
+    int cents,
+    bool loading, {
+    String? extraSubtitle,
+  }) {
+    if (loading) {
+      return (value: '—', valueColor: null, subtitle: null);
+    }
+    final value = BackofficeFormatters.moneyEur(cents);
+    if (cents < 0) {
+      return (
+        value: value,
+        valueColor: AppVisual.error.withValues(alpha: 0.88),
+        subtitle: 'In negativo',
+      );
+    }
+    return (value: value, valueColor: null, subtitle: extraSubtitle);
   }
 }
 
@@ -840,12 +918,14 @@ class _SummaryTile extends StatelessWidget {
     required this.value,
     required this.icon,
     this.subtitle,
+    this.valueColor,
   });
 
   final String title;
   final String value;
   final IconData icon;
   final String? subtitle;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -880,7 +960,7 @@ class _SummaryTile extends StatelessWidget {
                     value,
                     style: textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
+                      color: valueColor ?? BackofficeUiTokens.text,
                       height: 1.15,
                       fontSize: 13,
                     ),
@@ -892,7 +972,7 @@ class _SummaryTile extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: textTheme.labelSmall?.copyWith(
-                        color: AppVisual.inkMuted,
+                        color: valueColor ?? AppVisual.inkMuted,
                         fontWeight: FontWeight.w600,
                         height: 1.1,
                         fontSize: 10,
