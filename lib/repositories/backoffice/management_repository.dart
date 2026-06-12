@@ -11,6 +11,8 @@ abstract class ManagementRepository {
 
   Future<NauticalExpense> updateExpense(String id, ExpenseCreateInput input);
 
+  Future<void> deleteExpense(String id);
+
   Future<List<ExtraProduct>> listExtraProducts();
 
   Future<List<ExtraVideoItem>> listExtraVideoItems(String productId);

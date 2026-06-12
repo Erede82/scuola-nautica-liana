@@ -34,6 +34,7 @@ class AccountingPaymentsDirectoryPage extends StatefulWidget {
 class _AccountingPaymentsDirectoryPageState
     extends State<AccountingPaymentsDirectoryPage> {
   final _searchCtrl = TextEditingController();
+  final _expenseSearchCtrl = TextEditingController();
 
   List<AccountingPaymentListItem>? _items;
   List<NauticalExpense>? _expenses;
@@ -42,6 +43,8 @@ class _AccountingPaymentsDirectoryPageState
   bool _loading = true;
 
   PaymentMethod? _methodFilter;
+  String? _expenseCategoryFilter;
+  PaymentMethod? _expenseMethodFilter;
   _AccountingQuickFilter _quick = _AccountingQuickFilter.none;
   DateTime? _fromDay;
   DateTime? _toDay;
@@ -55,13 +58,17 @@ class _AccountingPaymentsDirectoryPageState
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _expenseSearchCtrl.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
     setState(() {
       _searchCtrl.clear();
+      _expenseSearchCtrl.clear();
       _methodFilter = null;
+      _expenseCategoryFilter = null;
+      _expenseMethodFilter = null;
       _quick = _AccountingQuickFilter.none;
       _fromDay = null;
       _toDay = null;
@@ -220,6 +227,62 @@ class _AccountingPaymentsDirectoryPageState
     await _load();
   }
 
+  Future<void> _openDeleteExpense(
+    BuildContext context,
+    NauticalExpense expense,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Elimina uscita'),
+        content: Text(
+          'Eliminare l\'uscita «${expense.title}» di '
+          '${BackofficeFormatters.moneyEur(expense.amountCents)} '
+          '(${BackofficeFormatters.dateUi(expense.expenseDate)})? '
+          'L\'operazione non potrà essere annullata.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppVisual.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await managementRepository.deleteExpense(expense.id);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Impossibile eliminare l\'uscita: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Uscita eliminata'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _load();
+  }
+
   Future<void> _openStudent360(StudentId studentId) async {
     await widget.onOpenStudent360(
       studentId,
@@ -240,18 +303,52 @@ class _AccountingPaymentsDirectoryPageState
     }
   }
 
-  bool _hasActiveFilters() {
-    return _methodFilter != null ||
-        _quick != _AccountingQuickFilter.none ||
-        _fromDay != null ||
-        _toDay != null ||
-        _searchCtrl.text.trim().isNotEmpty;
+  bool _paymentFiltersActive() {
+    return _methodFilter != null || _searchCtrl.text.trim().isNotEmpty;
   }
 
-  bool _hasExpenseDateFilters() {
+  bool _expenseFiltersActive() {
+    return _expenseCategoryFilter != null ||
+        _expenseMethodFilter != null ||
+        _expenseSearchCtrl.text.trim().isNotEmpty;
+  }
+
+  bool _dateFiltersActive() {
     return _quick != _AccountingQuickFilter.none ||
         _fromDay != null ||
         _toDay != null;
+  }
+
+  bool _anyFiltersActive() {
+    return _paymentFiltersActive() ||
+        _expenseFiltersActive() ||
+        _dateFiltersActive();
+  }
+
+  bool _matchesExpenseSearch(NauticalExpense e) {
+    final q = _expenseSearchCtrl.text.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    final hay = [
+      e.title,
+      e.notes ?? '',
+      e.receiptReference ?? '',
+    ].join(' ').toLowerCase();
+    for (final token in q.split(RegExp(r'\s+'))) {
+      if (token.isEmpty) continue;
+      if (!hay.contains(token)) return false;
+    }
+    return true;
+  }
+
+  Iterable<NauticalExpense> _filteredExpensesByDate(
+    List<NauticalExpense> raw,
+  ) sync* {
+    for (final e in raw) {
+      final day = _localDateOnly(e.expenseDate);
+      if (!_matchesQuick(day)) continue;
+      if (!_matchesCustomRange(day)) continue;
+      yield e;
+    }
   }
 
   Iterable<NauticalExpense> _filteredExpenses(
@@ -261,6 +358,15 @@ class _AccountingPaymentsDirectoryPageState
       final day = _localDateOnly(e.expenseDate);
       if (!_matchesQuick(day)) continue;
       if (!_matchesCustomRange(day)) continue;
+      if (_expenseCategoryFilter != null &&
+          e.categoryId != _expenseCategoryFilter) {
+        continue;
+      }
+      if (_expenseMethodFilter != null &&
+          e.paymentMethod != _expenseMethodFilter) {
+        continue;
+      }
+      if (!_matchesExpenseSearch(e)) continue;
       yield e;
     }
   }
@@ -327,9 +433,13 @@ class _AccountingPaymentsDirectoryPageState
         ? const <AccountingPaymentListItem>[]
         : _filtered(raw).toList(growable: false);
     final summary = _summaryFor(filtered);
-    final filtersActive = _hasActiveFilters();
-    final expenseDateFilters = _hasExpenseDateFilters();
+    final paymentFiltersActive = _paymentFiltersActive();
+    final expenseFiltersActive = _expenseFiltersActive();
+    final dateFiltersActive = _dateFiltersActive();
+    final anyFiltersActive = _anyFiltersActive();
     final expenseRaw = _expenses ?? const <NauticalExpense>[];
+    final dateFilteredExpenses =
+        _filteredExpensesByDate(expenseRaw).toList(growable: false);
     final filteredExpenses = _filteredExpenses(expenseRaw).toList(growable: false);
     final expenseSummary = _expenseSummaryFor(filteredExpenses);
     final netToday = summary.sumToday - expenseSummary.sumToday;
@@ -363,91 +473,33 @@ class _AccountingPaymentsDirectoryPageState
               sumMonth: summary.sumMonth,
               sumFiltered: summary.sumFiltered,
               count: summary.count,
-              filtersActive: filtersActive,
+              paymentFiltersActive: paymentFiltersActive,
+              expenseFiltersActive: expenseFiltersActive,
+              dateFiltersActive: dateFiltersActive,
+              anyFiltersActive: anyFiltersActive,
               sumExpensesMonth: expenseSummary.sumMonth,
               sumExpensesToday: expenseSummary.sumToday,
               sumExpensesFiltered: expenseSummary.sumFiltered,
               netToday: netToday,
               netMonth: netMonth,
               netFiltered: netFiltered,
-              expenseDateFilters: expenseDateFilters,
               expensesLoading: _loading && _expenses == null,
               loading: _loading && raw == null,
-              searchCtrl: _searchCtrl,
-              onSearchChanged: () => setState(() {}),
               onRefresh: _load,
               refreshDisabled: _loading,
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final wide = c.maxWidth >= 720;
-                final methodField = DropdownButtonFormField<PaymentMethod?>(
-                  key: ValueKey(_methodFilter?.name ?? 'all_methods'),
-                  initialValue: _methodFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Metodo',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem<PaymentMethod?>(
-                      value: null,
-                      child: Text('Tutti'),
-                    ),
-                    ...BackofficePaymentMethods.selectableForNewPayment.map(
-                      (m) => DropdownMenuItem(
-                        value: m,
-                        child: Text(
-                          BackofficeFormatters.paymentMethod(m),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _methodFilter = v),
-                );
-                if (wide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 160, child: methodField),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildFilterStrip(
-                          context,
-                          filtersActive: filtersActive,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    methodField,
-                    const SizedBox(height: 8),
-                    _buildFilterStrip(
-                      context,
-                      filtersActive: filtersActive,
-                    ),
-                  ],
-                );
-              },
-            ),
+            child: _buildFiltersPanel(context),
           ),
           Expanded(
             child: _buildBody(
               textTheme,
               filteredPayments: filtered,
               filteredExpenses: filteredExpenses,
+              dateFilteredExpenses: dateFilteredExpenses,
+              expenseFiltersActive: expenseFiltersActive,
               categoryById: categoryById,
               paymentsRawEmpty: raw?.isEmpty ?? true,
             ),
@@ -457,99 +509,269 @@ class _AccountingPaymentsDirectoryPageState
     );
   }
 
-  Widget _buildFilterStrip(
-    BuildContext context, {
-    required bool filtersActive,
-  }) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
+  Widget _buildFiltersPanel(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final anyFiltersActive = _anyFiltersActive();
+    final categories = _expenseCategories ?? const <ExpenseCategory>[];
+    final sortedCategories = List<ExpenseCategory>.from(categories)
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    InputDecoration fieldDecoration(String label) => InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    );
+
+    Widget paymentMethodField() => DropdownButtonFormField<PaymentMethod?>(
+      key: ValueKey(_methodFilter?.name ?? 'all_payment_methods'),
+      initialValue: _methodFilter,
+      decoration: fieldDecoration('Metodo incassi'),
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem<PaymentMethod?>(
+          value: null,
+          child: Text('Tutti'),
+        ),
+        ...BackofficePaymentMethods.selectableForNewPayment.map(
+          (m) => DropdownMenuItem(
+            value: m,
+            child: Text(
+              BackofficeFormatters.paymentMethod(m),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+      onChanged: (v) => setState(() => _methodFilter = v),
+    );
+
+    Widget expenseCategoryField() => DropdownButtonFormField<String?>(
+      key: ValueKey(_expenseCategoryFilter ?? 'all_expense_categories'),
+      initialValue: _expenseCategoryFilter,
+      decoration: fieldDecoration('Categoria uscite'),
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('Tutte'),
+        ),
+        ...sortedCategories.map(
+          (c) => DropdownMenuItem(
+            value: c.id,
+            child: Text(c.name, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (v) => setState(() => _expenseCategoryFilter = v),
+    );
+
+    Widget expenseMethodField() => DropdownButtonFormField<PaymentMethod?>(
+      key: ValueKey(_expenseMethodFilter?.name ?? 'all_expense_methods'),
+      initialValue: _expenseMethodFilter,
+      decoration: fieldDecoration('Metodo uscite'),
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem<PaymentMethod?>(
+          value: null,
+          child: Text('Tutti'),
+        ),
+        ...BackofficePaymentMethods.selectableForNewExpense.map(
+          (m) => DropdownMenuItem(
+            value: m,
+            child: Text(
+              BackofficeFormatters.paymentMethod(m),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+      onChanged: (v) => setState(() => _expenseMethodFilter = v),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilterChip(
-          label: const Text('Oggi'),
-          visualDensity: VisualDensity.compact,
-          selected: _quick == _AccountingQuickFilter.today,
-          onSelected: (v) => setState(() {
-            _quick = v ? _AccountingQuickFilter.today : _AccountingQuickFilter.none;
-          }),
-        ),
-        FilterChip(
-          label: const Text('Questo mese'),
-          visualDensity: VisualDensity.compact,
-          selected: _quick == _AccountingQuickFilter.thisMonth,
-          onSelected: (v) => setState(() {
-            _quick =
-                v ? _AccountingQuickFilter.thisMonth : _AccountingQuickFilter.none;
-          }),
-        ),
-        FilterChip(
-          label: const Text('Ultimi 30 giorni'),
-          visualDensity: VisualDensity.compact,
-          selected: _quick == _AccountingQuickFilter.last30,
-          onSelected: (v) => setState(() {
-            _quick = v ? _AccountingQuickFilter.last30 : _AccountingQuickFilter.none;
-          }),
-        ),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-          onPressed: () async {
-            final d = await showDatePicker(
-              context: context,
-              initialDate: _fromDay ?? DateTime.now(),
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2100),
-            );
-            if (d != null) setState(() => _fromDay = d);
-          },
-          child: Text(
-            _fromDay == null
-                ? 'Data da'
-                : 'Da ${BackofficeFormatters.dateUi(_fromDay)}',
-            style: Theme.of(context).textTheme.labelLarge,
+        _FilterPanelSection(
+          title: 'Incassi',
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final wide = c.maxWidth >= 720;
+              if (wide) {
+                return Row(
+                  children: [
+                    SizedBox(width: 180, child: paymentMethodField()),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: fieldDecoration(
+                          'Cerca allievo, ricevuta…',
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  paymentMethodField(),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _searchCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: fieldDecoration('Cerca allievo, ricevuta…'),
+                  ),
+                ],
+              );
+            },
           ),
         ),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-          onPressed: () async {
-            final d = await showDatePicker(
-              context: context,
-              initialDate: _toDay ?? DateTime.now(),
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2100),
-            );
-            if (d != null) setState(() => _toDay = d);
-          },
-          child: Text(
-            _toDay == null
-                ? 'Data a'
-                : 'A ${BackofficeFormatters.dateUi(_toDay)}',
-            style: Theme.of(context).textTheme.labelLarge,
+        const SizedBox(height: 8),
+        _FilterPanelSection(
+          title: 'Periodo',
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilterChip(
+                label: const Text('Oggi'),
+                visualDensity: VisualDensity.compact,
+                selected: _quick == _AccountingQuickFilter.today,
+                onSelected: (v) => setState(() {
+                  _quick =
+                      v ? _AccountingQuickFilter.today : _AccountingQuickFilter.none;
+                }),
+              ),
+              FilterChip(
+                label: const Text('Questo mese'),
+                visualDensity: VisualDensity.compact,
+                selected: _quick == _AccountingQuickFilter.thisMonth,
+                onSelected: (v) => setState(() {
+                  _quick = v
+                      ? _AccountingQuickFilter.thisMonth
+                      : _AccountingQuickFilter.none;
+                }),
+              ),
+              FilterChip(
+                label: const Text('Ultimi 30 giorni'),
+                visualDensity: VisualDensity.compact,
+                selected: _quick == _AccountingQuickFilter.last30,
+                onSelected: (v) => setState(() {
+                  _quick = v
+                      ? _AccountingQuickFilter.last30
+                      : _AccountingQuickFilter.none;
+                }),
+              ),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: context,
+                    initialDate: _fromDay ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) setState(() => _fromDay = d);
+                },
+                child: Text(
+                  _fromDay == null
+                      ? 'Data da'
+                      : 'Da ${BackofficeFormatters.dateUi(_fromDay)}',
+                  style: textTheme.labelLarge,
+                ),
+              ),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: context,
+                    initialDate: _toDay ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) setState(() => _toDay = d);
+                },
+                child: Text(
+                  _toDay == null
+                      ? 'Data a'
+                      : 'A ${BackofficeFormatters.dateUi(_toDay)}',
+                  style: textTheme.labelLarge,
+                ),
+              ),
+              if (anyFiltersActive)
+                Chip(
+                  label: const Text('Filtri attivi'),
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: AppVisual.logoBlue.withValues(alpha: 0.1),
+                  labelStyle: textTheme.labelSmall?.copyWith(
+                    color: AppVisual.logoBlueDeep,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  side: BorderSide(
+                    color: AppVisual.logoBlue.withValues(alpha: 0.35),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+              TextButton(
+                onPressed: _clearFilters,
+                child: const Text('Reimposta filtri'),
+              ),
+            ],
           ),
         ),
-        if (filtersActive)
-          Chip(
-            label: const Text('Filtri attivi'),
-            visualDensity: VisualDensity.compact,
-            backgroundColor: AppVisual.logoBlue.withValues(alpha: 0.1),
-            labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppVisual.logoBlueDeep,
-              fontWeight: FontWeight.w700,
-            ),
-            side: BorderSide(
-              color: AppVisual.logoBlue.withValues(alpha: 0.35),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+        const SizedBox(height: 8),
+        _FilterPanelSection(
+          title: 'Uscite',
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final wide = c.maxWidth >= 720;
+              if (wide) {
+                return Row(
+                  children: [
+                    SizedBox(width: 180, child: expenseCategoryField()),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 160, child: expenseMethodField()),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _expenseSearchCtrl,
+                        onChanged: (_) => setState(() {}),
+                        decoration: fieldDecoration(
+                          'Cerca titolo, ricevuta, note…',
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  expenseCategoryField(),
+                  const SizedBox(height: 8),
+                  expenseMethodField(),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _expenseSearchCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: fieldDecoration(
+                      'Cerca titolo, ricevuta, note…',
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-        TextButton(
-          onPressed: _clearFilters,
-          child: const Text('Reimposta filtri'),
         ),
       ],
     );
@@ -559,6 +781,8 @@ class _AccountingPaymentsDirectoryPageState
     TextTheme textTheme, {
     required List<AccountingPaymentListItem> filteredPayments,
     required List<NauticalExpense> filteredExpenses,
+    required List<NauticalExpense> dateFilteredExpenses,
+    required bool expenseFiltersActive,
     required Map<String, String> categoryById,
     required bool paymentsRawEmpty,
   }) {
@@ -637,7 +861,9 @@ class _AccountingPaymentsDirectoryPageState
             const SizedBox(height: 8),
             if (filteredExpenses.isEmpty)
               Text(
-                'Nessuna uscita registrata nel periodo selezionato.',
+                expenseFiltersActive && dateFilteredExpenses.isNotEmpty
+                    ? 'Nessuna uscita con i filtri correnti.'
+                    : 'Nessuna uscita registrata nel periodo selezionato.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppVisual.inkMuted,
                 ),
@@ -653,6 +879,7 @@ class _AccountingPaymentsDirectoryPageState
                         : categoryById[e.categoryId],
                     wide: wide,
                     onEdit: () => _openEditExpense(context, e),
+                    onDelete: () => _openDeleteExpense(context, e),
                   ),
                 ),
               ),
@@ -669,18 +896,18 @@ class _AccountingSummaryRow extends StatelessWidget {
     required this.sumMonth,
     required this.sumFiltered,
     required this.count,
-    required this.filtersActive,
+    required this.paymentFiltersActive,
+    required this.expenseFiltersActive,
+    required this.dateFiltersActive,
+    required this.anyFiltersActive,
     required this.sumExpensesMonth,
     required this.sumExpensesToday,
     required this.sumExpensesFiltered,
     required this.netToday,
     required this.netMonth,
     required this.netFiltered,
-    required this.expenseDateFilters,
     required this.expensesLoading,
     required this.loading,
-    required this.searchCtrl,
-    required this.onSearchChanged,
     required this.onRefresh,
     required this.refreshDisabled,
   });
@@ -689,23 +916,63 @@ class _AccountingSummaryRow extends StatelessWidget {
   final int sumMonth;
   final int sumFiltered;
   final int count;
-  final bool filtersActive;
+  final bool paymentFiltersActive;
+  final bool expenseFiltersActive;
+  final bool dateFiltersActive;
+  final bool anyFiltersActive;
   final int sumExpensesMonth;
   final int sumExpensesToday;
   final int sumExpensesFiltered;
   final int netToday;
   final int netMonth;
   final int netFiltered;
-  final bool expenseDateFilters;
   final bool expensesLoading;
   final bool loading;
-  final TextEditingController searchCtrl;
-  final VoidCallback onSearchChanged;
   final VoidCallback onRefresh;
   final bool refreshDisabled;
 
   static const double _tileWidth = 168;
-  static const double _searchWidth = 240;
+
+  static String? _expenseAggregateSubtitle({
+    required bool loading,
+    required bool expenseFiltersActive,
+    required bool dateFiltersActive,
+    required bool emptyFiltered,
+  }) {
+    if (loading) return null;
+    if (expenseFiltersActive && dateFiltersActive) {
+      return 'Selezione corrente';
+    }
+    if (expenseFiltersActive) return 'Uscite filtrate';
+    if (dateFiltersActive) return 'Uscite per periodo';
+    if (emptyFiltered) return 'Nessuna uscita';
+    return null;
+  }
+
+  static String? _netBalanceSubtitle({
+    required bool loading,
+    required bool paymentFiltersActive,
+    required bool expenseFiltersActive,
+    required bool dateFiltersActive,
+  }) {
+    if (loading) return null;
+    if (paymentFiltersActive && expenseFiltersActive) {
+      return 'Selezione corrente';
+    }
+    if (paymentFiltersActive && dateFiltersActive) {
+      return 'Incassi filtrati · periodo';
+    }
+    if (expenseFiltersActive && dateFiltersActive) {
+      return 'Uscite filtrate · periodo';
+    }
+    if (paymentFiltersActive && expenseFiltersActive && dateFiltersActive) {
+      return 'Selezione corrente';
+    }
+    if (paymentFiltersActive) return 'Incassi filtrati';
+    if (expenseFiltersActive) return 'Uscite filtrate';
+    if (dateFiltersActive) return 'Periodo selezionato';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -719,12 +986,17 @@ class _AccountingSummaryRow extends StatelessWidget {
     final filteredValue = loading
         ? '—'
         : BackofficeFormatters.moneyEur(sumFiltered);
-    final filteredSubtitle = filtersActive && !loading
+    final filteredSubtitle = anyFiltersActive && !loading
         ? 'Selezione corrente'
         : null;
-    final incomeFilterHint = filtersActive && !loading ? 'Incassi filtrati' : null;
-    final expensesValueCents =
-        expenseDateFilters ? sumExpensesFiltered : sumExpensesMonth;
+    final incomeFilterHint = paymentFiltersActive && !loading
+        ? 'Incassi filtrati'
+        : null;
+    final expenseSummaryUsesFiltered =
+        dateFiltersActive || expenseFiltersActive;
+    final expensesValueCents = expenseSummaryUsesFiltered
+        ? sumExpensesFiltered
+        : sumExpensesMonth;
     final expensesValue = expensesLoading
         ? '—'
         : BackofficeFormatters.moneyEur(expensesValueCents);
@@ -732,18 +1004,25 @@ class _AccountingSummaryRow extends StatelessWidget {
         ? '—'
         : BackofficeFormatters.moneyEur(sumExpensesToday);
     final expensesTitle =
-        expenseDateFilters ? 'Totale uscite' : 'Uscite nel mese';
-    final expensesSubtitle = expensesLoading
+        expenseSummaryUsesFiltered ? 'Totale uscite' : 'Uscite nel mese';
+    final expensesSubtitle = _expenseAggregateSubtitle(
+      loading: expensesLoading,
+      expenseFiltersActive: expenseFiltersActive,
+      dateFiltersActive: dateFiltersActive,
+      emptyFiltered: sumExpensesFiltered == 0,
+    );
+    final expensesTodaySubtitle = expensesLoading
         ? null
-        : expenseDateFilters
-        ? 'Uscite per periodo'
-        : (sumExpensesFiltered == 0 ? 'Nessuna uscita' : null);
+        : expenseFiltersActive
+        ? 'Uscite filtrate'
+        : (dateFiltersActive ? 'Uscite per periodo' : null);
     final netLoading = loading || expensesLoading;
-    final netScopeHint = filtersActive && !netLoading
-        ? (expenseDateFilters
-              ? 'Incassi filtrati · uscite periodo'
-              : 'Incassi filtrati')
-        : null;
+    final netScopeHint = _netBalanceSubtitle(
+      loading: netLoading,
+      paymentFiltersActive: paymentFiltersActive,
+      expenseFiltersActive: expenseFiltersActive,
+      dateFiltersActive: dateFiltersActive,
+    );
     final netTodayDisplay = _netTileDisplay(
       netToday,
       netLoading,
@@ -806,14 +1085,6 @@ class _AccountingSummaryRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            width: _searchWidth,
-            child: _SummarySearchField(
-              controller: searchCtrl,
-              onChanged: (_) => onSearchChanged(),
-            ),
-          ),
-          const SizedBox(width: 8),
           const _SummarySectionMark(title: 'Uscite'),
           SizedBox(
             width: _tileWidth,
@@ -821,9 +1092,7 @@ class _AccountingSummaryRow extends StatelessWidget {
               title: 'Uscite oggi',
               value: expensesTodayValue,
               icon: Icons.today_outlined,
-              subtitle: expenseDateFilters && !expensesLoading
-                  ? 'Uscite per periodo'
-                  : null,
+              subtitle: expensesTodaySubtitle,
             ),
           ),
           const SizedBox(width: 8),
@@ -859,7 +1128,7 @@ class _AccountingSummaryRow extends StatelessWidget {
               subtitle: netMonthDisplay.subtitle,
             ),
           ),
-          if (filtersActive) ...[
+          if (anyFiltersActive) ...[
             const SizedBox(width: 8),
             SizedBox(
               width: _tileWidth,
@@ -939,80 +1208,31 @@ class _SummarySectionMark extends StatelessWidget {
   }
 }
 
-class _SummarySearchField extends StatelessWidget {
-  const _SummarySearchField({
-    required this.controller,
-    required this.onChanged,
+class _FilterPanelSection extends StatelessWidget {
+  const _FilterPanelSection({
+    required this.title,
+    required this.child,
   });
 
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
+  final String title;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Material(
-      color: AppVisual.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppVisual.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_rounded,
-              size: 20,
-              color: AppVisual.logoBlue.withValues(alpha: 0.85),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Cerca',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: AppVisual.inkMuted,
-                      fontWeight: FontWeight.w700,
-                      height: 1.1,
-                    ),
-                  ),
-                  TextField(
-                    controller: controller,
-                    onChanged: onChanged,
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
-                      height: 1.15,
-                      fontSize: 13,
-                    ),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'Nome, email, tel., ricevuta…',
-                      hintStyle: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppVisual.inkMuted.withValues(alpha: 0.65),
-                        fontSize: 13,
-                        height: 1.15,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isCollapsed: true,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppVisual.inkMuted,
+          ),
         ),
-      ),
+        const SizedBox(height: 6),
+        child,
+      ],
     );
   }
 }
@@ -1356,12 +1576,14 @@ class _ExpenseRowCard extends StatelessWidget {
     required this.categoryName,
     required this.wide,
     required this.onEdit,
+    required this.onDelete,
   });
 
   final NauticalExpense expense;
   final String? categoryName;
   final bool wide;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1501,13 +1723,30 @@ class _ExpenseRowCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: onEdit,
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: const Text('Modifica'),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: onEdit,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: const Text('Modifica'),
+                      ),
+                      TextButton(
+                        onPressed: onDelete,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          foregroundColor: AppVisual.error.withValues(
+                            alpha: 0.82,
+                          ),
+                        ),
+                        child: const Text('Elimina'),
+                      ),
+                    ],
                   ),
                 ],
               )
@@ -1574,9 +1813,23 @@ class _ExpenseRowCard extends StatelessWidget {
                     ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: onEdit,
-                      child: const Text('Modifica'),
+                    child: Wrap(
+                      spacing: 4,
+                      children: [
+                        TextButton(
+                          onPressed: onEdit,
+                          child: const Text('Modifica'),
+                        ),
+                        TextButton(
+                          onPressed: onDelete,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppVisual.error.withValues(
+                              alpha: 0.82,
+                            ),
+                          ),
+                          child: const Text('Elimina'),
+                        ),
+                      ],
                     ),
                   ),
                 ],

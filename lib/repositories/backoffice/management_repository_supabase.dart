@@ -104,6 +104,11 @@ class ManagementRepositorySupabase implements ManagementRepository {
     return _mapExpense(Map<String, dynamic>.from(row));
   }
 
+  @override
+  Future<void> deleteExpense(String id) async {
+    await _client.from('expenses').delete().eq('id', id);
+  }
+
   void _validateExpenseInput(ExpenseCreateInput input) {
     if (input.title.trim().isEmpty) {
       throw ArgumentError('Il titolo dell\'uscita è obbligatorio.');

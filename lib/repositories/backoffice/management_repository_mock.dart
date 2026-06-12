@@ -359,6 +359,15 @@ class ManagementRepositoryMock implements ManagementRepository {
   }
 
   @override
+  Future<void> deleteExpense(String id) async {
+    final index = _expenses.indexWhere((e) => e.id == id);
+    if (index < 0) {
+      throw StateError('Uscita non trovata: $id');
+    }
+    _expenses.removeAt(index);
+  }
+
+  @override
   Future<List<ExtraProduct>> listExtraProducts() async {
     return List<ExtraProduct>.unmodifiable(_extraProducts);
   }
