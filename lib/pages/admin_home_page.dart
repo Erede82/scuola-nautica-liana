@@ -353,7 +353,6 @@ enum _ManagementModuleKind {
   accounting,
   studyAccess,
   videoCourses,
-  reports,
   settings,
 }
 
@@ -415,9 +414,10 @@ const List<_ManagementModule> _managementModules = [
   _ManagementModule(
     kind: _ManagementModuleKind.studyAccess,
     title: 'Accessi studio',
-    subtitle: 'QR code e presenze in aula',
+    subtitle: 'Sblocchi lezioni, quiz esame e ripasso errori',
     icon: Icons.admin_panel_settings_outlined,
-    message: 'Gestione accessi studio reale.',
+    message:
+        'Gestione accessi studio per allievo: schede lezione, quiz esame e ripasso errori.',
     available: true,
   ),
   _ManagementModule(
@@ -427,14 +427,6 @@ const List<_ManagementModule> _managementModules = [
     icon: Icons.video_library_rounded,
     message:
         'Qui collegheremo prodotti Extra, video acquistabili e stato acquisti allievo.',
-  ),
-  _ManagementModule(
-    kind: _ManagementModuleKind.reports,
-    title: 'Report',
-    subtitle: 'Andamento scuola e statistiche',
-    icon: Icons.bar_chart_rounded,
-    message:
-        'Qui inseriremo report operativi su incassi, uscite, utile/perdita e attività.',
   ),
   _ManagementModule(
     kind: _ManagementModuleKind.settings,
@@ -652,7 +644,11 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
           ),
         );
       case _ManagementModuleKind.studyAccess:
-        return const StudyAccessAdminPage(embedded: true);
+        return StaffAccessGate(
+          showStaffWelcomeSnack: true,
+          gateTitle: 'Backoffice scuola',
+          child: const StudyAccessAdminPage(embedded: true),
+        );
       case _ManagementModuleKind.practices:
         return StaffAccessGate(
           showStaffWelcomeSnack: true,
@@ -681,7 +677,6 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
           ),
         );
       case _ManagementModuleKind.videoCourses:
-      case _ManagementModuleKind.reports:
         return _ModulePlaceholder(module: module);
       case _ManagementModuleKind.settings:
         return StaffAccessGate(
