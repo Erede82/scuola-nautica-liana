@@ -9,8 +9,11 @@ import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../widgets/backoffice/accounting_expense_dialogs.dart';
 import '../../widgets/backoffice/student_360_detail_view.dart';
 import '../../theme/app_visual_tokens.dart';
+import 'accounting_statistics_section.dart';
 
 enum _AccountingQuickFilter { none, today, thisMonth, last30 }
+
+enum _AccountingModuleView { operativa, statistiche }
 
 /// Directory contabilità (V1): incassi da `payments` e uscite da `expenses`.
 class AccountingPaymentsDirectoryPage extends StatefulWidget {
@@ -48,6 +51,7 @@ class _AccountingPaymentsDirectoryPageState
   _AccountingQuickFilter _quick = _AccountingQuickFilter.none;
   DateTime? _fromDay;
   DateTime? _toDay;
+  _AccountingModuleView _moduleView = _AccountingModuleView.operativa;
 
   @override
   void initState() {
@@ -447,6 +451,8 @@ class _AccountingPaymentsDirectoryPageState
     final netFiltered = summary.sumFiltered - expenseSummary.sumFiltered;
     final categoryById = _categoryNameById();
 
+    final showOperativa = _moduleView == _AccountingModuleView.operativa;
+
     return ColoredBox(
       color: AppVisual.canvas,
       child: Column(
@@ -466,6 +472,41 @@ class _AccountingPaymentsDirectoryPageState
                 ),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: SegmentedButton<_AccountingModuleView>(
+              segments: const [
+                ButtonSegment(
+                  value: _AccountingModuleView.operativa,
+                  label: Text('Operativa'),
+                  icon: Icon(Icons.receipt_long_outlined, size: 18),
+                ),
+                ButtonSegment(
+                  value: _AccountingModuleView.statistiche,
+                  label: Text('Statistiche'),
+                  icon: Icon(Icons.insights_outlined, size: 18),
+                ),
+              ],
+              selected: {_moduleView},
+              onSelectionChanged: (selection) {
+                setState(() => _moduleView = selection.first);
+              },
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+          if (!showOperativa) ...[
+            Expanded(
+              child: AccountingStatisticsSection(
+                payments: raw ?? const [],
+                expenses: _expenses ?? const [],
+                categories: _expenseCategories ?? const [],
+                loading: _loading && (raw == null || _expenses == null),
+              ),
+            ),
+          ] else ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: _AccountingSummaryRow(
@@ -504,6 +545,7 @@ class _AccountingPaymentsDirectoryPageState
               paymentsRawEmpty: raw?.isEmpty ?? true,
             ),
           ),
+          ],
         ],
       ),
     );
