@@ -558,77 +558,167 @@ class _AccountingPaymentsDirectoryPageState
     final sortedCategories = List<ExpenseCategory>.from(categories)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-    InputDecoration fieldDecoration(String label) => InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    );
+    String? paymentMethodLabel() {
+      final m = _methodFilter;
+      if (m == null) return 'Tutti';
+      return BackofficeFormatters.paymentMethod(m);
+    }
 
-    Widget paymentMethodField() => DropdownButtonFormField<PaymentMethod?>(
-      key: ValueKey(_methodFilter?.name ?? 'all_payment_methods'),
-      initialValue: _methodFilter,
-      decoration: fieldDecoration('Metodo incassi'),
-      isExpanded: true,
-      items: [
-        const DropdownMenuItem<PaymentMethod?>(
-          value: null,
-          child: Text('Tutti'),
-        ),
-        ...BackofficePaymentMethods.selectableForNewPayment.map(
-          (m) => DropdownMenuItem(
-            value: m,
-            child: Text(
-              BackofficeFormatters.paymentMethod(m),
-              overflow: TextOverflow.ellipsis,
+    String? expenseCategoryLabel() {
+      if (_expenseCategoryFilter == null) return 'Tutte';
+      for (final c in sortedCategories) {
+        if (c.id == _expenseCategoryFilter) return c.name;
+      }
+      return 'Categoria';
+    }
+
+    String? expenseMethodLabel() {
+      final m = _expenseMethodFilter;
+      if (m == null) return 'Tutti';
+      return BackofficeFormatters.paymentMethod(m);
+    }
+
+    Widget paymentMethodField() => _FilterSelectBox(
+      label: 'Metodo incassi',
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<PaymentMethod?>(
+          isExpanded: true,
+          value: _methodFilter,
+          icon: const Icon(Icons.expand_more_rounded, size: 20),
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: BackofficeUiTokens.text,
+            fontSize: 13,
+          ),
+          items: [
+            const DropdownMenuItem<PaymentMethod?>(
+              value: null,
+              child: _FilterSelectValue(text: 'Tutti'),
             ),
-          ),
-        ),
-      ],
-      onChanged: (v) => setState(() => _methodFilter = v),
-    );
-
-    Widget expenseCategoryField() => DropdownButtonFormField<String?>(
-      key: ValueKey(_expenseCategoryFilter ?? 'all_expense_categories'),
-      initialValue: _expenseCategoryFilter,
-      decoration: fieldDecoration('Categoria uscite'),
-      isExpanded: true,
-      items: [
-        const DropdownMenuItem<String?>(
-          value: null,
-          child: Text('Tutte'),
-        ),
-        ...sortedCategories.map(
-          (c) => DropdownMenuItem(
-            value: c.id,
-            child: Text(c.name, overflow: TextOverflow.ellipsis),
-          ),
-        ),
-      ],
-      onChanged: (v) => setState(() => _expenseCategoryFilter = v),
-    );
-
-    Widget expenseMethodField() => DropdownButtonFormField<PaymentMethod?>(
-      key: ValueKey(_expenseMethodFilter?.name ?? 'all_expense_methods'),
-      initialValue: _expenseMethodFilter,
-      decoration: fieldDecoration('Metodo uscite'),
-      isExpanded: true,
-      items: [
-        const DropdownMenuItem<PaymentMethod?>(
-          value: null,
-          child: Text('Tutti'),
-        ),
-        ...BackofficePaymentMethods.selectableForNewExpense.map(
-          (m) => DropdownMenuItem(
-            value: m,
-            child: Text(
-              BackofficeFormatters.paymentMethod(m),
-              overflow: TextOverflow.ellipsis,
+            ...BackofficePaymentMethods.selectableForNewPayment.map(
+              (m) => DropdownMenuItem(
+                value: m,
+                child: _FilterSelectValue(
+                  text: BackofficeFormatters.paymentMethod(m),
+                ),
+              ),
             ),
-          ),
+          ],
+          selectedItemBuilder: (context) => [
+            DropdownMenuItem<PaymentMethod?>(
+              value: null,
+              child: _FilterSelectValue(text: paymentMethodLabel()!),
+            ),
+            ...BackofficePaymentMethods.selectableForNewPayment.map(
+              (m) => DropdownMenuItem(
+                value: m,
+                child: _FilterSelectValue(
+                  text: BackofficeFormatters.paymentMethod(m),
+                ),
+              ),
+            ),
+          ],
+          onChanged: (v) => setState(() => _methodFilter = v),
         ),
-      ],
-      onChanged: (v) => setState(() => _expenseMethodFilter = v),
+      ),
+    );
+
+    Widget expenseCategoryField() => _FilterSelectBox(
+      label: 'Categoria uscite',
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          isExpanded: true,
+          value: _expenseCategoryFilter,
+          icon: const Icon(Icons.expand_more_rounded, size: 20),
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: BackofficeUiTokens.text,
+            fontSize: 13,
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: _FilterSelectValue(text: 'Tutte'),
+            ),
+            ...sortedCategories.map(
+              (c) => DropdownMenuItem(
+                value: c.id,
+                child: _FilterSelectValue(text: c.name),
+              ),
+            ),
+          ],
+          selectedItemBuilder: (context) => [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: _FilterSelectValue(text: expenseCategoryLabel()!),
+            ),
+            ...sortedCategories.map(
+              (c) => DropdownMenuItem(
+                value: c.id,
+                child: _FilterSelectValue(text: c.name),
+              ),
+            ),
+          ],
+          onChanged: (v) => setState(() => _expenseCategoryFilter = v),
+        ),
+      ),
+    );
+
+    Widget expenseMethodField() => _FilterSelectBox(
+      label: 'Metodo uscite',
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<PaymentMethod?>(
+          isExpanded: true,
+          value: _expenseMethodFilter,
+          icon: const Icon(Icons.expand_more_rounded, size: 20),
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: BackofficeUiTokens.text,
+            fontSize: 13,
+          ),
+          items: [
+            const DropdownMenuItem<PaymentMethod?>(
+              value: null,
+              child: _FilterSelectValue(text: 'Tutti'),
+            ),
+            ...BackofficePaymentMethods.selectableForNewExpense.map(
+              (m) => DropdownMenuItem(
+                value: m,
+                child: _FilterSelectValue(
+                  text: BackofficeFormatters.paymentMethod(m),
+                ),
+              ),
+            ),
+          ],
+          selectedItemBuilder: (context) => [
+            DropdownMenuItem<PaymentMethod?>(
+              value: null,
+              child: _FilterSelectValue(text: expenseMethodLabel()!),
+            ),
+            ...BackofficePaymentMethods.selectableForNewExpense.map(
+              (m) => DropdownMenuItem(
+                value: m,
+                child: _FilterSelectValue(
+                  text: BackofficeFormatters.paymentMethod(m),
+                ),
+              ),
+            ),
+          ],
+          onChanged: (v) => setState(() => _expenseMethodFilter = v),
+        ),
+      ),
+    );
+
+    Widget paymentSearchField() => _FilterSearchBox(
+      hint: 'Cerca allievo, ricevuta…',
+      controller: _searchCtrl,
+      onChanged: (_) => setState(() {}),
+    );
+
+    Widget expenseSearchField() => _FilterSearchBox(
+      hint: 'Cerca titolo, ricevuta, note…',
+      controller: _expenseSearchCtrl,
+      onChanged: (_) => setState(() {}),
     );
 
     return Column(
@@ -641,18 +731,11 @@ class _AccountingPaymentsDirectoryPageState
               final wide = c.maxWidth >= 720;
               if (wide) {
                 return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(width: 180, child: paymentMethodField()),
+                    Expanded(flex: 2, child: paymentMethodField()),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchCtrl,
-                        onChanged: (_) => setState(() {}),
-                        decoration: fieldDecoration(
-                          'Cerca allievo, ricevuta…',
-                        ),
-                      ),
-                    ),
+                    Expanded(flex: 5, child: paymentSearchField()),
                   ],
                 );
               }
@@ -661,11 +744,7 @@ class _AccountingPaymentsDirectoryPageState
                 children: [
                   paymentMethodField(),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _searchCtrl,
-                    onChanged: (_) => setState(() {}),
-                    decoration: fieldDecoration('Cerca allievo, ricevuta…'),
-                  ),
+                  paymentSearchField(),
                 ],
               );
             },
@@ -779,20 +858,13 @@ class _AccountingPaymentsDirectoryPageState
               final wide = c.maxWidth >= 720;
               if (wide) {
                 return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(width: 180, child: expenseCategoryField()),
+                    Expanded(flex: 2, child: expenseCategoryField()),
                     const SizedBox(width: 8),
-                    SizedBox(width: 160, child: expenseMethodField()),
+                    Expanded(flex: 2, child: expenseMethodField()),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _expenseSearchCtrl,
-                        onChanged: (_) => setState(() {}),
-                        decoration: fieldDecoration(
-                          'Cerca titolo, ricevuta, note…',
-                        ),
-                      ),
-                    ),
+                    Expanded(flex: 5, child: expenseSearchField()),
                   ],
                 );
               }
@@ -803,13 +875,7 @@ class _AccountingPaymentsDirectoryPageState
                   const SizedBox(height: 8),
                   expenseMethodField(),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _expenseSearchCtrl,
-                    onChanged: (_) => setState(() {}),
-                    decoration: fieldDecoration(
-                      'Cerca titolo, ricevuta, note…',
-                    ),
-                  ),
+                  expenseSearchField(),
                 ],
               );
             },
@@ -1275,6 +1341,127 @@ class _FilterPanelSection extends StatelessWidget {
         const SizedBox(height: 6),
         child,
       ],
+    );
+  }
+}
+
+class _FilterSelectBox extends StatelessWidget {
+  const _FilterSelectBox({
+    required this.label,
+    required this.child,
+  });
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: AppVisual.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppVisual.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 6, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: textTheme.labelSmall?.copyWith(
+                color: AppVisual.inkMuted,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 2),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterSelectValue extends StatelessWidget {
+  const _FilterSelectValue({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: BackofficeUiTokens.text,
+        fontSize: 13,
+      ),
+    );
+  }
+}
+
+class _FilterSearchBox extends StatelessWidget {
+  const _FilterSearchBox({
+    required this.hint,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final String hint;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: AppVisual.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppVisual.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: AppVisual.logoBlue.withValues(alpha: 0.75),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                onChanged: onChanged,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: hint,
+                  border: InputBorder.none,
+                  isDense: true,
+                  hintStyle: textTheme.bodyMedium?.copyWith(
+                    color: AppVisual.inkMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

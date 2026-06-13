@@ -74,9 +74,7 @@ class _ExpenseFormDialog extends StatefulWidget {
 }
 
 class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
-  final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
-  final _receiptCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
   late DateTime _expenseDate;
@@ -109,11 +107,9 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
       return;
     }
 
-    _titleCtrl.text = existing.title;
     _amountCtrl.text = (existing.amountCents / 100)
         .toStringAsFixed(2)
         .replaceAll('.', ',');
-    _receiptCtrl.text = existing.receiptReference ?? '';
     _notesCtrl.text = existing.notes ?? '';
     _expenseDate = DateTime(
       existing.expenseDate.year,
@@ -155,12 +151,19 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
 
   @override
   void dispose() {
-    _titleCtrl.dispose();
     _amountCtrl.dispose();
-    _receiptCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
+
+  String? _preservedReceiptReference() {
+    if (!_isEdit) return null;
+    final ref = widget.existing!.receiptReference?.trim();
+    if (ref == null || ref.isEmpty) return null;
+    return ref;
+  }
+
+  String _titleForCategory(ExpenseCategory category) => category.name.trim();
 
   Future<void> _pickDate() async {
     if (_busy) return;
@@ -186,30 +189,28 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
       expenseDate: _expenseDate,
       categoryId: category.id,
       paymentMethod: _paymentMethod,
-      receiptReference: _receiptCtrl.text.trim().isEmpty
-          ? null
-          : _receiptCtrl.text.trim(),
+      receiptReference: _preservedReceiptReference(),
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       instructorId: _showInstructorField ? _instructorId : null,
     );
   }
 
   Future<void> _submit() async {
-    final title = _titleCtrl.text.trim();
+    final category = _category;
+    if (category == null) {
+      _accountingSnack(context, 'Seleziona una categoria.');
+      return;
+    }
+
+    final title = _titleForCategory(category);
     if (title.isEmpty) {
-      _accountingSnack(context, 'Il titolo dell\'uscita è obbligatorio.');
+      _accountingSnack(context, 'Categoria non valida.');
       return;
     }
 
     final cents = parseEuroInputToCents(_amountCtrl.text);
     if (cents == null) {
       _accountingSnack(context, 'Importo non valido.');
-      return;
-    }
-
-    final category = _category;
-    if (category == null) {
-      _accountingSnack(context, 'Seleziona una categoria.');
       return;
     }
 
@@ -274,49 +275,13 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
             children: [
               Text(
                 _isEdit
-                    ? 'Aggiorna i dati della spesa. Importo in euro (es. 125,50).'
+                    ? 'Aggiorna categoria, metodo, importo e data. Importo in euro (es. 125,50).'
                     : 'Registra una spesa della scuola. Importo in euro (es. 125,50).',
                 style: textTheme.bodySmall?.copyWith(
                   color: BackofficeUiTokens.text.withValues(alpha: 0.72),
                 ),
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _titleCtrl,
-                enabled: !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'Titolo uscita',
-                  border: OutlineInputBorder(),
-                ),
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountCtrl,
-                enabled: !_busy,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Importo (€)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Data',
-                  border: OutlineInputBorder(),
-                ),
-                child: InkWell(
-                  onTap: _busy ? null : _pickDate,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(BackofficeFormatters.dateUi(_expenseDate)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<ExpenseCategory>(
                 key: ValueKey(_category?.id),
                 initialValue: _category,
@@ -368,6 +333,32 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _amountCtrl,
+                enabled: !_busy,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Importo (€)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Data',
+                  border: OutlineInputBorder(),
+                ),
+                child: InkWell(
+                  onTap: _busy ? null : _pickDate,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(BackofficeFormatters.dateUi(_expenseDate)),
+                  ),
+                ),
+              ),
               if (_showInstructorField) ...[
                 const SizedBox(height: 12),
                 if (_instructorsLoading)
@@ -414,15 +405,6 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
                         : (v) => setState(() => _instructorId = v),
                   ),
               ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: _receiptCtrl,
-                enabled: !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'Riferimento ricevuta (opzionale)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _notesCtrl,
