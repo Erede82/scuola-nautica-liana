@@ -12,6 +12,10 @@ abstract final class BackofficePaymentMethods {
   ];
 
   /// Metodi pagamento proponibili nei form staff (nuove uscite).
-  static const List<PaymentMethod> selectableForNewExpense =
-      selectableForNewPayment;
+  ///
+  /// Welfare escluso: la scuola non registra spese pagate con Welfare.
+  static const List<PaymentMethod> selectableForNewExpense = [
+    PaymentMethod.cash,
+    PaymentMethod.card,
+  ];
 }

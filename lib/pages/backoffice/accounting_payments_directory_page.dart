@@ -15,6 +15,13 @@ enum _AccountingQuickFilter { none, today, thisMonth, last30 }
 
 enum _AccountingModuleView { operativa, statistiche }
 
+enum _ExpandedAccountingFilter {
+  none,
+  paymentMethod,
+  expenseCategory,
+  expenseMethod,
+}
+
 /// Directory contabilità (V1): incassi da `payments` e uscite da `expenses`.
 class AccountingPaymentsDirectoryPage extends StatefulWidget {
   const AccountingPaymentsDirectoryPage({
@@ -36,8 +43,7 @@ class AccountingPaymentsDirectoryPage extends StatefulWidget {
 
 class _AccountingPaymentsDirectoryPageState
     extends State<AccountingPaymentsDirectoryPage> {
-  final _searchCtrl = TextEditingController();
-  final _expenseSearchCtrl = TextEditingController();
+  final _unifiedSearchCtrl = TextEditingController();
 
   List<AccountingPaymentListItem>? _items;
   List<NauticalExpense>? _expenses;
@@ -52,6 +58,45 @@ class _AccountingPaymentsDirectoryPageState
   DateTime? _fromDay;
   DateTime? _toDay;
   _AccountingModuleView _moduleView = _AccountingModuleView.operativa;
+  _ExpandedAccountingFilter _expandedFilter = _ExpandedAccountingFilter.none;
+
+  void _closeExpandedFilter() {
+    if (_expandedFilter == _ExpandedAccountingFilter.none) return;
+    setState(() => _expandedFilter = _ExpandedAccountingFilter.none);
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _toggleExpandedFilter(_ExpandedAccountingFilter filter) {
+    setState(() {
+      _expandedFilter = _expandedFilter == filter
+          ? _ExpandedAccountingFilter.none
+          : filter;
+    });
+  }
+
+  void _selectPaymentMethodFilter(PaymentMethod? value) {
+    setState(() {
+      _methodFilter = value;
+      _expandedFilter = _ExpandedAccountingFilter.none;
+    });
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _selectExpenseCategoryFilter(String? value) {
+    setState(() {
+      _expenseCategoryFilter = value;
+      _expandedFilter = _ExpandedAccountingFilter.none;
+    });
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _selectExpenseMethodFilter(PaymentMethod? value) {
+    setState(() {
+      _expenseMethodFilter = value;
+      _expandedFilter = _ExpandedAccountingFilter.none;
+    });
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
 
   @override
   void initState() {
@@ -61,22 +106,22 @@ class _AccountingPaymentsDirectoryPageState
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
-    _expenseSearchCtrl.dispose();
+    _unifiedSearchCtrl.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
     setState(() {
-      _searchCtrl.clear();
-      _expenseSearchCtrl.clear();
+      _unifiedSearchCtrl.clear();
       _methodFilter = null;
       _expenseCategoryFilter = null;
       _expenseMethodFilter = null;
       _quick = _AccountingQuickFilter.none;
       _fromDay = null;
       _toDay = null;
+      _expandedFilter = _ExpandedAccountingFilter.none;
     });
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _load() async {
@@ -156,7 +201,7 @@ class _AccountingPaymentsDirectoryPageState
   }
 
   bool _matchesSearch(AccountingPaymentListItem p) {
-    final q = _searchCtrl.text.trim().toLowerCase();
+    final q = _unifiedSearchCtrl.text.trim().toLowerCase();
     if (q.isEmpty) return true;
     final hay = [
       p.studentFullName,
@@ -308,13 +353,13 @@ class _AccountingPaymentsDirectoryPageState
   }
 
   bool _paymentFiltersActive() {
-    return _methodFilter != null || _searchCtrl.text.trim().isNotEmpty;
+    return _methodFilter != null || _unifiedSearchCtrl.text.trim().isNotEmpty;
   }
 
   bool _expenseFiltersActive() {
     return _expenseCategoryFilter != null ||
         _expenseMethodFilter != null ||
-        _expenseSearchCtrl.text.trim().isNotEmpty;
+        _unifiedSearchCtrl.text.trim().isNotEmpty;
   }
 
   bool _dateFiltersActive() {
@@ -330,7 +375,7 @@ class _AccountingPaymentsDirectoryPageState
   }
 
   bool _matchesExpenseSearch(NauticalExpense e) {
-    final q = _expenseSearchCtrl.text.trim().toLowerCase();
+    final q = _unifiedSearchCtrl.text.trim().toLowerCase();
     if (q.isEmpty) return true;
     final hay = [
       e.title,
@@ -558,13 +603,13 @@ class _AccountingPaymentsDirectoryPageState
     final sortedCategories = List<ExpenseCategory>.from(categories)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-    String? paymentMethodLabel() {
+    String paymentMethodLabel() {
       final m = _methodFilter;
       if (m == null) return 'Tutti';
       return BackofficeFormatters.paymentMethod(m);
     }
 
-    String? expenseCategoryLabel() {
+    String expenseCategoryLabel() {
       if (_expenseCategoryFilter == null) return 'Tutte';
       for (final c in sortedCategories) {
         if (c.id == _expenseCategoryFilter) return c.name;
@@ -572,183 +617,124 @@ class _AccountingPaymentsDirectoryPageState
       return 'Categoria';
     }
 
-    String? expenseMethodLabel() {
+    String expenseMethodLabel() {
       final m = _expenseMethodFilter;
       if (m == null) return 'Tutti';
       return BackofficeFormatters.paymentMethod(m);
     }
 
-    Widget paymentMethodField() => _FilterSelectBox(
-      label: 'Metodo incassi',
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<PaymentMethod?>(
-          isExpanded: true,
-          value: _methodFilter,
-          icon: const Icon(Icons.expand_more_rounded, size: 20),
-          style: textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: BackofficeUiTokens.text,
-            fontSize: 13,
-          ),
-          items: [
-            const DropdownMenuItem<PaymentMethod?>(
-              value: null,
-              child: _FilterSelectValue(text: 'Tutti'),
-            ),
-            ...BackofficePaymentMethods.selectableForNewPayment.map(
-              (m) => DropdownMenuItem(
-                value: m,
-                child: _FilterSelectValue(
-                  text: BackofficeFormatters.paymentMethod(m),
+    Widget compactSelectRow() {
+      return TapRegion(
+        onTapOutside: (_) => _closeExpandedFilter(),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final wide = c.maxWidth >= 640;
+            final selects = [
+              _InlineAccountingFilter<PaymentMethod?>(
+                label: 'Metodo incassi',
+                displayText: paymentMethodLabel(),
+                expanded:
+                    _expandedFilter == _ExpandedAccountingFilter.paymentMethod,
+                onToggle: () => _toggleExpandedFilter(
+                  _ExpandedAccountingFilter.paymentMethod,
                 ),
+                items: [
+                  const _FilterDropdownOption<PaymentMethod?>(
+                    value: null,
+                    label: 'Tutti',
+                  ),
+                  ...BackofficePaymentMethods.selectableForNewPayment.map(
+                    (m) => _FilterDropdownOption(
+                      value: m,
+                      label: BackofficeFormatters.paymentMethod(m),
+                    ),
+                  ),
+                ],
+                isSelected: (v) => _methodFilter == v,
+                onSelect: _selectPaymentMethodFilter,
               ),
-            ),
-          ],
-          selectedItemBuilder: (context) => [
-            DropdownMenuItem<PaymentMethod?>(
-              value: null,
-              child: _FilterSelectValue(text: paymentMethodLabel()!),
-            ),
-            ...BackofficePaymentMethods.selectableForNewPayment.map(
-              (m) => DropdownMenuItem(
-                value: m,
-                child: _FilterSelectValue(
-                  text: BackofficeFormatters.paymentMethod(m),
+              _InlineAccountingFilter<String?>(
+                label: 'Categoria uscite',
+                displayText: expenseCategoryLabel(),
+                expanded:
+                    _expandedFilter == _ExpandedAccountingFilter.expenseCategory,
+                onToggle: () => _toggleExpandedFilter(
+                  _ExpandedAccountingFilter.expenseCategory,
                 ),
+                items: [
+                  const _FilterDropdownOption<String?>(
+                    value: null,
+                    label: 'Tutte',
+                  ),
+                  ...sortedCategories.map(
+                    (cat) => _FilterDropdownOption(
+                      value: cat.id,
+                      label: cat.name,
+                    ),
+                  ),
+                ],
+                isSelected: (v) => _expenseCategoryFilter == v,
+                onSelect: _selectExpenseCategoryFilter,
               ),
-            ),
-          ],
-          onChanged: (v) => setState(() => _methodFilter = v),
+              _InlineAccountingFilter<PaymentMethod?>(
+                label: 'Metodo uscite',
+                displayText: expenseMethodLabel(),
+                expanded:
+                    _expandedFilter == _ExpandedAccountingFilter.expenseMethod,
+                onToggle: () => _toggleExpandedFilter(
+                  _ExpandedAccountingFilter.expenseMethod,
+                ),
+                items: [
+                  const _FilterDropdownOption<PaymentMethod?>(
+                    value: null,
+                    label: 'Tutti',
+                  ),
+                  ...BackofficePaymentMethods.selectableForNewExpense.map(
+                    (m) => _FilterDropdownOption(
+                      value: m,
+                      label: BackofficeFormatters.paymentMethod(m),
+                    ),
+                  ),
+                ],
+                isSelected: (v) => _expenseMethodFilter == v,
+                onSelect: _selectExpenseMethodFilter,
+              ),
+            ];
+
+            if (wide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < selects.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 6),
+                    Expanded(child: selects[i]),
+                  ],
+                ],
+              );
+            }
+
+            return Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final select in selects)
+                  SizedBox(
+                    width: c.maxWidth >= 360 ? 168 : c.maxWidth,
+                    child: select,
+                  ),
+              ],
+            );
+          },
         ),
-      ),
-    );
-
-    Widget expenseCategoryField() => _FilterSelectBox(
-      label: 'Categoria uscite',
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String?>(
-          isExpanded: true,
-          value: _expenseCategoryFilter,
-          icon: const Icon(Icons.expand_more_rounded, size: 20),
-          style: textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: BackofficeUiTokens.text,
-            fontSize: 13,
-          ),
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: _FilterSelectValue(text: 'Tutte'),
-            ),
-            ...sortedCategories.map(
-              (c) => DropdownMenuItem(
-                value: c.id,
-                child: _FilterSelectValue(text: c.name),
-              ),
-            ),
-          ],
-          selectedItemBuilder: (context) => [
-            DropdownMenuItem<String?>(
-              value: null,
-              child: _FilterSelectValue(text: expenseCategoryLabel()!),
-            ),
-            ...sortedCategories.map(
-              (c) => DropdownMenuItem(
-                value: c.id,
-                child: _FilterSelectValue(text: c.name),
-              ),
-            ),
-          ],
-          onChanged: (v) => setState(() => _expenseCategoryFilter = v),
-        ),
-      ),
-    );
-
-    Widget expenseMethodField() => _FilterSelectBox(
-      label: 'Metodo uscite',
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<PaymentMethod?>(
-          isExpanded: true,
-          value: _expenseMethodFilter,
-          icon: const Icon(Icons.expand_more_rounded, size: 20),
-          style: textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: BackofficeUiTokens.text,
-            fontSize: 13,
-          ),
-          items: [
-            const DropdownMenuItem<PaymentMethod?>(
-              value: null,
-              child: _FilterSelectValue(text: 'Tutti'),
-            ),
-            ...BackofficePaymentMethods.selectableForNewExpense.map(
-              (m) => DropdownMenuItem(
-                value: m,
-                child: _FilterSelectValue(
-                  text: BackofficeFormatters.paymentMethod(m),
-                ),
-              ),
-            ),
-          ],
-          selectedItemBuilder: (context) => [
-            DropdownMenuItem<PaymentMethod?>(
-              value: null,
-              child: _FilterSelectValue(text: expenseMethodLabel()!),
-            ),
-            ...BackofficePaymentMethods.selectableForNewExpense.map(
-              (m) => DropdownMenuItem(
-                value: m,
-                child: _FilterSelectValue(
-                  text: BackofficeFormatters.paymentMethod(m),
-                ),
-              ),
-            ),
-          ],
-          onChanged: (v) => setState(() => _expenseMethodFilter = v),
-        ),
-      ),
-    );
-
-    Widget paymentSearchField() => _FilterSearchBox(
-      hint: 'Cerca allievo, ricevuta…',
-      controller: _searchCtrl,
-      onChanged: (_) => setState(() {}),
-    );
-
-    Widget expenseSearchField() => _FilterSearchBox(
-      hint: 'Cerca titolo, ricevuta, note…',
-      controller: _expenseSearchCtrl,
-      onChanged: (_) => setState(() {}),
-    );
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _FilterPanelSection(
-          title: 'Incassi',
-          child: LayoutBuilder(
-            builder: (context, c) {
-              final wide = c.maxWidth >= 720;
-              if (wide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 2, child: paymentMethodField()),
-                    const SizedBox(width: 8),
-                    Expanded(flex: 5, child: paymentSearchField()),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  paymentMethodField(),
-                  const SizedBox(height: 8),
-                  paymentSearchField(),
-                ],
-              );
-            },
-          ),
+          title: 'Filtri',
+          child: compactSelectRow(),
         ),
         const SizedBox(height: 8),
         _FilterPanelSection(
@@ -851,35 +837,10 @@ class _AccountingPaymentsDirectoryPageState
           ),
         ),
         const SizedBox(height: 8),
-        _FilterPanelSection(
-          title: 'Uscite',
-          child: LayoutBuilder(
-            builder: (context, c) {
-              final wide = c.maxWidth >= 720;
-              if (wide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 2, child: expenseCategoryField()),
-                    const SizedBox(width: 8),
-                    Expanded(flex: 2, child: expenseMethodField()),
-                    const SizedBox(width: 8),
-                    Expanded(flex: 5, child: expenseSearchField()),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  expenseCategoryField(),
-                  const SizedBox(height: 8),
-                  expenseMethodField(),
-                  const SizedBox(height: 8),
-                  expenseSearchField(),
-                ],
-              );
-            },
-          ),
+        _FilterSearchBox(
+          hint: 'Allievo, categoria, ricevuta, note…',
+          controller: _unifiedSearchCtrl,
+          onChanged: (_) => setState(() {}),
         ),
       ],
     );
@@ -1040,6 +1001,7 @@ class _AccountingSummaryRow extends StatelessWidget {
   final bool refreshDisabled;
 
   static const double _tileWidth = 168;
+  static const double _summaryTileHeight = 76;
 
   static String? _expenseAggregateSubtitle({
     required bool loading,
@@ -1147,14 +1109,17 @@ class _AccountingSummaryRow extends StatelessWidget {
       extraSubtitle: 'Selezione corrente',
     );
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
+    return SizedBox(
+      height: _summaryTileHeight,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
           const _SummarySectionMark(title: 'Incassi'),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Incassato oggi',
               value: todayValue,
@@ -1165,6 +1130,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Incassato nel mese',
               value: monthValue,
@@ -1175,6 +1141,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Movimenti',
               value: countValue,
@@ -1185,6 +1152,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Totale filtrato',
               value: filteredValue,
@@ -1196,6 +1164,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const _SummarySectionMark(title: 'Uscite'),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Uscite oggi',
               value: expensesTodayValue,
@@ -1206,6 +1175,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: expensesTitle,
               value: expensesValue,
@@ -1217,6 +1187,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const _SummarySectionMark(title: 'Saldo netto'),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Saldo oggi',
               value: netTodayDisplay.value,
@@ -1228,6 +1199,7 @@ class _AccountingSummaryRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: _tileWidth,
+            height: _summaryTileHeight,
             child: _SummaryTile(
               title: 'Saldo mese',
               value: netMonthDisplay.value,
@@ -1240,6 +1212,7 @@ class _AccountingSummaryRow extends StatelessWidget {
             const SizedBox(width: 8),
             SizedBox(
               width: _tileWidth,
+              height: _summaryTileHeight,
               child: _SummaryTile(
                 title: 'Saldo filtrato',
                 value: netFilteredDisplay.value,
@@ -1250,12 +1223,18 @@ class _AccountingSummaryRow extends StatelessWidget {
             ),
           ],
           const SizedBox(width: 6),
-          IconButton.filledTonal(
-            onPressed: refreshDisabled ? null : onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Aggiorna elenco',
+          SizedBox(
+            height: _summaryTileHeight,
+            child: Center(
+              child: IconButton.filledTonal(
+                onPressed: refreshDisabled ? null : onRefresh,
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Aggiorna elenco',
+              ),
+            ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -1295,7 +1274,7 @@ class _SummarySectionMark extends StatelessWidget {
         children: [
           Container(
             width: 3,
-            height: 52,
+            height: _AccountingSummaryRow._summaryTileHeight,
             decoration: BoxDecoration(
               color: AppVisual.logoBlue.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
@@ -1345,65 +1324,231 @@ class _FilterPanelSection extends StatelessWidget {
   }
 }
 
-class _FilterSelectBox extends StatelessWidget {
-  const _FilterSelectBox({
+class _FilterDropdownOption<T> {
+  const _FilterDropdownOption({required this.value, required this.label});
+
+  final T value;
+  final String label;
+}
+
+class _InlineAccountingFilter<T> extends StatelessWidget {
+  const _InlineAccountingFilter({
     required this.label,
-    required this.child,
+    required this.displayText,
+    required this.expanded,
+    required this.onToggle,
+    required this.items,
+    required this.isSelected,
+    required this.onSelect,
   });
 
+  static const double _boxHeight = 48;
+  static const double _panelMaxHeight = 140;
+
   final String label;
-  final Widget child;
+  final String displayText;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final List<_FilterDropdownOption<T>> items;
+  final bool Function(T value) isSelected;
+  final ValueChanged<T> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: expanded ? AppVisual.ivory : AppVisual.surface,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: expanded
+                  ? AppVisual.logoBlue.withValues(alpha: 0.35)
+                  : AppVisual.border,
+            ),
+          ),
+          child: InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(10),
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+            focusColor: Colors.transparent,
+            hoverColor: AppVisual.logoBlue.withValues(alpha: 0.03),
+            child: SizedBox(
+              height: _boxHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.labelSmall?.copyWith(
+                              color: AppVisual.inkMuted,
+                              fontWeight: FontWeight.w700,
+                              height: 1.05,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            displayText,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: BackofficeUiTokens.text,
+                              fontSize: 12,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      size: 17,
+                      color: AppVisual.logoBlue.withValues(alpha: 0.72),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (expanded) ...[
+          const SizedBox(height: 3),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppVisual.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppVisual.border.withValues(alpha: 0.9),
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: _panelMaxHeight),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    scrollbars: true,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < items.length; i++) ...[
+                          _InlineFilterOptionTile(
+                            label: items[i].label,
+                            selected: isSelected(items[i].value),
+                            onTap: () => onSelect(items[i].value),
+                          ),
+                          if (i < items.length - 1)
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: AppVisual.border.withValues(alpha: 0.55),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InlineFilterOptionTile extends StatelessWidget {
+  const _InlineFilterOptionTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static const double _rowHeight = 34;
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppVisual.surface,
+      color: selected
+          ? AppVisual.logoBlue.withValues(alpha: 0.07)
+          : Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppVisual.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 8, 6, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: textTheme.labelSmall?.copyWith(
-                color: AppVisual.inkMuted,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
-              ),
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        focusColor: Colors.transparent,
+        hoverColor: AppVisual.logoBlue.withValues(alpha: 0.035),
+        child: SizedBox(
+          height: _rowHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? AppVisual.logoBlueDeep.withValues(alpha: 0.92)
+                          : BackofficeUiTokens.text.withValues(alpha: 0.9),
+                      height: 1.1,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 18,
+                  child: selected
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: 15,
+                          color: AppVisual.logoBlue.withValues(alpha: 0.78),
+                        )
+                      : null,
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            child,
-          ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _FilterSelectValue extends StatelessWidget {
-  const _FilterSelectValue({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: textTheme.titleSmall?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: BackofficeUiTokens.text,
-        fontSize: 13,
       ),
     );
   }
@@ -1430,36 +1575,39 @@ class _FilterSearchBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         side: const BorderSide(color: AppVisual.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Row(
-          children: [
-            Icon(
-              Icons.search_rounded,
-              size: 20,
-              color: AppVisual.logoBlue.withValues(alpha: 0.75),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                onChanged: onChanged,
-                style: textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  border: InputBorder.none,
-                  isDense: true,
-                  hintStyle: textTheme.bodyMedium?.copyWith(
-                    color: AppVisual.inkMuted,
-                    fontWeight: FontWeight.w500,
+      child: SizedBox(
+        height: 44,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: AppVisual.logoBlue.withValues(alpha: 0.75),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintStyle: textTheme.bodyMedium?.copyWith(
+                      color: AppVisual.inkMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1492,49 +1640,58 @@ class _SummaryTile extends StatelessWidget {
         side: const BorderSide(color: AppVisual.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(icon, size: 20, color: AppVisual.logoBlue.withValues(alpha: 0.85)),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: textTheme.labelSmall?.copyWith(
                       color: AppVisual.inkMuted,
                       fontWeight: FontWeight.w700,
                       height: 1.1,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     value,
                     style: textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: valueColor ?? BackofficeUiTokens.text,
-                      height: 1.15,
+                      height: 1.1,
                       fontSize: 13,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: valueColor ?? AppVisual.inkMuted,
-                        fontWeight: FontWeight.w600,
-                        height: 1.1,
-                        fontSize: 10,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  SizedBox(
+                    height: 14,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: subtitle == null
+                          ? const SizedBox.shrink()
+                          : Text(
+                              subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: valueColor ?? AppVisual.inkMuted,
+                                fontWeight: FontWeight.w600,
+                                height: 1.1,
+                                fontSize: 10,
+                              ),
+                            ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
