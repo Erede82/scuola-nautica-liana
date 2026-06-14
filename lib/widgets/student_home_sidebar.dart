@@ -6,14 +6,13 @@ import '../models/student_session.dart';
 import '../pages/account_change_password_page.dart';
 import '../pages/account_contacts_page.dart';
 import '../pages/account_profile_page.dart';
-import '../pages/admin_home_page.dart';
 import '../pages/backoffice/backoffice_entry_page.dart';
 import '../services/auth_identity.dart';
 import '../services/auth_logout_navigation.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
-import '../utils/admin_access_utils.dart';
 import '../utils/school_contact_launcher.dart';
+import '../utils/staff_area_navigation.dart';
 import 'staff/staff_access_gate.dart';
 import '../pages/study_access_admin_page.dart';
 import '../theme/app_visual_tokens.dart';
@@ -231,19 +230,15 @@ class StudentHomeSidebar extends StatelessWidget {
                       children: [
                         const SizedBox(height: 14),
                         _sectionLabel('STAFF'),
-                        if (AdminAccessUtils.isSchoolAdmin(
-                          email: AuthIdentity.resolvedAccountEmail(),
-                          staffRole: snap.staffRole,
-                        ))
-                          _navTile(
+                        _navTile(
+                          context,
+                          icon: Icons.arrow_back_rounded,
+                          label: 'Torna al pannello amministrativo',
+                          onTap: () => _afterDrawerClose(
                             context,
-                            icon: Icons.space_dashboard_rounded,
-                            label: 'Pannello gestionale',
-                            onTap: () => _push(
-                              context,
-                              const AdminHomePage(),
-                            ),
+                            () => returnToAdministrativePanel(context, snap),
                           ),
+                        ),
                         _navTile(
                           context,
                           icon: Icons.admin_panel_settings_outlined,

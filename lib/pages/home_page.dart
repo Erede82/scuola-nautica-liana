@@ -6,6 +6,8 @@ import '../constants/app_branding.dart' show AppBranding;
 import '../data/guida_badge_notifier.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../services/demo_student_enrollment.dart';
+import '../services/staff_access_service.dart';
+import '../utils/staff_area_navigation.dart';
 import '../widgets/dashboard_action_card.dart';
 import '../widgets/student_home_sidebar.dart';
 import 'extra_page.dart';
@@ -144,10 +146,18 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
               Expanded(
-                child: _HomeMainPanel(
-                  useFixedSidebar: useFixedSidebar,
-                  textTheme: textTheme,
-                  dashboardChildren: (ctx) => _dashboardCardChildren(ctx),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _StaffStudentAreaBanner(),
+                    Expanded(
+                      child: _HomeMainPanel(
+                        useFixedSidebar: useFixedSidebar,
+                        textTheme: textTheme,
+                        dashboardChildren: (ctx) => _dashboardCardChildren(ctx),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -208,6 +218,59 @@ class HomePage extends StatelessWidget {
         ),
       ),
     ];
+  }
+}
+
+/// Banner visibile solo allo staff che sta visualizzando l'area allievo.
+class _StaffStudentAreaBanner extends StatelessWidget {
+  const _StaffStudentAreaBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return ValueListenableBuilder<StaffAccessSnapshot>(
+      valueListenable: staffAccessNotifier,
+      builder: (context, snap, _) {
+        if (snap.isLoading || !snap.canAccessBackoffice) {
+          return const SizedBox.shrink();
+        }
+
+        return Material(
+          color: HomePage._primaryColor.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.visibility_outlined,
+                  size: 20,
+                  color: HomePage._primaryColor,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Stai visualizzando l\'area allievo come staff',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppVisual.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => returnToAdministrativePanel(context, snap),
+                  style: TextButton.styleFrom(
+                    foregroundColor: HomePage._primaryColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  child: const Text('Torna al pannello amministrativo'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
