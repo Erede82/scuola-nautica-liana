@@ -126,6 +126,15 @@ abstract class BackofficeRepository {
     required bool unlocked,
   });
 
+  /// Sblocca o blocca tutte le schede quiz di una lezione (scrittura bulk).
+  Future<void> setLessonSheetsUnlockedForLesson({
+    required StudentId studentId,
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+    required int sheetCount,
+    required bool unlocked,
+  });
+
   Future<void> setExamQuizAccessForCategory({
     required StudentId studentId,
     required LicenseCategoryId categoryId,

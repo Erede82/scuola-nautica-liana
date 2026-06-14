@@ -613,6 +613,81 @@ class BackofficeDemoStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setLessonSheetsUnlockedForLesson({
+    required StudentId studentId,
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+    required int sheetCount,
+    required bool unlocked,
+  }) {
+    for (var s = 1; s <= sheetCount; s++) {
+      final now = DateTime.now();
+      _updateProgressBundle(studentId, (b) {
+        final list = List<LessonQuizSheetUnlock>.from(b.sheetUnlocks);
+        final ix = list.indexWhere(
+          (u) =>
+              u.categoryId == categoryId &&
+              u.lessonNumber == lessonNumber &&
+              u.sheetNumber == s,
+        );
+        if (ix >= 0) {
+          final old = list[ix];
+          list[ix] = LessonQuizSheetUnlock(
+            studentId: studentId,
+            categoryId: categoryId,
+            lessonNumber: lessonNumber,
+            sheetNumber: s,
+            unlocked: unlocked,
+            unlockedAt: unlocked ? (old.unlockedAt ?? now) : old.unlockedAt,
+            unlockedByStaffId: old.unlockedByStaffId,
+            revokedAt: unlocked ? null : now,
+          );
+        } else {
+          list.add(
+            LessonQuizSheetUnlock(
+              studentId: studentId,
+              categoryId: categoryId,
+              lessonNumber: lessonNumber,
+              sheetNumber: s,
+              unlocked: unlocked,
+              unlockedAt: unlocked ? now : null,
+            ),
+          );
+        }
+        return StudentStudyProgressBundle(
+          studentId: b.studentId,
+          assignedLessons: b.assignedLessons,
+          sheetUnlocks: list,
+          examAccessByCategory: b.examAccessByCategory,
+          errorReviewAssignments: b.errorReviewAssignments,
+          globalProgressNotes: b.globalProgressNotes,
+        );
+      });
+    }
+
+    _syncStudyAccessRepoIfDemoStudent(
+      studentId,
+      () {
+        for (var s = 1; s <= sheetCount; s++) {
+          studyAccessWritableRepository.applyLessonQuizSheetUnlock(
+            categoryId: categoryId,
+            lessonNumber: lessonNumber,
+            sheetNumber: s,
+            unlocked: unlocked,
+          );
+        }
+      },
+    );
+    _appendActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.studyAccessChanged,
+      title: 'Accesso studio: scheda quiz',
+      description:
+          'Lezione $lessonNumber · tutte le schede · ${unlocked ? 'sbloccate' : 'revocate'}',
+    );
+    notifyListeners();
+  }
+
   void setExamQuizAccessForCategory({
     required StudentId studentId,
     required LicenseCategoryId categoryId,

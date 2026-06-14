@@ -7,6 +7,7 @@ import '../models/license_models.dart';
 import '../repositories/backoffice/backoffice_registry.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/backoffice/backoffice_formatters.dart';
+import '../widgets/backoffice/lesson_study_access_ui.dart';
 import '../widgets/backoffice/student_backoffice_dialogs.dart';
 
 /// Schermata segreteria per gestire gli accessi studio per allievo (schede, esame, ripasso).
@@ -35,7 +36,10 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   StudentAdmin360View? _view;
   Object? _detailError;
   bool _detailLoading = false;
-  bool _actionBusy = false;
+  bool _examBusy = false;
+  bool _errorReviewBusy = false;
+  final Set<int> _busyLessonNumbers = {};
+  final Map<int, bool> _optimisticLessonUnlock = {};
 
   LicenseCategoryId _categoryId = LicenseCategoryId.motore;
 
@@ -142,9 +146,12 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     return e.toString();
   }
 
-  Future<void> _runWrite(Future<void> Function() action, String success) async {
-    if (_actionBusy || _selectedStudentId == null) return;
-    setState(() => _actionBusy = true);
+  Future<void> _runWrite({
+    required Future<void> Function() action,
+    required String success,
+    required void Function(bool) setBusy,
+  }) async {
+    setBusy(true);
     try {
       await action();
       await _refreshView();
@@ -153,7 +160,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
       debugPrint('StudyAccessAdminPage write: $e\n$st');
       if (mounted) _snack('Errore: ${_formatWriteError(e)}');
     } finally {
-      if (mounted) setState(() => _actionBusy = false);
+      if (mounted) setBusy(false);
     }
   }
 
@@ -163,31 +170,52 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     required bool unlocked,
   }) async {
     final view = _view;
-    if (view == null) return;
-    final studentId = view.profile.id;
-    await _runWrite(() async {
-      for (var s = 1; s <= quizSheets; s++) {
-        await backofficeRepository.setLessonSheetUnlocked(
-          studentId: studentId,
-          categoryId: _categoryId,
-          lessonNumber: lessonNumber,
-          sheetNumber: s,
-          unlocked: unlocked,
-        );
+    if (view == null || _busyLessonNumbers.contains(lessonNumber)) return;
+
+    setState(() {
+      _busyLessonNumbers.add(lessonNumber);
+      _optimisticLessonUnlock[lessonNumber] = unlocked;
+    });
+    if (mounted) {
+      _snack(unlocked ? 'Sblocco lezione in corso…' : 'Blocco lezione in corso…');
+    }
+
+    try {
+      await backofficeRepository.setLessonSheetsUnlockedForLesson(
+        studentId: view.profile.id,
+        categoryId: _categoryId,
+        lessonNumber: lessonNumber,
+        sheetCount: quizSheets,
+        unlocked: unlocked,
+      );
+      await _refreshView();
+      if (mounted) {
+        _snack(unlocked ? 'Lezione sbloccata.' : 'Lezione bloccata.');
       }
-    }, unlocked ? 'Intera lezione sbloccata.' : 'Intera lezione bloccata.');
+    } catch (e, st) {
+      debugPrint('StudyAccessAdminPage lesson write: $e\n$st');
+      if (mounted) _snack('Errore: ${_formatWriteError(e)}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyLessonNumbers.remove(lessonNumber);
+          _optimisticLessonUnlock.remove(lessonNumber);
+        });
+      }
+    }
   }
 
   Future<void> _setExamUnlocked(bool unlocked) async {
     final view = _view;
     if (view == null) return;
     await _runWrite(
-      () => backofficeRepository.setExamQuizAccessForCategory(
+      action: () => backofficeRepository.setExamQuizAccessForCategory(
         studentId: view.profile.id,
         categoryId: _categoryId,
         examUnlocked: unlocked,
       ),
-      'Accesso quiz esame aggiornato.',
+      success: 'Accesso quiz esame aggiornato.',
+      setBusy: (v) => setState(() => _examBusy = v),
     );
   }
 
@@ -199,14 +227,15 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     final view = _view;
     if (view == null) return;
     await _runWrite(
-      () => backofficeRepository.setErrorReviewTopicAssignment(
+      action: () => backofficeRepository.setErrorReviewTopicAssignment(
         studentId: view.profile.id,
         categoryId: _categoryId,
         lessonNumber: lessonNumber,
         topicUnlocked: topicUnlocked,
         didacticNote: didacticNote,
       ),
-      'Ripasso errori aggiornato.',
+      success: 'Ripasso errori aggiornato.',
+      setBusy: (v) => setState(() => _errorReviewBusy = v),
     );
   }
 
@@ -315,21 +344,22 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
                     view: _view!,
                     categoryId: _categoryId,
                     textTheme: textTheme,
-                    actionBusy: _actionBusy,
+                    busyLessonNumbers: _busyLessonNumbers,
+                    optimisticLessonUnlock: _optimisticLessonUnlock,
                     onApplyWholeLesson: _applyWholeLesson,
                   ),
                   _ExamTab(
                     view: _view!,
                     categoryId: _categoryId,
                     textTheme: textTheme,
-                    actionBusy: _actionBusy,
+                    actionBusy: _examBusy,
                     onSetExamUnlocked: _setExamUnlocked,
                   ),
                   _ErrorReviewTab(
                     view: _view!,
                     categoryId: _categoryId,
                     textTheme: textTheme,
-                    actionBusy: _actionBusy,
+                    actionBusy: _errorReviewBusy,
                     onSetTopic: _setErrorReviewTopic,
                     onOpenDialog: () => showErrorReviewAssignDialog(
                       context,
@@ -788,89 +818,6 @@ class _CategoryBar extends StatelessWidget {
   }
 }
 
-bool _lessonUnlockRowsMixedInAggregate(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int quizSheets,
-) {
-  var anyTrue = false;
-  var anyFalse = false;
-  for (var s = 1; s <= quizSheets; s++) {
-    final on = _sheetUnlockedInAggregate(
-      agg,
-      categoryId,
-      lessonNumber,
-      s,
-    );
-    if (on) {
-      anyTrue = true;
-    } else {
-      anyFalse = true;
-    }
-  }
-  return anyTrue && anyFalse;
-}
-
-bool _lessonHasAnySheetUnlockedInAggregate(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int quizSheets,
-) {
-  for (var s = 1; s <= quizSheets; s++) {
-    if (_sheetUnlockedInAggregate(agg, categoryId, lessonNumber, s)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool _sheetUnlockedInAggregate(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int sheetNumber,
-) {
-  for (final e in agg.studyProgress.sheetUnlocks) {
-    if (e.categoryId == categoryId &&
-        e.lessonNumber == lessonNumber &&
-        e.sheetNumber == sheetNumber) {
-      return e.unlocked;
-    }
-  }
-  return false;
-}
-
-int _explicitSheetUnlockCounts(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int quizSheets,
-) {
-  var explicitTrue = 0;
-  var explicitFalse = 0;
-  for (var s = 1; s <= quizSheets; s++) {
-    LessonQuizSheetUnlock? row;
-    for (final e in agg.studyProgress.sheetUnlocks) {
-      if (e.categoryId == categoryId &&
-          e.lessonNumber == lessonNumber &&
-          e.sheetNumber == s) {
-        row = e;
-        break;
-      }
-    }
-    if (row != null) {
-      if (row.unlocked) {
-        explicitTrue++;
-      } else {
-        explicitFalse++;
-      }
-    }
-  }
-  return explicitTrue + explicitFalse;
-}
-
 class _VelaAdminBlockedPanel extends StatelessWidget {
   const _VelaAdminBlockedPanel({
     required this.textTheme,
@@ -949,24 +896,23 @@ class _LessonSheetsTab extends StatelessWidget {
     required this.view,
     required this.categoryId,
     required this.textTheme,
-    required this.actionBusy,
+    required this.busyLessonNumbers,
+    required this.optimisticLessonUnlock,
     required this.onApplyWholeLesson,
   });
 
   final StudentAdmin360View view;
   final LicenseCategoryId categoryId;
   final TextTheme textTheme;
-  final bool actionBusy;
+  final Set<int> busyLessonNumbers;
+  final Map<int, bool> optimisticLessonUnlock;
   final Future<void> Function({
     required int lessonNumber,
     required int quizSheets,
     required bool unlocked,
   }) onApplyWholeLesson;
 
-  static const Color _cardColor = AppVisual.ivory;
   static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _successColor = Color(0xFF2E9E5B);
 
   @override
   Widget build(BuildContext context) {
@@ -992,159 +938,46 @@ class _LessonSheetsTab extends StatelessWidget {
       );
     }
 
-    var totalSheets = 0;
-    var unlockedSheets = 0;
-    for (final lesson in category.lessons) {
-      final n = lesson.quizSheets;
-      totalSheets += n;
-      for (var s = 1; s <= n; s++) {
-        if (_sheetUnlockedInAggregate(view, categoryId, lesson.number, s)) {
-          unlockedSheets++;
-        }
-      }
-    }
+    final lessons =
+        category.lessons.where((l) => l.quizSheets > 0).toList(growable: false);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       children: [
-        _SummaryChips(
-          textTheme: textTheme,
-          chips: [
-            ('Sbloccate', unlockedSheets, _successColor),
-            ('Bloccate', totalSheets - unlockedSheets, _textPrimaryColor),
-            ('Totale schede', totalSheets, _primaryColor),
-          ],
-        ),
-        const SizedBox(height: 12),
         Text(
-          'Nell’app allievo basta un sblocco su una scheda della lezione perché risulti '
-          'accessibile l’intera lezione (tutte le schede). Qui imposti le lezioni per intero: '
-          'ogni azione aggiorna tutte le righe scheda coerenti con il catalogo.',
+          'Verde = lezione sbloccata · Rosso = bloccata · Arancione = stato parziale. '
+          'Un tap aggiorna tutte le schede della lezione.',
           style: textTheme.bodySmall?.copyWith(
             color: _textPrimaryColor.withValues(alpha: 0.75),
             height: 1.4,
           ),
         ),
         const SizedBox(height: 12),
-        ...category.lessons.map((lesson) {
-          if (lesson.quizSheets == 0) return const SizedBox.shrink();
-
-          final storedMixed = _lessonUnlockRowsMixedInAggregate(
-            view,
-            categoryId,
-            lesson.number,
-            lesson.quizSheets,
+        LessonStudyAccessSummaryPills(
+          sheetUnlocks: view.studyProgress.sheetUnlocks,
+          categoryId: categoryId,
+        ),
+        const SizedBox(height: 12),
+        ...lessons.map((lesson) {
+          final saving = busyLessonNumbers.contains(lesson.number);
+          final optimistic = optimisticLessonUnlock[lesson.number];
+          final status = resolveLessonSheetAccessStatus(
+            sheetUnlocks: view.studyProgress.sheetUnlocks,
+            categoryId: categoryId,
+            lessonNumber: lesson.number,
+            quizSheets: lesson.quizSheets,
+            optimisticUnlocked: saving ? optimistic : null,
           );
-          final studentSeesLesson = _lessonHasAnySheetUnlockedInAggregate(
-            view,
-            categoryId,
-            lesson.number,
-            lesson.quizSheets,
-          );
-          final explicitRows = _explicitSheetUnlockCounts(
-            view,
-            categoryId,
-            lesson.number,
-            lesson.quizSheets,
-          );
+          final targetUnlock = !status.isUnlockedForAction;
 
-          String statusLine;
-          if (storedMixed) {
-            statusLine =
-                'Anagrafica sblocchi non uniforme tra le schede — uniforma con i pulsanti sotto.';
-          } else if (studentSeesLesson) {
-            statusLine =
-                'Per l’allievo: lezione accessibile (tutte le schede quiz).';
-          } else {
-            statusLine =
-                'Per l’allievo: lezione non accessibile (tutte le schede quiz bloccate).';
-          }
-
-          return Card(
-            color: _cardColor,
-            margin: const EdgeInsets.only(bottom: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: AppVisual.border.withValues(alpha: 0.65)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    lesson.title,
-                    style: textTheme.titleSmall?.copyWith(
-                      color: _textPrimaryColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${lesson.quizSheets} schede nel catalogo',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: _textPrimaryColor.withValues(alpha: 0.68),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    statusLine,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: storedMixed
-                          ? const Color(0xFFC27C1C)
-                          : _textPrimaryColor.withValues(alpha: 0.82),
-                      height: 1.4,
-                      fontWeight:
-                          storedMixed ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  if (explicitRows > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Righe impostate in anagrafica: $explicitRows su ${lesson.quizSheets}',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: _textPrimaryColor.withValues(alpha: 0.62),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _successColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: actionBusy
-                            ? null
-                            : () => onApplyWholeLesson(
-                                  lessonNumber: lesson.number,
-                                  quizSheets: lesson.quizSheets,
-                                  unlocked: true,
-                                ),
-                        icon: const Icon(Icons.lock_open_rounded, size: 20),
-                        label: const Text('Sblocca tutta la lezione'),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _textPrimaryColor,
-                        ),
-                        onPressed: actionBusy
-                            ? null
-                            : () => onApplyWholeLesson(
-                                  lessonNumber: lesson.number,
-                                  quizSheets: lesson.quizSheets,
-                                  unlocked: false,
-                                ),
-                        icon: const Icon(Icons.lock_rounded, size: 20),
-                        label: const Text('Blocca tutta la lezione'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          return LessonStudyAccessLessonCard(
+            lessonTitle: lesson.title,
+            status: status,
+            saving: saving,
+            onPrimaryAction: () => onApplyWholeLesson(
+              lessonNumber: lesson.number,
+              quizSheets: lesson.quizSheets,
+              unlocked: targetUnlock,
             ),
           );
         }),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/backoffice_mock/school_backoffice_demo_data.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import 'lesson_study_access_ui.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
 import 'student_backoffice_dialogs.dart';
@@ -613,30 +614,11 @@ class _SectionStudio extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _InfoCard(
-                title: 'Schede quiz sbloccate',
-                child: sp.sheetUnlocks.isEmpty
-                    ? Text(
-                        'Nessuna scheda in elenco',
-                        style: textTheme.bodySmall,
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: sp.sheetUnlocks.map((s) {
-                          final label =
-                              'L${s.lessonNumber} · Scheda ${s.sheetNumber}';
-                          final on = s.unlocked;
-                          return Chip(
-                            label: Text(
-                              on ? '$label · sì' : '$label · no',
-                              style: textTheme.labelSmall,
-                            ),
-                            backgroundColor: on
-                                ? const Color(0xFF2E9E5B).withValues(alpha: 0.15)
-                                : AppVisual.chipFill,
-                          );
-                        }).toList(),
-                      ),
+                title: 'Accesso lezioni quiz',
+                child: LessonStudyAccessSummaryList(
+                  sheetUnlocks: sp.sheetUnlocks,
+                  categoryId: view.profile.enrolledLicenseCategory,
+                ),
               ),
               const SizedBox(height: 16),
               _InfoCard(

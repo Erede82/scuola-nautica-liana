@@ -1472,6 +1472,60 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   }
 
   @override
+  Future<void> setLessonSheetsUnlockedForLesson({
+    required StudentId studentId,
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+    required int sheetCount,
+    required bool unlocked,
+  }) async {
+    if (sheetCount <= 0) return;
+    final now = DateTime.now().toUtc();
+    final cat = licenseCategoryColumn(categoryId);
+    final rows = <Map<String, dynamic>>[];
+    for (var s = 1; s <= sheetCount; s++) {
+      rows.add({
+        'student_id': studentId,
+        'license_category': cat,
+        'lesson_number': lessonNumber,
+        'sheet_number': s,
+        'unlocked': unlocked,
+        'unlocked_at': unlocked ? now.toIso8601String() : null,
+        'revoked_at': unlocked ? null : now.toIso8601String(),
+        'unlocked_by_staff_id': unlocked ? _staffUserId : null,
+      });
+    }
+    await _client
+        .from('lesson_quiz_sheet_unlocks')
+        .upsert(
+          rows,
+          onConflict: 'student_id,license_category,lesson_number,sheet_number',
+        );
+
+    _syncStudyAccessIfCurrentStudent(
+      studentId: studentId,
+      apply: () {
+        for (var s = 1; s <= sheetCount; s++) {
+          studyAccessWritableRepository.applyLessonQuizSheetUnlock(
+            categoryId: categoryId,
+            lessonNumber: lessonNumber,
+            sheetNumber: s,
+            unlocked: unlocked,
+          );
+        }
+      },
+    );
+
+    await _insertActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.studyAccessChanged,
+      title: 'Accesso studio: scheda quiz',
+      description:
+          'Lezione $lessonNumber · tutte le schede · ${unlocked ? 'sbloccate' : 'revocate'}',
+    );
+  }
+
+  @override
   Future<void> setExamQuizAccessForCategory({
     required StudentId studentId,
     required LicenseCategoryId categoryId,

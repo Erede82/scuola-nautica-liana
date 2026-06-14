@@ -8,6 +8,7 @@ import '../../data/license_catalog.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../models/license_models.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import 'lesson_study_access_ui.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
 
@@ -74,56 +75,6 @@ Future<TimeOfDay?> showBackofficeTimePicker(
   );
 }
 
-/// `true` se tra le righe `sheetUnlocks` ci sono sia schede con `unlocked` true sia false.
-bool _lessonUnlockRowsMixedInAggregate(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int quizSheets,
-) {
-  var anyTrue = false;
-  var anyFalse = false;
-  for (var s = 1; s <= quizSheets; s++) {
-    LessonQuizSheetUnlock? row;
-    for (final e in agg.studyProgress.sheetUnlocks) {
-      if (e.categoryId == categoryId &&
-          e.lessonNumber == lessonNumber &&
-          e.sheetNumber == s) {
-        row = e;
-        break;
-      }
-    }
-    final on = row?.unlocked ?? false;
-    if (on) {
-      anyTrue = true;
-    } else {
-      anyFalse = true;
-    }
-  }
-  return anyTrue && anyFalse;
-}
-
-bool _lessonHasAnySheetUnlockedInAggregate(
-  StudentAdmin360View agg,
-  LicenseCategoryId categoryId,
-  int lessonNumber,
-  int quizSheets,
-) {
-  for (var s = 1; s <= quizSheets; s++) {
-    LessonQuizSheetUnlock? row;
-    for (final e in agg.studyProgress.sheetUnlocks) {
-      if (e.categoryId == categoryId &&
-          e.lessonNumber == lessonNumber &&
-          e.sheetNumber == s) {
-        row = e;
-        break;
-      }
-    }
-    if (row?.unlocked ?? false) return true;
-  }
-  return false;
-}
-
 void _backofficeSnack(BuildContext context, String message) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   messenger?.showSnackBar(
@@ -138,8 +89,8 @@ Future<void> showManageLessonSheetsDialog(
   required BackofficeDetailRefresh onRefreshDetail,
 }) async {
   final holder = ValueNotifier<StudentAdmin360View>(initialView);
-  var busy =
-      false; // ignore: prefer_final_locals (mutated across async closures)
+  final busyLessons = <int>{};
+  final optimisticLessonUnlock = <int, bool>{};
   try {
     await showDialog<void>(
       context: context,
@@ -149,16 +100,18 @@ Future<void> showManageLessonSheetsDialog(
             return ValueListenableBuilder<StudentAdmin360View>(
               valueListenable: holder,
               builder: (context, currentView, _) {
-                final agg = currentView;
                 final categoryId = currentView.profile.enrolledLicenseCategory;
                 final category = LicenseCatalog.byId(categoryId);
+                final lessons = category.lessons
+                    .where((l) => l.quizSheets > 0)
+                    .toList(growable: false);
 
                 return AlertDialog(
                   title: const Text('Gestisci schede'),
                   content: SizedBox(
                     width: 520,
                     height: 460,
-                    child: !category.isAvailable || category.lessons.isEmpty
+                    child: !category.isAvailable || lessons.isEmpty
                         ? Text(
                             category.id == LicenseCategoryId.vela
                                 ? 'Contenuti vela in preparazione. Le lezioni e le schede quiz '
@@ -170,67 +123,68 @@ Future<void> showManageLessonSheetsDialog(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Gestione per lezione: sbloccando l’intera lezione abiliti tutte '
-                                'le sue schede; bloccando, l’allievo non vede più i quiz di quella lezione.',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      height: 1.4,
-                                    ),
+                                'Verde = sbloccata · Rosso = bloccata · Arancione = parziale. '
+                                'Un tap aggiorna tutte le schede della lezione.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(height: 1.4),
+                              ),
+                              const SizedBox(height: 12),
+                              LessonStudyAccessSummaryPills(
+                                sheetUnlocks: currentView.studyProgress.sheetUnlocks,
+                                categoryId: categoryId,
                               ),
                               const SizedBox(height: 12),
                               Expanded(
                                 child: ListView(
-                                  children: category.lessons.map((lesson) {
-                                    if (lesson.quizSheets == 0) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    final storedMixed =
-                                        _lessonUnlockRowsMixedInAggregate(
-                                      agg,
-                                      categoryId,
-                                      lesson.number,
-                                      lesson.quizSheets,
+                                  children: lessons.map((lesson) {
+                                    final saving =
+                                        busyLessons.contains(lesson.number);
+                                    final optimistic =
+                                        optimisticLessonUnlock[lesson.number];
+                                    final status =
+                                        resolveLessonSheetAccessStatus(
+                                      sheetUnlocks:
+                                          currentView.studyProgress.sheetUnlocks,
+                                      categoryId: categoryId,
+                                      lessonNumber: lesson.number,
+                                      quizSheets: lesson.quizSheets,
+                                      optimisticUnlocked:
+                                          saving ? optimistic : null,
                                     );
-                                    final studentGetsLesson =
-                                        _lessonHasAnySheetUnlockedInAggregate(
-                                      agg,
-                                      categoryId,
-                                      lesson.number,
-                                      lesson.quizSheets,
-                                    );
-
-                                    String statusLine;
-                                    if (storedMixed) {
-                                      statusLine =
-                                          'Anagrafica non uniforme tra le schede — usa i pulsanti per allineare.';
-                                    } else if (studentGetsLesson) {
-                                      statusLine =
-                                          'Per l’allievo: lezione accessibile (tutte le schede).';
-                                    } else {
-                                      statusLine =
-                                          'Per l’allievo: lezione non accessibile.';
-                                    }
+                                    final targetUnlock =
+                                        !status.isUnlockedForAction;
 
                                     Future<void> applyWholeLesson(
                                       bool unlocked,
                                     ) async {
-                                      busy = true;
+                                      if (busyLessons.contains(lesson.number)) {
+                                        return;
+                                      }
+                                      busyLessons.add(lesson.number);
+                                      optimisticLessonUnlock[lesson.number] =
+                                          unlocked;
                                       setLocal(() {});
                                       final messenger =
                                           ScaffoldMessenger.maybeOf(context);
+                                      messenger?.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            unlocked
+                                                ? 'Sblocco lezione in corso…'
+                                                : 'Blocco lezione in corso…',
+                                          ),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
                                       try {
-                                        for (var s = 1;
-                                            s <= lesson.quizSheets;
-                                            s++) {
-                                          await repository
-                                              .setLessonSheetUnlocked(
-                                            studentId:
-                                                currentView.profile.id,
-                                            categoryId: categoryId,
-                                            lessonNumber: lesson.number,
-                                            sheetNumber: s,
-                                            unlocked: unlocked,
-                                          );
-                                        }
+                                        await repository
+                                            .setLessonSheetsUnlockedForLesson(
+                                          studentId: currentView.profile.id,
+                                          categoryId: categoryId,
+                                          lessonNumber: lesson.number,
+                                          sheetCount: lesson.quizSheets,
+                                          unlocked: unlocked,
+                                        );
                                         final fresh = await repository
                                             .getStudentAdmin360(
                                           currentView.profile.id,
@@ -244,8 +198,8 @@ Future<void> showManageLessonSheetsDialog(
                                             SnackBar(
                                               content: Text(
                                                 unlocked
-                                                    ? 'Intera lezione sbloccata.'
-                                                    : 'Intera lezione bloccata.',
+                                                    ? 'Lezione sbloccata.'
+                                                    : 'Lezione bloccata.',
                                               ),
                                               behavior:
                                                   SnackBarBehavior.floating,
@@ -266,99 +220,21 @@ Future<void> showManageLessonSheetsDialog(
                                           );
                                         }
                                       } finally {
-                                        busy = false;
+                                        busyLessons.remove(lesson.number);
+                                        optimisticLessonUnlock
+                                            .remove(lesson.number);
                                         if (context.mounted) {
                                           setLocal(() {});
                                         }
                                       }
                                     }
 
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 10),
-                                      child: Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          12,
-                                          12,
-                                          12,
-                                          14,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              lesson.title,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '${lesson.quizSheets} schede',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              statusLine,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                color: storedMixed
-                                                    ? const Color(0xFFC27C1C)
-                                                    : Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.color,
-                                                fontWeight: storedMixed
-                                                    ? FontWeight.w800
-                                                    : FontWeight.w500,
-                                                height: 1.35,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 12),
-                                            Wrap(
-                                              spacing: 8,
-                                              runSpacing: 8,
-                                              children: [
-                                                FilledButton.icon(
-                                                  onPressed: busy
-                                                      ? null
-                                                      : () =>
-                                                          applyWholeLesson(true),
-                                                  icon: const Icon(
-                                                    Icons.lock_open_rounded,
-                                                    size: 18,
-                                                  ),
-                                                  label: const Text(
-                                                    'Sblocca tutta la lezione',
-                                                  ),
-                                                ),
-                                                OutlinedButton.icon(
-                                                  onPressed: busy
-                                                      ? null
-                                                      : () =>
-                                                          applyWholeLesson(
-                                                    false,
-                                                  ),
-                                                  icon: const Icon(
-                                                    Icons.lock_rounded,
-                                                    size: 18,
-                                                  ),
-                                                  label: const Text(
-                                                    'Blocca tutta la lezione',
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                    return LessonStudyAccessLessonCard(
+                                      lessonTitle: lesson.title,
+                                      status: status,
+                                      saving: saving,
+                                      onPrimaryAction: () =>
+                                          applyWholeLesson(targetUnlock),
                                     );
                                   }).toList(),
                                 ),

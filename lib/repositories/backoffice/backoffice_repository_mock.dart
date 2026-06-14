@@ -262,6 +262,23 @@ class BackofficeRepositoryMock implements BackofficeRepository {
   }
 
   @override
+  Future<void> setLessonSheetsUnlockedForLesson({
+    required StudentId studentId,
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+    required int sheetCount,
+    required bool unlocked,
+  }) async {
+    _store.setLessonSheetsUnlockedForLesson(
+      studentId: studentId,
+      categoryId: categoryId,
+      lessonNumber: lessonNumber,
+      sheetCount: sheetCount,
+      unlocked: unlocked,
+    );
+  }
+
+  @override
   Future<void> setExamQuizAccessForCategory({
     required StudentId studentId,
     required LicenseCategoryId categoryId,
