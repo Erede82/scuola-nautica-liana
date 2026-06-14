@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
+import '../../data/extra_bundle_catalog.dart';
 import '../../domain/backoffice/backoffice.dart';
 import 'management_repository.dart';
 
@@ -141,34 +142,123 @@ class ManagementRepositorySupabase implements ManagementRepository {
   }
 
   @override
-  Future<List<ExtraProduct>> listExtraProducts() async {
-    final rows = await _client
+  Future<List<ExtraProduct>> listExtraProducts({
+    bool includeInactive = false,
+  }) async {
+    var query = _client
         .from('extra_products')
         .select(
           'id, title, subtitle, description, price_cents, '
           'currency_code, active, sort_order',
-        )
-        .eq('active', true)
-        .order('sort_order');
+        );
+    if (!includeInactive) {
+      query = query.eq('active', true);
+    }
+    final rows = await query.order('sort_order');
     return (rows as List<dynamic>)
         .map((row) => _mapExtraProduct(Map<String, dynamic>.from(row as Map)))
         .toList(growable: false);
   }
 
+  static const _videoItemSelect =
+      'id, product_id, title, description, video_url, '
+      'duration_seconds, sort_order, active';
+
   @override
-  Future<List<ExtraVideoItem>> listExtraVideoItems(String productId) async {
-    final rows = await _client
+  Future<List<ExtraVideoItem>> listExtraVideoItems(
+    String productId, {
+    bool includeInactive = false,
+  }) async {
+    var query = _client
         .from('extra_video_items')
-        .select(
-          'id, product_id, title, description, video_url, '
-          'duration_seconds, sort_order, active',
-        )
-        .eq('product_id', productId)
-        .eq('active', true)
-        .order('sort_order');
+        .select(_videoItemSelect)
+        .eq('product_id', productId);
+    if (!includeInactive) {
+      query = query.eq('active', true);
+    }
+    final rows = await query.order('sort_order');
     return (rows as List<dynamic>)
         .map((row) => _mapExtraVideoItem(Map<String, dynamic>.from(row as Map)))
         .toList(growable: false);
+  }
+
+  @override
+  Future<ExtraVideoItem> createExtraVideoItem(ExtraVideoItemInput input) async {
+    _validateExtraVideoInput(input);
+    final row = await _client
+        .from('extra_video_items')
+        .insert(_extraVideoPayload(input))
+        .select(_videoItemSelect)
+        .single();
+    return _mapExtraVideoItem(Map<String, dynamic>.from(row));
+  }
+
+  @override
+  Future<ExtraVideoItem> updateExtraVideoItem(
+    String id,
+    ExtraVideoItemInput input,
+  ) async {
+    _validateExtraVideoInput(input);
+    final row = await _client
+        .from('extra_video_items')
+        .update(_extraVideoPayload(input))
+        .eq('id', id)
+        .select(_videoItemSelect)
+        .single();
+    return _mapExtraVideoItem(Map<String, dynamic>.from(row));
+  }
+
+  @override
+  Future<void> setExtraVideoItemActive(String id, bool active) async {
+    await _client
+        .from('extra_video_items')
+        .update(<String, dynamic>{'active': active})
+        .eq('id', id);
+  }
+
+  @override
+  Future<ExtraVideoItem> moveExtraVideoItemToProduct({
+    required String videoId,
+    required String targetProductId,
+  }) async {
+    if (!ExtraBundleCatalog.isValidMoveTarget(targetProductId)) {
+      throw ArgumentError(
+        'Destinazione non valida: $targetProductId. '
+        'Usa teoria, carteggio o guida.',
+      );
+    }
+    final row = await _client
+        .from('extra_video_items')
+        .update(<String, dynamic>{'product_id': targetProductId})
+        .eq('id', videoId)
+        .select(_videoItemSelect)
+        .single();
+    return _mapExtraVideoItem(Map<String, dynamic>.from(row));
+  }
+
+  void _validateExtraVideoInput(ExtraVideoItemInput input) {
+    if (input.title.trim().isEmpty) {
+      throw ArgumentError('Il titolo del video è obbligatorio.');
+    }
+    final url = input.videoUrl?.trim();
+    if (url == null || url.isEmpty) {
+      throw ArgumentError('L\'URL del video è obbligatorio.');
+    }
+  }
+
+  Map<String, dynamic> _extraVideoPayload(ExtraVideoItemInput input) {
+    final title = input.title.trim();
+    final url = input.videoUrl?.trim();
+    final desc = input.description?.trim();
+    return <String, dynamic>{
+      'product_id': input.productId,
+      'title': title,
+      'description': desc != null && desc.isNotEmpty ? desc : null,
+      'video_url': url,
+      'duration_seconds': input.durationSeconds,
+      'sort_order': input.sortOrder,
+      'active': input.active,
+    };
   }
 
   @override
@@ -181,6 +271,43 @@ class ManagementRepositorySupabase implements ManagementRepository {
     return (rows as List<dynamic>)
         .map((row) => (row as Map)['product_id'] as String)
         .toSet();
+  }
+
+  @override
+  Future<void> grantStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  }) async {
+    final productIds = ExtraBundleCatalog.productsToGrantOnAccess(productId);
+    final staffId = _client.auth.currentUser?.id;
+    final purchasedAt = DateTime.now().toUtc().toIso8601String();
+    for (final id in productIds) {
+      await _client.from('student_extra_purchases').upsert(
+        <String, dynamic>{
+          'student_id': studentId,
+          'product_id': id,
+          'status': StudentExtraPurchaseStatus.purchased.name,
+          'purchased_at': purchasedAt,
+          'recorded_by_staff_id': staffId,
+        },
+        onConflict: 'student_id,product_id',
+      );
+    }
+  }
+
+  @override
+  Future<void> revokeStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  }) async {
+    await _client
+        .from('student_extra_purchases')
+        .update(<String, dynamic>{
+          'status': StudentExtraPurchaseStatus.revoked.name,
+          'recorded_by_staff_id': _client.auth.currentUser?.id,
+        })
+        .eq('student_id', studentId)
+        .eq('product_id', productId);
   }
 
   @override

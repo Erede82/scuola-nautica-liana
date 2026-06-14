@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../config/supabase_config.dart';
+import '../data/extra_content_mapper.dart';
 import '../data/extra_content_mock.dart';
 import '../models/extra_content_item.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
@@ -8,7 +10,7 @@ import '../widgets/branded_app_bar_title.dart';
 import 'extra_item_detail_page.dart';
 import '../theme/app_visual_tokens.dart';
 
-/// Contenuti video extra a pagamento: catalogo con quattro pacchetti principali.
+/// Contenuti video extra a pagamento: catalogo con pacchetti da DB (fallback mock).
 class ExtraPage extends StatefulWidget {
   const ExtraPage({super.key});
 
@@ -23,25 +25,41 @@ class _ExtraPageState extends State<ExtraPage> {
   static const String _introText =
       'Contenuti video extra per la preparazione nautica. Scegli un pacchetto o il bundle completo.';
 
-  Future<Set<String>>? _purchasedIdsFuture;
+  Future<_ExtraPageData>? _pageDataFuture;
 
   @override
   void initState() {
     super.initState();
-    _purchasedIdsFuture = _loadPurchasedIds();
+    _pageDataFuture = _loadPageData();
   }
 
-  Future<Set<String>> _loadPurchasedIds() async {
+  Future<_ExtraPageData> _loadPageData() async {
     final studentId = studentSession.value?.studentId;
-    if (studentId == null) {
-      return const <String>{};
+    final purchasedIdsFuture = studentId == null
+        ? Future<Set<String>>.value(const <String>{})
+        : managementRepository.listPurchasedExtraProductIds(studentId);
+
+    List<ExtraContentItem> items;
+    try {
+      final products = await managementRepository.listExtraProducts();
+      if (products.isNotEmpty) {
+        items = products.map(ExtraContentMapper.fromProduct).toList();
+      } else if (!SupabaseConfig.isConfigured) {
+        items = ExtraContentMock.items;
+      } else {
+        items = ExtraContentMock.items;
+      }
+    } catch (_) {
+      items = ExtraContentMock.items;
     }
-    return managementRepository.listPurchasedExtraProductIds(studentId);
+
+    final purchasedIds = await purchasedIdsFuture;
+    return _ExtraPageData(items: items, purchasedIds: purchasedIds);
   }
 
-  Future<void> _reloadPurchasedIds() async {
+  Future<void> _reload() async {
     setState(() {
-      _purchasedIdsFuture = _loadPurchasedIds();
+      _pageDataFuture = _loadPageData();
     });
   }
 
@@ -58,13 +76,12 @@ class _ExtraPageState extends State<ExtraPage> {
       ),
     );
     if (!mounted) return;
-    await _reloadPurchasedIds();
+    await _reload();
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final items = ExtraContentMock.items;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -75,10 +92,19 @@ class _ExtraPageState extends State<ExtraPage> {
         title: const SectionAppBarTitle('Extra', logoHeight: 30),
         shape: const RoundedRectangleBorder(),
       ),
-      body: FutureBuilder<Set<String>>(
-        future: _purchasedIdsFuture,
+      body: FutureBuilder<_ExtraPageData>(
+        future: _pageDataFuture,
         builder: (context, snapshot) {
-          final purchasedIds = snapshot.data ?? const <String>{};
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final data = snapshot.data;
+          if (data == null) {
+            return const Center(
+              child: Text('Impossibile caricare il catalogo Extra.'),
+            );
+          }
+
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
@@ -90,53 +116,19 @@ class _ExtraPageState extends State<ExtraPage> {
                 ),
               ),
               const SizedBox(height: 18),
-              _ExtraLargeCard(
-                item: items[0],
-                accent: _ExtraCardAccent.teoria,
-                purchased:
-                    items[0].isUnlocked || purchasedIds.contains(items[0].id),
-                onTap: () => _openDetail(
-                  context,
-                  items[0],
-                  items[0].isUnlocked || purchasedIds.contains(items[0].id),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ExtraLargeCard(
-                item: items[1],
-                accent: _ExtraCardAccent.guida,
-                purchased:
-                    items[1].isUnlocked || purchasedIds.contains(items[1].id),
-                onTap: () => _openDetail(
-                  context,
-                  items[1],
-                  items[1].isUnlocked || purchasedIds.contains(items[1].id),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ExtraLargeCard(
-                item: items[2],
-                accent: _ExtraCardAccent.carteggio,
-                purchased:
-                    items[2].isUnlocked || purchasedIds.contains(items[2].id),
-                onTap: () => _openDetail(
-                  context,
-                  items[2],
-                  items[2].isUnlocked || purchasedIds.contains(items[2].id),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ExtraLargeCard(
-                item: items[3],
-                accent: _ExtraCardAccent.pacchetto,
-                purchased:
-                    items[3].isUnlocked || purchasedIds.contains(items[3].id),
-                onTap: () => _openDetail(
-                  context,
-                  items[3],
-                  items[3].isUnlocked || purchasedIds.contains(items[3].id),
-                ),
-              ),
+              ...data.items.map((item) {
+                final purchased =
+                    item.isUnlocked || data.purchasedIds.contains(item.id);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ExtraLargeCard(
+                    item: item,
+                    accent: extraCardAccentForProductId(item.id),
+                    purchased: purchased,
+                    onTap: () => _openDetail(context, item, purchased),
+                  ),
+                );
+              }),
             ],
           );
         },
@@ -145,7 +137,15 @@ class _ExtraPageState extends State<ExtraPage> {
   }
 }
 
-enum _ExtraCardAccent { teoria, guida, carteggio, pacchetto }
+class _ExtraPageData {
+  const _ExtraPageData({
+    required this.items,
+    required this.purchasedIds,
+  });
+
+  final List<ExtraContentItem> items;
+  final Set<String> purchasedIds;
+}
 
 class _ExtraLargeCard extends StatelessWidget {
   const _ExtraLargeCard({
@@ -156,7 +156,7 @@ class _ExtraLargeCard extends StatelessWidget {
   });
 
   final ExtraContentItem item;
-  final _ExtraCardAccent accent;
+  final ExtraCardAccent accent;
   final bool purchased;
   final VoidCallback onTap;
 
@@ -169,7 +169,7 @@ class _ExtraLargeCard extends StatelessWidget {
       BoxShadow(color: Color(0x0D000000), blurRadius: 10, offset: Offset(0, 3)),
     ];
     switch (accent) {
-      case _ExtraCardAccent.teoria:
+      case ExtraCardAccent.teoria:
         return BoxDecoration(
           color: const Color(0xFFE8F3F8),
           borderRadius: r,
@@ -178,7 +178,7 @@ class _ExtraLargeCard extends StatelessWidget {
           ),
           boxShadow: shadow,
         );
-      case _ExtraCardAccent.guida:
+      case ExtraCardAccent.guida:
         return BoxDecoration(
           color: const Color(0xFFE4F0F6),
           borderRadius: r,
@@ -187,7 +187,7 @@ class _ExtraLargeCard extends StatelessWidget {
           ),
           boxShadow: shadow,
         );
-      case _ExtraCardAccent.carteggio:
+      case ExtraCardAccent.carteggio:
         return BoxDecoration(
           color: const Color(0xFFE8F0F5),
           borderRadius: r,
@@ -196,7 +196,7 @@ class _ExtraLargeCard extends StatelessWidget {
           ),
           boxShadow: shadow,
         );
-      case _ExtraCardAccent.pacchetto:
+      case ExtraCardAccent.pacchetto:
         return BoxDecoration(
           borderRadius: r,
           border: Border.all(
@@ -227,6 +227,8 @@ class _ExtraLargeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final locked = !purchased && !item.isComingSoon;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -263,6 +265,28 @@ class _ExtraLargeCard extends StatelessWidget {
                     'Acquistato',
                     style: textTheme.labelSmall?.copyWith(
                       color: const Color(0xFF1F7A45),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ] else if (locked) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8A317).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFFE8A317).withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Text(
+                    'Bloccato',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF9A6B00),
                       fontWeight: FontWeight.w800,
                     ),
                   ),

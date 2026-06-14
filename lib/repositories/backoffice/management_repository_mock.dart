@@ -1,9 +1,12 @@
 import '../../constants/extra_content_ids.dart';
+import '../../data/extra_bundle_catalog.dart';
 import '../../domain/backoffice/backoffice.dart';
 import 'management_repository.dart';
 
 class ManagementRepositoryMock implements ManagementRepository {
   final Set<String> _purchasedExtraProductIds = <String>{};
+  final List<ExtraVideoItem> _extraVideoItems = <ExtraVideoItem>[];
+  static int _mockVideoIdSeq = 0;
   final List<PracticeServiceTemplate> _practiceServiceTemplates =
       List<PracticeServiceTemplate>.from(_seedPracticeServiceTemplates);
   final List<NauticalExpense> _expenses =
@@ -368,18 +371,138 @@ class ManagementRepositoryMock implements ManagementRepository {
   }
 
   @override
-  Future<List<ExtraProduct>> listExtraProducts() async {
-    return List<ExtraProduct>.unmodifiable(_extraProducts);
+  Future<List<ExtraProduct>> listExtraProducts({
+    bool includeInactive = false,
+  }) async {
+    final list = includeInactive
+        ? _extraProducts
+        : _extraProducts.where((p) => p.active);
+    return List<ExtraProduct>.unmodifiable(list);
+  }
+
+  static String _nextVideoId() {
+    _mockVideoIdSeq += 1;
+    return 'mock-extra-video-$_mockVideoIdSeq';
   }
 
   @override
-  Future<List<ExtraVideoItem>> listExtraVideoItems(String productId) async {
-    return const <ExtraVideoItem>[];
+  Future<List<ExtraVideoItem>> listExtraVideoItems(
+    String productId, {
+    bool includeInactive = false,
+  }) async {
+    final list = _extraVideoItems.where((v) => v.productId == productId);
+    final filtered = includeInactive ? list : list.where((v) => v.active);
+    final sorted = filtered.toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return List<ExtraVideoItem>.unmodifiable(sorted);
+  }
+
+  @override
+  Future<ExtraVideoItem> createExtraVideoItem(ExtraVideoItemInput input) async {
+    final item = ExtraVideoItem(
+      id: _nextVideoId(),
+      productId: input.productId,
+      title: input.title.trim(),
+      description: input.description?.trim(),
+      videoUrl: input.videoUrl?.trim(),
+      durationSeconds: input.durationSeconds,
+      sortOrder: input.sortOrder,
+      active: input.active,
+    );
+    _extraVideoItems.add(item);
+    return item;
+  }
+
+  @override
+  Future<ExtraVideoItem> updateExtraVideoItem(
+    String id,
+    ExtraVideoItemInput input,
+  ) async {
+    final index = _extraVideoItems.indexWhere((v) => v.id == id);
+    if (index < 0) {
+      throw StateError('Video non trovato: $id');
+    }
+    final updated = ExtraVideoItem(
+      id: id,
+      productId: input.productId,
+      title: input.title.trim(),
+      description: input.description?.trim(),
+      videoUrl: input.videoUrl?.trim(),
+      durationSeconds: input.durationSeconds,
+      sortOrder: input.sortOrder,
+      active: input.active,
+    );
+    _extraVideoItems[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> setExtraVideoItemActive(String id, bool active) async {
+    final index = _extraVideoItems.indexWhere((v) => v.id == id);
+    if (index < 0) {
+      throw StateError('Video non trovato: $id');
+    }
+    final current = _extraVideoItems[index];
+    _extraVideoItems[index] = ExtraVideoItem(
+      id: current.id,
+      productId: current.productId,
+      title: current.title,
+      description: current.description,
+      videoUrl: current.videoUrl,
+      durationSeconds: current.durationSeconds,
+      sortOrder: current.sortOrder,
+      active: active,
+    );
+  }
+
+  @override
+  Future<ExtraVideoItem> moveExtraVideoItemToProduct({
+    required String videoId,
+    required String targetProductId,
+  }) async {
+    if (!ExtraBundleCatalog.isValidMoveTarget(targetProductId)) {
+      throw ArgumentError('Destinazione non valida: $targetProductId');
+    }
+    final index = _extraVideoItems.indexWhere((v) => v.id == videoId);
+    if (index < 0) {
+      throw StateError('Video non trovato: $videoId');
+    }
+    final current = _extraVideoItems[index];
+    final moved = ExtraVideoItem(
+      id: current.id,
+      productId: targetProductId,
+      title: current.title,
+      description: current.description,
+      videoUrl: current.videoUrl,
+      durationSeconds: current.durationSeconds,
+      sortOrder: current.sortOrder,
+      active: current.active,
+    );
+    _extraVideoItems[index] = moved;
+    return moved;
   }
 
   @override
   Future<Set<String>> listPurchasedExtraProductIds(StudentId studentId) async {
     return Set<String>.unmodifiable(_purchasedExtraProductIds);
+  }
+
+  @override
+  Future<void> grantStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  }) async {
+    for (final id in ExtraBundleCatalog.productsToGrantOnAccess(productId)) {
+      _purchasedExtraProductIds.add(id);
+    }
+  }
+
+  @override
+  Future<void> revokeStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  }) async {
+    _purchasedExtraProductIds.remove(productId);
   }
 
   @override

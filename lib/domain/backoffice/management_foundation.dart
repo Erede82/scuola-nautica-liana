@@ -124,6 +124,27 @@ class ExtraVideoItem {
   final bool active;
 }
 
+/// Input per creazione/aggiornamento video Extra (`extra_video_items`).
+class ExtraVideoItemInput {
+  const ExtraVideoItemInput({
+    required this.productId,
+    required this.title,
+    this.description,
+    this.videoUrl,
+    this.durationSeconds,
+    this.sortOrder = 0,
+    this.active = true,
+  });
+
+  final String productId;
+  final String title;
+  final String? description;
+  final String? videoUrl;
+  final int? durationSeconds;
+  final int sortOrder;
+  final bool active;
+}
+
 class StudentExtraPurchase {
   const StudentExtraPurchase({
     required this.id,

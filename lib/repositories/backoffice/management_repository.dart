@@ -13,11 +13,39 @@ abstract class ManagementRepository {
 
   Future<void> deleteExpense(String id);
 
-  Future<List<ExtraProduct>> listExtraProducts();
+  Future<List<ExtraProduct>> listExtraProducts({bool includeInactive = false});
 
-  Future<List<ExtraVideoItem>> listExtraVideoItems(String productId);
+  Future<List<ExtraVideoItem>> listExtraVideoItems(
+    String productId, {
+    bool includeInactive = false,
+  });
+
+  Future<ExtraVideoItem> createExtraVideoItem(ExtraVideoItemInput input);
+
+  Future<ExtraVideoItem> updateExtraVideoItem(
+    String id,
+    ExtraVideoItemInput input,
+  );
+
+  Future<void> setExtraVideoItemActive(String id, bool active);
+
+  /// Sposta un video da un prodotto a un altro (es. legacy `ex-bundle` → `ex-theory`).
+  Future<ExtraVideoItem> moveExtraVideoItemToProduct({
+    required String videoId,
+    required String targetProductId,
+  });
 
   Future<Set<String>> listPurchasedExtraProductIds(StudentId studentId);
+
+  Future<void> grantStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  });
+
+  Future<void> revokeStudentExtraProductAccess({
+    required StudentId studentId,
+    required String productId,
+  });
 
   /// Starts the Extra checkout flow.
   ///

@@ -20,6 +20,7 @@ import 'backoffice/practice_dossiers_directory_page.dart';
 import 'backoffice/school_management_shell_page.dart';
 import 'backoffice/settings_directory_page.dart';
 import 'backoffice/student_360_direct_page.dart';
+import 'backoffice/video_courses_admin_page.dart';
 import 'feature_placeholder_page.dart';
 import 'home_page.dart';
 import 'study_access_admin_page.dart';
@@ -677,7 +678,11 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
           ),
         );
       case _ManagementModuleKind.videoCourses:
-        return _ModulePlaceholder(module: module);
+        return StaffAccessGate(
+          showStaffWelcomeSnack: true,
+          gateTitle: 'Backoffice scuola',
+          child: const VideoCoursesAdminPage(embedded: true),
+        );
       case _ManagementModuleKind.settings:
         return StaffAccessGate(
           showStaffWelcomeSnack: true,
@@ -736,57 +741,6 @@ class _ModuleSwitcher extends StatelessWidget {
               showCheckmark: false,
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _ModulePlaceholder extends StatelessWidget {
-  const _ModulePlaceholder({required this.module});
-
-  final _ManagementModule module;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: AppVisual.ivory,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppVisual.border),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(module.icon, size: 46, color: AdminHomePage._primaryColor),
-              const SizedBox(height: 14),
-              Text(
-                module.title,
-                textAlign: TextAlign.center,
-                style: textTheme.titleLarge?.copyWith(
-                  color: AdminHomePage._textPrimaryColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                module.message,
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AdminHomePage._textSecondaryColor,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 14),
-              const _ComingSoonBadge(),
-            ],
-          ),
         ),
       ),
     );
