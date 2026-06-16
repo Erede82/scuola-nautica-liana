@@ -16,6 +16,7 @@ import '../widgets/staff/staff_access_gate.dart';
 import 'account_hub_page.dart';
 import 'backoffice/accounting_payments_directory_page.dart';
 import 'backoffice/guidance_appointments_directory_page.dart';
+import 'backoffice/online_payments_admin_page.dart';
 import 'backoffice/practice_dossiers_directory_page.dart';
 import 'backoffice/school_management_shell_page.dart';
 import 'backoffice/settings_directory_page.dart';
@@ -352,6 +353,7 @@ enum _ManagementModuleKind {
   practices,
   agenda,
   accounting,
+  onlinePayments,
   studyAccess,
   videoCourses,
   settings,
@@ -410,6 +412,15 @@ const List<_ManagementModule> _managementModules = [
     message:
         'Elenco globale incassi (sola lettura), filtri e apertura Scheda 360. '
         'La registrazione avviene solo dalla Scheda 360.',
+    available: true,
+  ),
+  _ManagementModule(
+    kind: _ManagementModuleKind.onlinePayments,
+    title: 'Pagamenti online',
+    subtitle: 'Ordini PSP, link manuali, privatisti e regali',
+    icon: Icons.shopping_cart_checkout_rounded,
+    message:
+        'Ordini online e fulfillment videocorsi separati dalla Contabilità iscrizione.',
     available: true,
   ),
   _ManagementModule(
@@ -676,6 +687,12 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
             embedded: true,
             onOpenStudent360: _openStudent360,
           ),
+        );
+      case _ManagementModuleKind.onlinePayments:
+        return StaffAccessGate(
+          showStaffWelcomeSnack: true,
+          gateTitle: 'Backoffice scuola',
+          child: const OnlinePaymentsAdminPage(embedded: true),
         );
       case _ManagementModuleKind.videoCourses:
         return StaffAccessGate(
