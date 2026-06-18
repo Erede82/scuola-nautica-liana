@@ -300,6 +300,7 @@ class ManagementRepositorySupabase implements ManagementRepository {
     required StudentId studentId,
     required String productId,
   }) async {
+    final productIds = ExtraBundleCatalog.productsToRevokeOnAccess(productId);
     await _client
         .from('student_extra_purchases')
         .update(<String, dynamic>{
@@ -307,7 +308,7 @@ class ManagementRepositorySupabase implements ManagementRepository {
           'recorded_by_staff_id': _client.auth.currentUser?.id,
         })
         .eq('student_id', studentId)
-        .eq('product_id', productId);
+        .inFilter('product_id', productIds);
   }
 
   @override
