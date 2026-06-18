@@ -8,7 +8,7 @@ import '../services/demo_student_enrollment.dart';
 import '../theme/app_visual_tokens.dart';
 import 'extra_video_player_page.dart';
 
-/// Dettaglio scheda Extra con checkout (UI mock, senza addebiti reali).
+/// Dettaglio scheda Extra con checkout verso Stripe (UI preparatoria).
 class ExtraItemDetailPage extends StatefulWidget {
   const ExtraItemDetailPage({
     super.key,
@@ -36,6 +36,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
   List<({String title, List<ExtraVideoItem> videos})>? _bundleSections;
   Object? _videosError;
   bool _videosLoading = false;
+  bool _checkoutBusy = false;
 
   bool get _isBundle => ExtraBundleCatalog.isBundle(widget.item.id);
 
@@ -142,18 +143,35 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
     return unlockedImmediately;
   }
 
-  void _openCheckout(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ExtraCheckoutSheet(
-        productTitle: widget.item.title,
-        price: widget.item.priceLabel ?? '—',
-        onConfirm: _startCheckout,
-        onClose: () => Navigator.of(ctx).pop(),
-      ),
-    );
+  Future<void> _handlePurchaseTap(BuildContext context) async {
+    if (_checkoutBusy) return;
+    setState(() => _checkoutBusy = true);
+    try {
+      final unlockedImmediately = await _startCheckout();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            unlockedImmediately
+                ? 'Acquisto simulato in ambiente demo.'
+                : 'Pagamento online in preparazione. I contenuti si sbloccheranno dopo conferma.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Impossibile registrare l’acquisto. Verifica accesso e riprova.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _checkoutBusy = false);
+    }
   }
 
   @override
@@ -463,8 +481,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Per sbloccare i contenuti contatta la scuola oppure acquista '
-              'quando il pagamento online sarà attivo.',
+              'Pagamento sicuro tramite Stripe in preparazione.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: _textPrimaryColor.withValues(alpha: 0.7),
@@ -475,7 +492,9 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () => _openCheckout(context),
+                onPressed: _checkoutBusy
+                    ? null
+                    : () => _handlePurchaseTap(context),
                 style: FilledButton.styleFrom(
                   backgroundColor: _brandAqua,
                   foregroundColor: Colors.white,
@@ -484,9 +503,9 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Acquista',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                child: Text(
+                  _checkoutBusy ? 'Preparazione in corso...' : 'Acquista',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -583,220 +602,6 @@ class _DetailHero extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ExtraCheckoutSheet extends StatefulWidget {
-  const _ExtraCheckoutSheet({
-    required this.productTitle,
-    required this.price,
-    required this.onConfirm,
-    required this.onClose,
-  });
-
-  final String productTitle;
-  final String price;
-  final Future<bool> Function() onConfirm;
-  final VoidCallback onClose;
-
-  @override
-  State<_ExtraCheckoutSheet> createState() => _ExtraCheckoutSheetState();
-}
-
-class _ExtraCheckoutSheetState extends State<_ExtraCheckoutSheet> {
-  static const Color _primary = AppVisual.logoBlue;
-  static const Color _text = AppVisual.ink;
-  static const Color _border = AppVisual.chipFill;
-
-  final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  int _method = 0; // 0 carta, 1 PayPal
-  final _formKey = GlobalKey<FormState>();
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AppVisual.canvas,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: _border,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    'Dati per l’ordine',
-                    style: textTheme.titleLarge?.copyWith(
-                      color: _text,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.productTitle,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: _text.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  Text(
-                    widget.price,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: _primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome e cognome',
-                      border: OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.words,
-                    validator: (v) => (v == null || v.trim().length < 2)
-                        ? 'Inserisci nome e cognome'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'Inserisci l’email';
-                      }
-                      if (!v.contains('@')) return 'Email non valida';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Telefono',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => (v == null || v.trim().length < 5)
-                        ? 'Inserisci un recapito'
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Pagamento',
-                    style: textTheme.labelLarge?.copyWith(
-                      color: _text,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 0, label: Text('Carta')),
-                      ButtonSegment(value: 1, label: Text('PayPal')),
-                    ],
-                    selected: {_method},
-                    onSelectionChanged: (s) {
-                      setState(() => _method = s.first);
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _submitting
-                        ? null
-                        : () async {
-                            if (!(_formKey.currentState?.validate() ?? false)) {
-                              return;
-                            }
-                            setState(() => _submitting = true);
-                            var unlockedImmediately = false;
-                            try {
-                              unlockedImmediately = await widget.onConfirm();
-                            } catch (_) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              setState(() => _submitting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Impossibile registrare l’acquisto. Verifica accesso e riprova.',
-                                  ),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                              return;
-                            }
-                            widget.onClose();
-                            if (!context.mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  unlockedImmediately
-                                      ? 'Acquisto simulato in ambiente demo.'
-                                      : 'Pagamento online in preparazione. I contenuti si sbloccheranno dopo conferma.',
-                                ),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _primary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      _submitting
-                          ? 'Preparazione in corso...'
-                          : 'Conferma e procedi al pagamento',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
