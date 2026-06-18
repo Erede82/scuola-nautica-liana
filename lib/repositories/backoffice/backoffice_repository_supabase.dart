@@ -1259,6 +1259,8 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     required String documentId,
     String? storagePath,
   }) async {
+    await _client.from('student_documents').delete().eq('id', documentId);
+
     final path = storagePath?.trim();
     if (path != null && path.isNotEmpty) {
       try {
@@ -1270,8 +1272,6 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
         );
       }
     }
-
-    await _client.from('student_documents').delete().eq('id', documentId);
   }
 
   @override
