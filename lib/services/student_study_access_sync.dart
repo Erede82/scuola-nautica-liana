@@ -29,6 +29,9 @@ Future<void> syncStudyAccessFromSupabaseForStudent(StudentId studentId) async {
     qfLog('Supabase sync: start (3 parallel SELECT) studentId=$studentId');
   }
 
+  // A failed remote sync must not leave another account's in-memory grants active.
+  studyAccessWritableRepository.resetDemoAssignments();
+
   try {
     final client = Supabase.instance.client;
     final batch = await Future.wait<dynamic>([
