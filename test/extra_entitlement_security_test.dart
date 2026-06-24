@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scuola_nautica_liana/data/extra_bundle_catalog.dart';
 
 void main() {
   group('Extra entitlement RLS migrations', () {
@@ -53,6 +54,32 @@ void main() {
               'paid Extra entitlements.',
         );
       }
+    });
+  });
+
+  group('Extra bundle entitlement mapping', () {
+    test('revokes the same bundle products that grants unlock', () {
+      final bundleProducts = <String>[
+        ExtraBundleCatalog.bundleId,
+        ...ExtraBundleCatalog.bundleIncludedProductIds,
+      ];
+
+      expect(
+        ExtraBundleCatalog.productsToGrantOnAccess(
+          ExtraBundleCatalog.bundleId,
+        ),
+        bundleProducts,
+      );
+      expect(
+        ExtraBundleCatalog.productsToRevokeOnAccess(
+          ExtraBundleCatalog.bundleId,
+        ),
+        bundleProducts,
+      );
+      expect(
+        ExtraBundleCatalog.productsToRevokeOnAccess('ex-theory'),
+        <String>['ex-theory'],
+      );
     });
   });
 }
