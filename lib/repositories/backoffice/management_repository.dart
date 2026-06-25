@@ -1,5 +1,33 @@
 import '../../domain/backoffice/backoffice.dart';
 
+/// Esito avvio checkout Extra (redirect Stripe o unlock demo locale).
+class ExtraProductCheckoutOutcome {
+  const ExtraProductCheckoutOutcome._({
+    this.checkoutUrl,
+    this.unlockedImmediately = false,
+    this.errorMessage,
+  });
+
+  const ExtraProductCheckoutOutcome.stripeRedirect({
+    required String checkoutUrl,
+  }) : this._(checkoutUrl: checkoutUrl);
+
+  const ExtraProductCheckoutOutcome.demoUnlocked()
+    : this._(unlockedImmediately: true);
+
+  const ExtraProductCheckoutOutcome.failed(String message)
+    : this._(errorMessage: message);
+
+  final String? checkoutUrl;
+  final bool unlockedImmediately;
+  final String? errorMessage;
+
+  bool get isStripeRedirect =>
+      checkoutUrl != null && checkoutUrl!.trim().isNotEmpty;
+
+  bool get isFailure => errorMessage != null && errorMessage!.isNotEmpty;
+}
+
 abstract class ManagementRepository {
   Future<List<NauticalInstructor>> listInstructors();
 
@@ -49,10 +77,10 @@ abstract class ManagementRepository {
 
   /// Starts the Extra checkout flow.
   ///
-  /// Returns true only when the local/dev implementation can unlock immediately.
-  /// Supabase production must never unlock from the client: purchases are read
-  /// from student_extra_purchases after PSP webhook/RPC confirmation.
-  Future<bool> startExtraProductCheckout({
+  /// [ExtraProductCheckoutOutcome.demoUnlocked] only in mock/dev.
+  /// Supabase production returns [ExtraProductCheckoutOutcome.stripeRedirect]
+  /// and never unlocks from the client: purchases come from webhook/RPC.
+  Future<ExtraProductCheckoutOutcome> startExtraProductCheckout({
     required StudentId studentId,
     required String productId,
     int? amountCents,

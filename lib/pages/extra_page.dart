@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/supabase_config.dart';
@@ -31,6 +32,40 @@ class _ExtraPageState extends State<ExtraPage> {
   void initState() {
     super.initState();
     _pageDataFuture = _loadPageData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleCheckoutReturnQuery();
+    });
+  }
+
+  void _handleCheckoutReturnQuery() {
+    if (!kIsWeb) return;
+    final params = Uri.base.queryParameters;
+    final checkout = params['extraCheckout'];
+    if (checkout == null) return;
+
+    final productId = params['productId'];
+    if (checkout == 'success') {
+      _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            productId != null
+                ? 'Pagamento ricevuto. L’accesso al contenuto si attiva a breve.'
+                : 'Pagamento ricevuto. L’accesso si attiva a breve.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (checkout == 'cancel') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pagamento annullato.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<_ExtraPageData> _loadPageData() async {

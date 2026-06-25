@@ -1,8 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/extra_bundle_catalog.dart';
 import '../domain/backoffice/backoffice.dart';
 import '../models/extra_content_item.dart';
+import '../repositories/backoffice/management_repository.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
 import '../services/demo_student_enrollment.dart';
 import '../theme/app_visual_tokens.dart';
@@ -23,7 +28,8 @@ class ExtraItemDetailPage extends StatefulWidget {
   State<ExtraItemDetailPage> createState() => _ExtraItemDetailPageState();
 }
 
-class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
+class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
+    with WidgetsBindingObserver {
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _brandAqua = Color(0xFF17A1C8);
   static const Color _backgroundColor = AppVisual.canvas;
@@ -43,10 +49,35 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _purchased = widget.initiallyPurchased || widget.item.isUnlocked;
     if (_purchased && !widget.item.isComingSoon) {
       _loadVideos();
     }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_purchased) {
+      unawaited(_refreshPurchaseState());
+    }
+  }
+
+  Future<void> _refreshPurchaseState() async {
+    final studentId = studentSession.value?.studentId;
+    if (studentId == null) return;
+    final ids = await managementRepository.listPurchasedExtraProductIds(
+      studentId,
+    );
+    if (!mounted || !ids.contains(widget.item.id)) return;
+    setState(() => _purchased = true);
+    await _loadVideos();
   }
 
   Future<void> _loadVideos() async {
@@ -124,47 +155,84 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
     );
   }
 
-  Future<bool> _startCheckout() async {
+  Future<ExtraProductCheckoutOutcome> _startCheckout() async {
     final studentId = studentSession.value?.studentId;
     if (studentId == null) {
       throw StateError('student_session_missing');
     }
-    final unlockedImmediately = await managementRepository
-        .startExtraProductCheckout(
-          studentId: studentId,
-          productId: widget.item.id,
-          amountCents: _priceCents(widget.item.priceLabel),
-          paymentReference: 'extra-ui-${DateTime.now().millisecondsSinceEpoch}',
-        );
-    if (unlockedImmediately && mounted) {
+    final outcome = await managementRepository.startExtraProductCheckout(
+      studentId: studentId,
+      productId: widget.item.id,
+      amountCents: _priceCents(widget.item.priceLabel),
+      paymentReference: 'extra-ui-${DateTime.now().millisecondsSinceEpoch}',
+    );
+    if (outcome.unlockedImmediately && mounted) {
       setState(() => _purchased = true);
       await _loadVideos();
     }
-    return unlockedImmediately;
+    return outcome;
+  }
+
+  Future<void> _openStripeCheckout(String checkoutUrl) async {
+    final uri = Uri.tryParse(checkoutUrl.trim());
+    if (uri == null || uri.host.isEmpty) {
+      throw StateError('checkout_url_invalid');
+    }
+    final ok = kIsWeb
+        ? await launchUrl(uri, webOnlyWindowName: '_self')
+        : await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      throw StateError('checkout_launch_failed');
+    }
   }
 
   Future<void> _handlePurchaseTap(BuildContext context) async {
     if (_checkoutBusy) return;
     setState(() => _checkoutBusy = true);
     try {
-      final unlockedImmediately = await _startCheckout();
+      final outcome = await _startCheckout();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            unlockedImmediately
-                ? 'Acquisto simulato in ambiente demo.'
-                : 'Pagamento online in preparazione. I contenuti si sbloccheranno dopo conferma.',
+      if (outcome.isFailure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              outcome.errorMessage ??
+                  'Impossibile avviare il pagamento. Riprova.',
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+        );
+        return;
+      }
+      if (outcome.unlockedImmediately) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Acquisto simulato in ambiente demo.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (outcome.isStripeRedirect) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Completa il pagamento su Stripe. '
+                'L’accesso si attiverà automaticamente.',
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        await _openStripeCheckout(outcome.checkoutUrl!);
+      }
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Impossibile registrare l’acquisto. Verifica accesso e riprova.',
+            'Impossibile avviare il pagamento. Verifica accesso e riprova.',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -481,7 +549,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Pagamento sicuro tramite Stripe in preparazione.',
+              'Pagamento sicuro tramite Stripe.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: _textPrimaryColor.withValues(alpha: 0.7),
@@ -504,7 +572,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage> {
                   ),
                 ),
                 child: Text(
-                  _checkoutBusy ? 'Preparazione in corso...' : 'Acquista',
+                  _checkoutBusy ? 'Reindirizzamento...' : 'Acquista',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),

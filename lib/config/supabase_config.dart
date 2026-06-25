@@ -37,6 +37,51 @@ abstract final class SupabaseConfig {
     return 'it.scuolanauticaliana.app://login-callback';
   }
 
+  /// Origin autorizzato per successUrl/cancelUrl Stripe Checkout (web: [Uri.base.origin]).
+  static String get checkoutRedirectOrigin {
+    if (kIsWeb) {
+      return Uri.base.origin;
+    }
+    const custom = String.fromEnvironment(
+      'CHECKOUT_REDIRECT_ORIGIN',
+      defaultValue: '',
+    );
+    if (custom.trim().isNotEmpty) {
+      return custom.trim();
+    }
+    return 'https://app.scuolanauticaliana.it';
+  }
+
+  static String extraCheckoutSuccessUrl(String productId) =>
+      _extraCheckoutReturnUri(status: 'success', productId: productId)
+          .toString();
+
+  static String extraCheckoutCancelUrl(String productId) =>
+      _extraCheckoutReturnUri(status: 'cancel', productId: productId).toString();
+
+  static Uri _extraCheckoutReturnUri({
+    required String status,
+    required String productId,
+  }) {
+    if (kIsWeb) {
+      final base = Uri.base;
+      return base.replace(
+        queryParameters: <String, String>{
+          ...base.queryParameters,
+          'extraCheckout': status,
+          'productId': productId,
+        },
+      );
+    }
+    return Uri.parse(checkoutRedirectOrigin).replace(
+      path: '/',
+      queryParameters: <String, String>{
+        'extraCheckout': status,
+        'productId': productId,
+      },
+    );
+  }
+
   /// Inizializza il client. No-op se non configurato.
   static Future<void> initialize() async {
     if (!isConfigured) return;

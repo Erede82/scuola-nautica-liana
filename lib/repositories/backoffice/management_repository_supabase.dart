@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
@@ -311,16 +312,90 @@ class ManagementRepositorySupabase implements ManagementRepository {
   }
 
   @override
-  Future<bool> startExtraProductCheckout({
+  Future<ExtraProductCheckoutOutcome> startExtraProductCheckout({
     required StudentId studentId,
     required String productId,
     int? amountCents,
     String currencyCode = 'EUR',
     String? paymentReference,
   }) async {
-    // Production safety: the app can start checkout, but only PSP webhook/server
-    // side confirmation may write student_extra_purchases.
-    return false;
+    try {
+      final res = await _client.functions.invoke(
+        'create-stripe-checkout-session',
+        body: <String, dynamic>{
+          'productId': productId,
+          'successUrl': SupabaseConfig.extraCheckoutSuccessUrl(productId),
+          'cancelUrl': SupabaseConfig.extraCheckoutCancelUrl(productId),
+        },
+      );
+      final data = res.data;
+      if (data is! Map) {
+        return const ExtraProductCheckoutOutcome.failed(
+          'Risposta checkout non valida.',
+        );
+      }
+      final map = Map<String, dynamic>.from(data);
+      if (map['success'] != true) {
+        final err = map['error']?.toString() ?? 'Checkout non avviato.';
+        return ExtraProductCheckoutOutcome.failed(
+          _humanizeCheckoutError(err, res.status),
+        );
+      }
+      final checkoutUrl = map['checkoutUrl']?.toString().trim();
+      if (checkoutUrl == null || checkoutUrl.isEmpty) {
+        return const ExtraProductCheckoutOutcome.failed(
+          'URL checkout non disponibile.',
+        );
+      }
+      return ExtraProductCheckoutOutcome.stripeRedirect(
+        checkoutUrl: checkoutUrl,
+      );
+    } on FunctionException catch (e) {
+      return ExtraProductCheckoutOutcome.failed(
+        _parseCheckoutFunctionException(e),
+      );
+    } catch (e, st) {
+      debugPrint('startExtraProductCheckout: $e\n$st');
+      return const ExtraProductCheckoutOutcome.failed(
+        'Impossibile avviare il pagamento. Verifica connessione e riprova.',
+      );
+    }
+  }
+
+  String _humanizeCheckoutError(String raw, int? status) {
+    final lower = raw.toLowerCase();
+    if (status == 401 ||
+        lower.contains('token') ||
+        lower.contains('authentication')) {
+      return 'Sessione scaduta. Accedi di nuovo e riprova.';
+    }
+    if (status == 403 || lower.contains('forbidden')) {
+      return 'Profilo allievo non collegato. Contatta la segreteria.';
+    }
+    if (lower.contains('invalid redirect') || lower.contains('redirect url')) {
+      return 'Configurazione redirect checkout non valida.';
+    }
+    if (lower.contains('not found') || lower.contains('product')) {
+      return 'Prodotto non disponibile per l’acquisto online.';
+    }
+    if (raw.trim().isEmpty) {
+      return 'Impossibile avviare il pagamento. Riprova più tardi.';
+    }
+    return raw;
+  }
+
+  String _parseCheckoutFunctionException(FunctionException e) {
+    final details = e.details;
+    if (details is Map) {
+      final err = details['error'];
+      if (err != null) {
+        return _humanizeCheckoutError(err.toString(), e.status);
+      }
+    }
+    if (details is String && details.isNotEmpty) {
+      return _humanizeCheckoutError(details, e.status);
+    }
+    return _humanizeCheckoutError('', e.status);
   }
 
   NauticalInstructor _mapInstructor(Map<String, dynamic> row) {

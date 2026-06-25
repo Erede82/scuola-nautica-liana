@@ -506,7 +506,7 @@ class ManagementRepositoryMock implements ManagementRepository {
   }
 
   @override
-  Future<bool> startExtraProductCheckout({
+  Future<ExtraProductCheckoutOutcome> startExtraProductCheckout({
     required StudentId studentId,
     required String productId,
     int? amountCents,
@@ -514,7 +514,7 @@ class ManagementRepositoryMock implements ManagementRepository {
     String? paymentReference,
   }) async {
     _purchasedExtraProductIds.add(productId);
-    return true;
+    return const ExtraProductCheckoutOutcome.demoUnlocked();
   }
 
   @override
