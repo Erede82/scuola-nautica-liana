@@ -46,6 +46,11 @@ class _GuidanceAppointmentsDirectoryPageState
   static const int _agendaStartHour = 8;
   static const int _agendaEndHour = 20;
   static const double _hourHeight = 48;
+  static const double _compactToolbarBreakpoint = 600;
+  static const double _fabBottomClearance = 76;
+
+  /// Cache locale allievi — precaricata con l’agenda per aprire il dialog subito.
+  List<StudentProfile>? _studentProfiles;
 
   @override
   void initState() {
@@ -95,9 +100,19 @@ class _GuidanceAppointmentsDirectoryPageState
     }
   }
 
+  Future<List<StudentProfile>> _studentProfilesForDialog() async {
+    final cached = _studentProfiles;
+    if (cached != null) return cached;
+    final profiles = await backofficeRepository.listStudentProfiles();
+    if (mounted) {
+      setState(() => _studentProfiles = profiles);
+    }
+    return profiles;
+  }
+
   Future<void> _editGuide(GuidanceListItem item) async {
     try {
-      final profiles = await backofficeRepository.listStudentProfiles();
+      final profiles = await _studentProfilesForDialog();
       if (!mounted) return;
       await showEditAgendaSeaPracticeDialog(
         context,
@@ -121,7 +136,7 @@ class _GuidanceAppointmentsDirectoryPageState
 
   Future<void> _openNewSeaLesson() async {
     try {
-      final profiles = await backofficeRepository.listStudentProfiles();
+      final profiles = await _studentProfilesForDialog();
       if (!mounted) return;
       if (profiles.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,10 +172,14 @@ class _GuidanceAppointmentsDirectoryPageState
       _error = null;
     });
     try {
-      final list = await backofficeRepository.listGuidanceAppointments();
+      final results = await Future.wait<Object>([
+        backofficeRepository.listGuidanceAppointments(),
+        backofficeRepository.listStudentProfiles(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = results[0] as List<GuidanceListItem>;
+        _studentProfiles = results[1] as List<StudentProfile>;
         _loading = false;
       });
     } catch (e, st) {
@@ -196,14 +215,16 @@ class _GuidanceAppointmentsDirectoryPageState
 
   List<GuidanceListItem> _itemsInWeek(List<GuidanceListItem> filtered) {
     final weekEnd = _weekMonday.add(const Duration(days: 7));
-    return filtered.where((i) {
-      final day = DateTime(
-        i.lessonDate.year,
-        i.lessonDate.month,
-        i.lessonDate.day,
-      );
-      return !day.isBefore(_weekMonday) && day.isBefore(weekEnd);
-    }).toList(growable: false);
+    return filtered
+        .where((i) {
+          final day = DateTime(
+            i.lessonDate.year,
+            i.lessonDate.month,
+            i.lessonDate.day,
+          );
+          return !day.isBefore(_weekMonday) && day.isBefore(weekEnd);
+        })
+        .toList(growable: false);
   }
 
   String _weekRangeLabel() {
@@ -240,9 +261,79 @@ class _GuidanceAppointmentsDirectoryPageState
     return names[weekday - 1];
   }
 
+  Widget _buildSearchField() {
+    return TextField(
+      controller: _searchCtrl,
+      decoration: const InputDecoration(
+        hintText: 'Cerca allievo, istruttore, note…',
+        border: OutlineInputBorder(),
+        isDense: true,
+        prefixIcon: Icon(Icons.search_rounded),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
+  Widget _buildRefreshButton() {
+    return IconButton.filledTonal(
+      onPressed: _loading ? null : _load,
+      icon: const Icon(Icons.refresh_rounded),
+      tooltip: 'Aggiorna agenda',
+    );
+  }
+
+  Widget _buildNewGuideButton() {
+    return FilledButton.icon(
+      onPressed: _loading ? null : _openNewSeaLesson,
+      icon: const Icon(Icons.add_circle_outline, size: 20),
+      label: const Text('Nuova guida'),
+    );
+  }
+
+  Widget _buildSearchToolbar({required bool compact}) {
+    final padding = const EdgeInsets.fromLTRB(16, 10, 16, 6);
+    if (compact) {
+      return Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            Expanded(child: _buildSearchField()),
+            const SizedBox(width: 8),
+            _buildRefreshButton(),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          Expanded(child: _buildSearchField()),
+          const SizedBox(width: 8),
+          _buildNewGuideButton(),
+          const SizedBox(width: 6),
+          _buildRefreshButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewGuideFab() {
+    return FloatingActionButton.extended(
+      onPressed: _loading ? null : _openNewSeaLesson,
+      icon: const Icon(Icons.add_circle_outline),
+      label: const Text('Nuova guida'),
+      backgroundColor: AppVisual.logoBlue,
+      foregroundColor: Colors.white,
+      elevation: 3,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final compact =
+        MediaQuery.sizeOf(context).width < _compactToolbarBreakpoint;
 
     return ColoredBox(
       color: AppVisual.canvas,
@@ -263,37 +354,7 @@ class _GuidanceAppointmentsDirectoryPageState
                 ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'Cerca allievo, istruttore, note…',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _loading ? null : _openNewSeaLesson,
-                  icon: const Icon(Icons.add_circle_outline, size: 20),
-                  label: const Text('Nuova guida'),
-                ),
-                const SizedBox(width: 6),
-                IconButton.filledTonal(
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: 'Aggiorna agenda',
-                ),
-              ],
-            ),
-          ),
+          _buildSearchToolbar(compact: compact),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(
@@ -345,7 +406,27 @@ class _GuidanceAppointmentsDirectoryPageState
             ),
           ),
           const SizedBox(height: 6),
-          Expanded(child: _buildBody(textTheme)),
+          Expanded(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: compact ? _fabBottomClearance : 0,
+                    ),
+                    child: _buildBody(textTheme),
+                  ),
+                ),
+                if (compact)
+                  Positioned(
+                    right: 16,
+                    bottom: 12,
+                    child: SafeArea(top: false, child: _buildNewGuideFab()),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -418,12 +499,7 @@ class _WeekAgendaGrid extends StatelessWidget {
 
   DateTime _effectiveStart(GuidanceListItem i) {
     if (i.startTime != null) return i.startTime!.toLocal();
-    return DateTime(
-      i.lessonDate.year,
-      i.lessonDate.month,
-      i.lessonDate.day,
-      9,
-    );
+    return DateTime(i.lessonDate.year, i.lessonDate.month, i.lessonDate.day, 9);
   }
 
   DateTime _effectiveEnd(GuidanceListItem i) {
@@ -433,10 +509,16 @@ class _WeekAgendaGrid extends StatelessWidget {
 
   List<GuidanceListItem> _forDay(DateTime day) {
     final day0 = DateTime(day.year, day.month, day.day);
-    return items.where((i) {
-      final d = DateTime(i.lessonDate.year, i.lessonDate.month, i.lessonDate.day);
-      return d == day0;
-    }).toList(growable: false);
+    return items
+        .where((i) {
+          final d = DateTime(
+            i.lessonDate.year,
+            i.lessonDate.month,
+            i.lessonDate.day,
+          );
+          return d == day0;
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -444,17 +526,16 @@ class _WeekAgendaGrid extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final totalHours = endHour - startHour;
     final gridHeight = totalHours * hourHeight;
-    final days = List.generate(
-      7,
-      (i) => weekMonday.add(Duration(days: i)),
-    );
+    final days = List.generate(7, (i) => weekMonday.add(Duration(days: i)));
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
     return LayoutBuilder(
       builder: (context, c) {
         final dayColWidth = (c.maxWidth - _timeColWidth - 32) / 7;
-        final colW = dayColWidth < _minDayColWidth ? _minDayColWidth : dayColWidth;
+        final colW = dayColWidth < _minDayColWidth
+            ? _minDayColWidth
+            : dayColWidth;
         final scrollWide = colW * 7 + _timeColWidth + 16 > c.maxWidth;
 
         final gridWidth = scrollWide
@@ -464,9 +545,7 @@ class _WeekAgendaGrid extends StatelessWidget {
         final grid = DecoratedBox(
           decoration: BoxDecoration(
             color: AppVisual.surface,
-            border: Border.all(
-              color: AppVisual.border.withValues(alpha: 0.78),
-            ),
+            border: Border.all(color: AppVisual.border.withValues(alpha: 0.78)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: ClipRRect(
@@ -606,26 +685,28 @@ class _WeekAgendaGrid extends StatelessWidget {
       laneByItem[item] = lane;
     }
 
-    return sorted.map((item) {
-      final start = guidanceEffectiveStart(item);
-      final end = guidanceEffectiveEnd(item);
-      final lane = laneByItem[item]!;
-      var laneCount = lane + 1;
-      for (final other in sorted) {
-        if (identical(other, item)) continue;
-        final os = guidanceEffectiveStart(other);
-        final oe = guidanceEffectiveEnd(other);
-        if (guidanceIntervalsOverlap(start, end, os, oe)) {
-          final otherLane = laneByItem[other]! + 1;
-          if (otherLane > laneCount) laneCount = otherLane;
-        }
-      }
-      return _DayAppointmentPlacement(
-        item: item,
-        lane: lane,
-        laneCount: laneCount,
-      );
-    }).toList(growable: false);
+    return sorted
+        .map((item) {
+          final start = guidanceEffectiveStart(item);
+          final end = guidanceEffectiveEnd(item);
+          final lane = laneByItem[item]!;
+          var laneCount = lane + 1;
+          for (final other in sorted) {
+            if (identical(other, item)) continue;
+            final os = guidanceEffectiveStart(other);
+            final oe = guidanceEffectiveEnd(other);
+            if (guidanceIntervalsOverlap(start, end, os, oe)) {
+              final otherLane = laneByItem[other]! + 1;
+              if (otherLane > laneCount) laneCount = otherLane;
+            }
+          }
+          return _DayAppointmentPlacement(
+            item: item,
+            lane: lane,
+            laneCount: laneCount,
+          );
+        })
+        .toList(growable: false);
   }
 
   Widget _positionedBlock(
@@ -649,7 +730,10 @@ class _WeekAgendaGrid extends StatelessWidget {
     final topMinutes = blockStart.difference(dayStart).inMinutes.toDouble();
     final heightMinutes = blockEnd.difference(blockStart).inMinutes.toDouble();
     final top = (topMinutes / 60) * hourHeight;
-    final height = ((heightMinutes / 60) * hourHeight).clamp(22.0, double.infinity);
+    final height = ((heightMinutes / 60) * hourHeight).clamp(
+      22.0,
+      double.infinity,
+    );
 
     final accent = switch (item.completionOutcome) {
       AppointmentCompletionOutcome.attended => const Color(0xFF15803D),
@@ -685,8 +769,7 @@ class _WeekAgendaGrid extends StatelessWidget {
     final usableWidth = columnWidth - blockInsetH * 2;
     final laneWidth = usableWidth / placement.laneCount;
     final blockWidth = (laneWidth - laneGap).clamp(24.0, usableWidth);
-    final blockLeft =
-        blockInsetH + placement.lane * laneWidth + laneGap / 2;
+    final blockLeft = blockInsetH + placement.lane * laneWidth + laneGap / 2;
 
     return Positioned(
       top: top + blockInsetV,
@@ -727,9 +810,7 @@ class _WeekAgendaGrid extends StatelessWidget {
                                 alignment: Alignment.centerLeft,
                                 child: Text(
                                   item.studentFullName,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
+                                  style: Theme.of(context).textTheme.labelSmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w800,
                                         color: BackofficeUiTokens.text,
@@ -814,7 +895,10 @@ class _DayColumn extends StatelessWidget {
   final double hourHeight;
   final bool isToday;
   final List<GuidanceListItem> items;
-  final Widget Function(BuildContext context, _DayAppointmentPlacement placement)
+  final Widget Function(
+    BuildContext context,
+    _DayAppointmentPlacement placement,
+  )
   positionBlock;
 
   Color get _columnTint {
@@ -835,9 +919,7 @@ class _DayColumn extends StatelessWidget {
         decoration: BoxDecoration(
           color: _columnTint,
           border: Border(
-            right: BorderSide(
-              color: AppVisual.border.withValues(alpha: 0.72),
-            ),
+            right: BorderSide(color: AppVisual.border.withValues(alpha: 0.72)),
           ),
         ),
         child: Column(
@@ -908,9 +990,7 @@ class _HourRowShell extends StatelessWidget {
       decoration: BoxDecoration(
         color: Color.alphaBlend(hourBand, base),
         border: Border(
-          top: BorderSide(
-            color: AppVisual.border.withValues(alpha: 0.78),
-          ),
+          top: BorderSide(color: AppVisual.border.withValues(alpha: 0.78)),
           bottom: isLastHour
               ? BorderSide(color: AppVisual.border.withValues(alpha: 0.55))
               : BorderSide.none,
