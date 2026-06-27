@@ -301,14 +301,17 @@ class ManagementRepositorySupabase implements ManagementRepository {
     required StudentId studentId,
     required String productId,
   }) async {
-    await _client
-        .from('student_extra_purchases')
-        .update(<String, dynamic>{
-          'status': StudentExtraPurchaseStatus.revoked.name,
-          'recorded_by_staff_id': _client.auth.currentUser?.id,
-        })
-        .eq('student_id', studentId)
-        .eq('product_id', productId);
+    final productIds = ExtraBundleCatalog.productsToRevokeOnAccess(productId);
+    for (final id in productIds) {
+      await _client
+          .from('student_extra_purchases')
+          .update(<String, dynamic>{
+            'status': StudentExtraPurchaseStatus.revoked.name,
+            'recorded_by_staff_id': _client.auth.currentUser?.id,
+          })
+          .eq('student_id', studentId)
+          .eq('product_id', id);
+    }
   }
 
   @override
