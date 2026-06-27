@@ -155,6 +155,9 @@ class StudentExtraPurchase {
     this.amountCents,
     this.currencyCode = 'EUR',
     this.paymentReference,
+    this.recordedByStaffId,
+    this.orderCode,
+    this.orderProductId,
   });
 
   final String id;
@@ -165,6 +168,11 @@ class StudentExtraPurchase {
   final int? amountCents;
   final String currencyCode;
   final String? paymentReference;
+  final String? recordedByStaffId;
+
+  /// Popolato dal repository via join `online_orders` (non colonna purchases).
+  final String? orderCode;
+  final String? orderProductId;
 
   bool get unlocksContent => status == StudentExtraPurchaseStatus.purchased;
 }

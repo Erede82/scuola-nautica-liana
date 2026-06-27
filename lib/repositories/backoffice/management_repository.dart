@@ -65,6 +65,11 @@ abstract class ManagementRepository {
 
   Future<Set<String>> listPurchasedExtraProductIds(StudentId studentId);
 
+  /// Acquisti Extra dell'allievo (lettura sola, ordine cronologico decrescente).
+  Future<List<StudentExtraPurchase>> listStudentExtraPurchases(
+    StudentId studentId,
+  );
+
   Future<void> grantStudentExtraProductAccess({
     required StudentId studentId,
     required String productId,

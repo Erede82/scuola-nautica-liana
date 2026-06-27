@@ -9,6 +9,7 @@ import '../repositories/backoffice/management_repository_registry.dart';
 import '../services/demo_student_enrollment.dart';
 import '../widgets/branded_app_bar_title.dart';
 import 'extra_item_detail_page.dart';
+import 'extra_my_purchases_page.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Contenuti video extra a pagamento: catalogo con pacchetti da DB (fallback mock).
@@ -126,6 +127,32 @@ class _ExtraPageState extends State<ExtraPage> {
         centerTitle: true,
         title: const SectionAppBarTitle('Extra', logoHeight: 30),
         shape: const RoundedRectangleBorder(),
+        actions: [
+          if (studentSession.value?.studentId != null) ...[
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ExtraMyPurchasesPage(),
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.receipt_long_outlined,
+                color: Colors.white,
+              ),
+              label: const Text(
+                'I miei acquisti',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ],
       ),
       body: FutureBuilder<_ExtraPageData>(
         future: _pageDataFuture,
@@ -173,10 +200,7 @@ class _ExtraPageState extends State<ExtraPage> {
 }
 
 class _ExtraPageData {
-  const _ExtraPageData({
-    required this.items,
-    required this.purchasedIds,
-  });
+  const _ExtraPageData({required this.items, required this.purchasedIds});
 
   final List<ExtraContentItem> items;
   final Set<String> purchasedIds;

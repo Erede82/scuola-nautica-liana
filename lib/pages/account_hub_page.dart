@@ -12,6 +12,7 @@ import '../widgets/dev_backend_env_badge.dart';
 import 'account_change_password_page.dart';
 import 'account_contacts_page.dart';
 import 'account_profile_page.dart';
+import 'extra_my_purchases_page.dart';
 import 'login_page.dart';
 import 'student_registration_page.dart';
 import '../theme/app_visual_tokens.dart';
@@ -38,10 +39,7 @@ class AccountHubPage extends StatelessWidget {
         shape: const RoundedRectangleBorder(),
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([
-          studentSession,
-          staffAccessNotifier,
-        ]),
+        listenable: Listenable.merge([studentSession, staffAccessNotifier]),
         builder: (context, _) {
           final summary = AppAuthSummary.fromSources(
             student: studentSession.value,
@@ -65,7 +63,8 @@ class AccountHubPage extends StatelessWidget {
                       AccountOptionTile(
                         icon: Icons.person_add_alt_1_rounded,
                         title: 'Registrati',
-                        subtitle: 'Crea account e scegli il percorso di iscrizione',
+                        subtitle:
+                            'Crea account e scegli il percorso di iscrizione',
                         onTap: () async {
                           final ok = await Navigator.push<bool>(
                             context,
@@ -135,6 +134,21 @@ class AccountHubPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (!isGuest &&
+                        studentSession.value?.studentId != null) ...[
+                      const _TileDivider(),
+                      AccountOptionTile(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'I miei acquisti Extra',
+                        subtitle: 'Videocorsi premium acquistati online',
+                        onTap: () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ExtraMyPurchasesPage(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -188,10 +202,7 @@ class _ProfileHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        studentSession,
-        staffAccessNotifier,
-      ]),
+      listenable: Listenable.merge([studentSession, staffAccessNotifier]),
       builder: (context, _) {
         final summary = AppAuthSummary.fromSources(
           student: studentSession.value,
@@ -200,8 +211,8 @@ class _ProfileHeaderCard extends StatelessWidget {
         final title = summary.hasStudentProfile
             ? summary.studentSession!.displayName
             : summary.hasStaffAccess
-                ? 'Account staff'
-                : 'Il tuo profilo';
+            ? 'Account staff'
+            : 'Il tuo profilo';
         final subtitle = _headerSubtitle(summary);
         return Container(
           width: double.infinity,
@@ -210,10 +221,7 @@ class _ProfileHeaderCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                _cardColor,
-                _accentColor.withValues(alpha: 0.08),
-              ],
+              colors: [_cardColor, _accentColor.withValues(alpha: 0.08)],
             ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: _neutralColor),

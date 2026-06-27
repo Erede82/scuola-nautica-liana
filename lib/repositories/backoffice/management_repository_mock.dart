@@ -5,12 +5,15 @@ import 'management_repository.dart';
 
 class ManagementRepositoryMock implements ManagementRepository {
   final Set<String> _purchasedExtraProductIds = <String>{};
+  final List<StudentExtraPurchase> _studentExtraPurchases =
+      List<StudentExtraPurchase>.from(_seedStudentExtraPurchases);
   final List<ExtraVideoItem> _extraVideoItems = <ExtraVideoItem>[];
   static int _mockVideoIdSeq = 0;
   final List<PracticeServiceTemplate> _practiceServiceTemplates =
       List<PracticeServiceTemplate>.from(_seedPracticeServiceTemplates);
-  final List<NauticalExpense> _expenses =
-      List<NauticalExpense>.from(_demoExpensesSeed());
+  final List<NauticalExpense> _expenses = List<NauticalExpense>.from(
+    _demoExpensesSeed(),
+  );
 
   static int _mockIdSeq = 0;
   static int _mockExpenseIdSeq = 0;
@@ -19,6 +22,28 @@ class ManagementRepositoryMock implements ManagementRepository {
     _mockIdSeq += 1;
     return 'mock-practice-template-$_mockIdSeq';
   }
+
+  static final List<StudentExtraPurchase> _seedStudentExtraPurchases = [
+    StudentExtraPurchase(
+      id: 'mock-purchase-theory',
+      studentId: 'demo-student',
+      productId: ExtraContentIds.extraTeoria,
+      status: StudentExtraPurchaseStatus.purchased,
+      purchasedAt: DateTime.utc(2026, 3, 10, 14, 30),
+      amountCents: 4900,
+      paymentReference: '59113d81-67f6-407a-a8c0-7788bb2176e0',
+      orderCode: 'ONL-2026-00004',
+      orderProductId: ExtraContentIds.extraTeoria,
+    ),
+    StudentExtraPurchase(
+      id: 'mock-purchase-chart-staff',
+      studentId: 'demo-student',
+      productId: ExtraContentIds.extraCarteggio,
+      status: StudentExtraPurchaseStatus.purchased,
+      purchasedAt: DateTime.utc(2026, 3, 12, 9, 15),
+      recordedByStaffId: 'mock-staff-user',
+    ),
+  ];
 
   static const List<PracticeServiceTemplate> _seedPracticeServiceTemplates = [
     PracticeServiceTemplate(
@@ -45,7 +70,8 @@ class ManagementRepositoryMock implements ManagementRepository {
       enrolledLicenseCategory: 'motore',
       defaultRegistrationFeeCents: 0,
       suggestedDepositCents: 0,
-      internalNotes: 'Da configurare: verificare percorso iscrizione e importi.',
+      internalNotes:
+          'Da configurare: verificare percorso iscrizione e importi.',
       sortOrder: 20,
     ),
     PracticeServiceTemplate(
@@ -98,7 +124,8 @@ class ManagementRepositoryMock implements ManagementRepository {
       id: 'mock-template-generica',
       slug: 'pratica-nautica-generica',
       title: 'Pratica nautica generica',
-      description: 'Prestazione generica non classificata nel catalogo standard.',
+      description:
+          'Prestazione generica non classificata nel catalogo standard.',
       practiceType: 'other',
       defaultRegistrationFeeCents: 0,
       suggestedDepositCents: 0,
@@ -488,6 +515,17 @@ class ManagementRepositoryMock implements ManagementRepository {
   }
 
   @override
+  Future<List<StudentExtraPurchase>> listStudentExtraPurchases(
+    StudentId studentId,
+  ) async {
+    return List<StudentExtraPurchase>.unmodifiable(
+      _studentExtraPurchases
+          .where((p) => p.studentId == studentId)
+          .toList(growable: false),
+    );
+  }
+
+  @override
   Future<void> grantStudentExtraProductAccess({
     required StudentId studentId,
     required String productId,
@@ -588,14 +626,15 @@ class ManagementRepositoryMock implements ManagementRepository {
     if (index < 0) {
       throw StateError('Prestazione non trovata.');
     }
-    _practiceServiceTemplates[index] =
-        _practiceServiceTemplates[index].copyWith(active: active);
+    _practiceServiceTemplates[index] = _practiceServiceTemplates[index]
+        .copyWith(active: active);
   }
 
   @override
   Future<void> deletePracticeServiceTemplate(String id) async {
-    final removed =
-        _practiceServiceTemplates.where((t) => t.id == id).toList(growable: false);
+    final removed = _practiceServiceTemplates
+        .where((t) => t.id == id)
+        .toList(growable: false);
     if (removed.isEmpty) {
       throw StateError('Prestazione non trovata.');
     }

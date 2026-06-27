@@ -51,9 +51,7 @@ class ManagementRepositorySupabase implements ManagementRepository {
     DateTime? from,
     DateTime? to,
   }) async {
-    var query = _client
-        .from('expenses')
-        .select(_expenseSelect);
+    var query = _client.from('expenses').select(_expenseSelect);
 
     if (from != null) {
       query = query.gte('expense_date', _dateOnly(from));
@@ -135,8 +133,9 @@ class ManagementRepositorySupabase implements ManagementRepository {
       'expense_date': _dateOnly(input.expenseDate),
       'category_id': input.categoryId,
       'payment_method': input.paymentMethod.name,
-      'receipt_reference':
-          receipt != null && receipt.isNotEmpty ? receipt : null,
+      'receipt_reference': receipt != null && receipt.isNotEmpty
+          ? receipt
+          : null,
       'notes': notes != null && notes.isNotEmpty ? notes : null,
       'instructor_id': input.instructorId,
     };
@@ -275,6 +274,91 @@ class ManagementRepositorySupabase implements ManagementRepository {
   }
 
   @override
+  Future<List<StudentExtraPurchase>> listStudentExtraPurchases(
+    StudentId studentId,
+  ) async {
+    final rows = await _client
+        .from('student_extra_purchases')
+        .select(
+          'id, student_id, product_id, status, purchased_at, amount_cents, '
+          'currency_code, payment_reference, recorded_by_staff_id',
+        )
+        .eq('student_id', studentId)
+        .order('purchased_at', ascending: false);
+
+    final purchases = (rows as List<dynamic>)
+        .map(
+          (row) =>
+              _mapStudentExtraPurchase(Map<String, dynamic>.from(row as Map)),
+        )
+        .toList(growable: false);
+
+    final orderIds = purchases
+        .map((p) => p.paymentReference?.trim())
+        .whereType<String>()
+        .where((ref) => ref.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+
+    if (orderIds.isEmpty) {
+      return purchases;
+    }
+
+    final orderRows = await _client
+        .from('online_orders')
+        .select('id, order_code, product_id')
+        .eq('student_id', studentId)
+        .inFilter('id', orderIds);
+
+    final orderById = <String, ({String orderCode, String? productId})>{};
+    for (final raw in orderRows as List<dynamic>) {
+      final map = Map<String, dynamic>.from(raw as Map);
+      final id = map['id'] as String?;
+      if (id == null) continue;
+      orderById[id] = (
+        orderCode: map['order_code'] as String? ?? '',
+        productId: map['product_id'] as String?,
+      );
+    }
+
+    return purchases
+        .map((purchase) {
+          final ref = purchase.paymentReference?.trim();
+          if (ref == null || ref.isEmpty) return purchase;
+          final order = orderById[ref];
+          if (order == null) return purchase;
+          return StudentExtraPurchase(
+            id: purchase.id,
+            studentId: purchase.studentId,
+            productId: purchase.productId,
+            status: purchase.status,
+            purchasedAt: purchase.purchasedAt,
+            amountCents: purchase.amountCents,
+            currencyCode: purchase.currencyCode,
+            paymentReference: purchase.paymentReference,
+            recordedByStaffId: purchase.recordedByStaffId,
+            orderCode: order.orderCode.isNotEmpty ? order.orderCode : null,
+            orderProductId: order.productId,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  StudentExtraPurchase _mapStudentExtraPurchase(Map<String, dynamic> row) {
+    return StudentExtraPurchase(
+      id: row['id'] as String,
+      studentId: row['student_id'] as String,
+      productId: row['product_id'] as String,
+      status: StudentExtraPurchaseStatus.values.byName(row['status'] as String),
+      purchasedAt: DateTime.parse(row['purchased_at'] as String),
+      amountCents: row['amount_cents'] as int?,
+      currencyCode: row['currency_code'] as String? ?? 'EUR',
+      paymentReference: row['payment_reference'] as String?,
+      recordedByStaffId: row['recorded_by_staff_id'] as String?,
+    );
+  }
+
+  @override
   Future<void> grantStudentExtraProductAccess({
     required StudentId studentId,
     required String productId,
@@ -283,16 +367,13 @@ class ManagementRepositorySupabase implements ManagementRepository {
     final staffId = _client.auth.currentUser?.id;
     final purchasedAt = DateTime.now().toUtc().toIso8601String();
     for (final id in productIds) {
-      await _client.from('student_extra_purchases').upsert(
-        <String, dynamic>{
-          'student_id': studentId,
-          'product_id': id,
-          'status': StudentExtraPurchaseStatus.purchased.name,
-          'purchased_at': purchasedAt,
-          'recorded_by_staff_id': staffId,
-        },
-        onConflict: 'student_id,product_id',
-      );
+      await _client.from('student_extra_purchases').upsert(<String, dynamic>{
+        'student_id': studentId,
+        'product_id': id,
+        'status': StudentExtraPurchaseStatus.purchased.name,
+        'purchased_at': purchasedAt,
+        'recorded_by_staff_id': staffId,
+      }, onConflict: 'student_id,product_id');
     }
   }
 
@@ -484,7 +565,9 @@ class ManagementRepositorySupabase implements ManagementRepository {
   Future<List<PracticeServiceTemplate>> listPracticeServiceTemplates({
     bool includeInactive = true,
   }) async {
-    var query = _client.from('practice_service_templates').select(_templateSelect);
+    var query = _client
+        .from('practice_service_templates')
+        .select(_templateSelect);
     if (!includeInactive) {
       query = query.eq('active', true);
     }
@@ -568,8 +651,9 @@ class ManagementRepositorySupabase implements ManagementRepository {
       payload['internal_notes'] = null;
     }
     payload['enrolled_course_path'] = _nullableTrim(input.enrolledCoursePath);
-    payload['enrolled_license_category'] =
-        _nullableTrim(input.enrolledLicenseCategory);
+    payload['enrolled_license_category'] = _nullableTrim(
+      input.enrolledLicenseCategory,
+    );
     return payload;
   }
 
