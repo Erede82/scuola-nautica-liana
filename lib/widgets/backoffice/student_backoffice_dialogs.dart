@@ -1262,6 +1262,9 @@ Future<void> showDeleteGuidanceAppointmentDialog(
   }
 }
 
+/// Giorno e ora inizio scelti da uno slot vuoto in Agenda.
+typedef AgendaSeaPracticeSlotSeed = ({DateTime day, int startHour});
+
 class AgendaSeaPracticeFormPanel extends StatefulWidget {
   const AgendaSeaPracticeFormPanel({
     super.key,
@@ -1269,6 +1272,7 @@ class AgendaSeaPracticeFormPanel extends StatefulWidget {
     required this.onCancel,
     required this.onSave,
     this.editItem,
+    this.initialSlot,
     this.scrollController,
     this.isSaving = false,
     this.showHeader = true,
@@ -1276,6 +1280,7 @@ class AgendaSeaPracticeFormPanel extends StatefulWidget {
 
   final List<StudentProfile> students;
   final GuidanceListItem? editItem;
+  final AgendaSeaPracticeSlotSeed? initialSlot;
   final VoidCallback onCancel;
   final ValueChanged<AgendaSeaPracticeResult> onSave;
   final ScrollController? scrollController;
@@ -1329,8 +1334,16 @@ class _AgendaSeaPracticeFormPanelState
       }
     } else {
       _studentId = widget.students.first.id;
-      final now = DateTime.now();
-      _day = DateTime(now.year, now.month, now.day);
+      final slot = widget.initialSlot;
+      if (slot != null) {
+        _day = DateTime(slot.day.year, slot.day.month, slot.day.day);
+        _startT = TimeOfDay(hour: slot.startHour, minute: 0);
+        _endT = guidanceAddOneHour(_startT);
+        _endTimeManuallySet = false;
+      } else {
+        final now = DateTime.now();
+        _day = DateTime(now.year, now.month, now.day);
+      }
     }
   }
 

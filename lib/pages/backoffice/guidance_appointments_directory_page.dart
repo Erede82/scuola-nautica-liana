@@ -57,6 +57,7 @@ class _GuidanceAppointmentsDirectoryPageState
   bool _newGuidePanelOpen = false;
   bool _newGuideSheetOpen = false;
   bool _savingNewGuide = false;
+  AgendaSeaPracticeSlotSeed? _newGuideSlot;
 
   @override
   void initState() {
@@ -148,8 +149,61 @@ class _GuidanceAppointmentsDirectoryPageState
   }
 
   void _closeNewGuidePanel() {
-    if (_newGuidePanelOpen) {
-      setState(() => _newGuidePanelOpen = false);
+    if (_newGuidePanelOpen || _newGuideSlot != null) {
+      setState(() {
+        _newGuidePanelOpen = false;
+        _newGuideSlot = null;
+      });
+    }
+  }
+
+  Key _newGuideFormKey() {
+    final slot = _newGuideSlot;
+    if (slot == null) return const ValueKey('new-guide-no-slot');
+    return ValueKey(
+      'new-guide-${slot.day.year}-${slot.day.month}-${slot.day.day}-${slot.startHour}',
+    );
+  }
+
+  Future<void> _openNewGuideAtSlot(DateTime day, int hour) async {
+    if (_loading) return;
+    try {
+      final profiles = await _studentProfilesForDialog();
+      if (!mounted) return;
+      if (profiles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nessun allievo registrato.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final seed = (
+        day: DateTime(day.year, day.month, day.day),
+        startHour: hour,
+      );
+
+      if (_useSidePanel(context)) {
+        setState(() {
+          _newGuideSlot = seed;
+          _newGuidePanelOpen = true;
+        });
+        return;
+      }
+
+      await _openNewGuideBottomSheet(profiles, initialSlot: seed);
+    } catch (e, st) {
+      debugPrint('_openNewGuideAtSlot: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Impossibile aprire il modulo: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -168,9 +222,22 @@ class _GuidanceAppointmentsDirectoryPageState
     }
   }
 
-  Future<void> _openNewGuideBottomSheet(List<StudentProfile> profiles) async {
-    setState(() => _newGuideSheetOpen = true);
+  Future<void> _openNewGuideBottomSheet(
+    List<StudentProfile> profiles, {
+    AgendaSeaPracticeSlotSeed? initialSlot,
+  }) async {
+    setState(() {
+      _newGuideSheetOpen = true;
+      _newGuideSlot = initialSlot;
+    });
     final sorted = sortAgendaSeaPracticeStudents(profiles);
+    final formKey = initialSlot == null
+        ? const ValueKey('new-guide-sheet-no-slot')
+        : ValueKey(
+            'new-guide-sheet-${initialSlot.day.year}-'
+            '${initialSlot.day.month}-${initialSlot.day.day}-'
+            '${initialSlot.startHour}',
+          );
 
     await showModalBottomSheet<void>(
       context: context,
@@ -188,7 +255,9 @@ class _GuidanceAppointmentsDirectoryPageState
               maxChildSize: 0.92,
               builder: (context, scrollController) {
                 return AgendaSeaPracticeFormPanel(
+                  key: formKey,
                   students: sorted,
+                  initialSlot: initialSlot,
                   scrollController: scrollController,
                   isSaving: saving,
                   onCancel: () => Navigator.pop(sheetContext),
@@ -216,7 +285,10 @@ class _GuidanceAppointmentsDirectoryPageState
     );
 
     if (mounted) {
-      setState(() => _newGuideSheetOpen = false);
+      setState(() {
+        _newGuideSheetOpen = false;
+        _newGuideSlot = null;
+      });
     }
   }
 
@@ -235,7 +307,15 @@ class _GuidanceAppointmentsDirectoryPageState
       }
 
       if (_useSidePanel(context)) {
-        setState(() => _newGuidePanelOpen = !_newGuidePanelOpen);
+        setState(() {
+          if (_newGuidePanelOpen) {
+            _newGuidePanelOpen = false;
+            _newGuideSlot = null;
+          } else {
+            _newGuidePanelOpen = true;
+            _newGuideSlot = null;
+          }
+        });
         return;
       }
 
@@ -431,7 +511,9 @@ class _GuidanceAppointmentsDirectoryPageState
         child: SizedBox(
           width: _sidePanelWidth,
           child: AgendaSeaPracticeFormPanel(
+            key: _newGuideFormKey(),
             students: sortAgendaSeaPracticeStudents(profiles),
+            initialSlot: _newGuideSlot,
             isSaving: _savingNewGuide,
             onCancel: _closeNewGuidePanel,
             onSave: _handleNewGuideSave,
@@ -582,25 +664,39 @@ class _GuidanceAppointmentsDirectoryPageState
     final filtered = _filtered(raw).toList(growable: false);
     final weekItems = _itemsInWeek(filtered);
 
-    if (weekItems.isEmpty) {
-      return Center(
-        child: Text(
-          filtered.isEmpty
-              ? 'Nessuna guida pratica in mare in elenco.'
-              : 'Nessuna guida in questa settimana (prova ad avanzare o reimpostare i filtri).',
-          style: textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
+    final emptyHint = weekItems.isEmpty
+        ? (filtered.isEmpty
+              ? 'Nessuna guida in elenco — tocca uno slot per registrarne una.'
+              : 'Nessuna guida in questa settimana — tocca uno slot o cambia settimana.')
+        : null;
 
-    return _WeekAgendaGrid(
-      weekMonday: _weekMonday,
-      items: weekItems,
-      startHour: _agendaStartHour,
-      endHour: _agendaEndHour,
-      hourHeight: _hourHeight,
-      onBlockTap: _onAgendaBlockTap,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (emptyHint != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              emptyHint,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppVisual.inkMuted,
+                height: 1.35,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        Expanded(
+          child: _WeekAgendaGrid(
+            weekMonday: _weekMonday,
+            items: weekItems,
+            startHour: _agendaStartHour,
+            endHour: _agendaEndHour,
+            hourHeight: _hourHeight,
+            onBlockTap: _onAgendaBlockTap,
+            onEmptySlotTap: _openNewGuideAtSlot,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -613,6 +709,7 @@ class _WeekAgendaGrid extends StatelessWidget {
     required this.endHour,
     required this.hourHeight,
     required this.onBlockTap,
+    this.onEmptySlotTap,
   });
 
   final DateTime weekMonday;
@@ -621,6 +718,7 @@ class _WeekAgendaGrid extends StatelessWidget {
   final int endHour;
   final double hourHeight;
   final ValueChanged<GuidanceListItem> onBlockTap;
+  final void Function(DateTime day, int hour)? onEmptySlotTap;
 
   static const double _timeColWidth = 48;
   static const double _minDayColWidth = 108;
@@ -754,6 +852,7 @@ class _WeekAgendaGrid extends StatelessWidget {
                           days[dayIndex].month == todayDate.month &&
                           days[dayIndex].day == todayDate.day,
                       items: _forDay(days[dayIndex]),
+                      onEmptySlotTap: onEmptySlotTap,
                       positionBlock: (context, placement) => _positionedBlock(
                         context,
                         placement,
@@ -1012,6 +1111,7 @@ class _DayColumn extends StatelessWidget {
     required this.hourHeight,
     required this.isToday,
     required this.items,
+    this.onEmptySlotTap,
     required this.positionBlock,
   });
 
@@ -1024,6 +1124,7 @@ class _DayColumn extends StatelessWidget {
   final double hourHeight;
   final bool isToday;
   final List<GuidanceListItem> items;
+  final void Function(DateTime day, int hour)? onEmptySlotTap;
   final Widget Function(
     BuildContext context,
     _DayAppointmentPlacement placement,
@@ -1074,6 +1175,9 @@ class _DayColumn extends StatelessWidget {
                           hourIndex: h - startHour,
                           isLastHour: h == endHour - 1,
                           columnTint: _columnTint,
+                          onTap: onEmptySlotTap == null
+                              ? null
+                              : () => onEmptySlotTap!(day, h),
                         ),
                     ],
                   ),
@@ -1098,6 +1202,7 @@ class _HourRowShell extends StatelessWidget {
     this.rightBorderWidth = 1,
     this.columnTint,
     this.child,
+    this.onTap,
   });
 
   final double hourHeight;
@@ -1107,6 +1212,7 @@ class _HourRowShell extends StatelessWidget {
   final double rightBorderWidth;
   final Color? columnTint;
   final Widget? child;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1114,7 +1220,7 @@ class _HourRowShell extends StatelessWidget {
         ? Colors.transparent
         : AppVisual.border.withValues(alpha: 0.06);
     final base = columnTint ?? AppVisual.surface;
-    return Container(
+    final row = Container(
       height: hourHeight,
       decoration: BoxDecoration(
         color: Color.alphaBlend(hourBand, base),
@@ -1132,6 +1238,11 @@ class _HourRowShell extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+    if (onTap == null) return row;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(onTap: onTap, child: row),
     );
   }
 }
