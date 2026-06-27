@@ -125,32 +125,37 @@ Future<void> showManageLessonSheetsDialog(
                               Text(
                                 'Verde = sbloccata · Rosso = bloccata · Arancione = parziale. '
                                 'Un tap aggiorna tutte le schede della lezione.',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(height: 1.4),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(height: 1.4),
                               ),
                               const SizedBox(height: 12),
                               LessonStudyAccessSummaryPills(
-                                sheetUnlocks: currentView.studyProgress.sheetUnlocks,
+                                sheetUnlocks:
+                                    currentView.studyProgress.sheetUnlocks,
                                 categoryId: categoryId,
                               ),
                               const SizedBox(height: 12),
                               Expanded(
                                 child: ListView(
                                   children: lessons.map((lesson) {
-                                    final saving =
-                                        busyLessons.contains(lesson.number);
+                                    final saving = busyLessons.contains(
+                                      lesson.number,
+                                    );
                                     final optimistic =
                                         optimisticLessonUnlock[lesson.number];
                                     final status =
                                         resolveLessonSheetAccessStatus(
-                                      sheetUnlocks:
-                                          currentView.studyProgress.sheetUnlocks,
-                                      categoryId: categoryId,
-                                      lessonNumber: lesson.number,
-                                      quizSheets: lesson.quizSheets,
-                                      optimisticUnlocked:
-                                          saving ? optimistic : null,
-                                    );
+                                          sheetUnlocks: currentView
+                                              .studyProgress
+                                              .sheetUnlocks,
+                                          categoryId: categoryId,
+                                          lessonNumber: lesson.number,
+                                          quizSheets: lesson.quizSheets,
+                                          optimisticUnlocked: saving
+                                              ? optimistic
+                                              : null,
+                                        );
                                     final targetUnlock =
                                         !status.isUnlockedForAction;
 
@@ -179,16 +184,16 @@ Future<void> showManageLessonSheetsDialog(
                                       try {
                                         await repository
                                             .setLessonSheetsUnlockedForLesson(
-                                          studentId: currentView.profile.id,
-                                          categoryId: categoryId,
-                                          lessonNumber: lesson.number,
-                                          sheetCount: lesson.quizSheets,
-                                          unlocked: unlocked,
-                                        );
+                                              studentId: currentView.profile.id,
+                                              categoryId: categoryId,
+                                              lessonNumber: lesson.number,
+                                              sheetCount: lesson.quizSheets,
+                                              unlocked: unlocked,
+                                            );
                                         final fresh = await repository
                                             .getStudentAdmin360(
-                                          currentView.profile.id,
-                                        );
+                                              currentView.profile.id,
+                                            );
                                         if (fresh != null) {
                                           holder.value = fresh;
                                           await onRefreshDetail(fresh);
@@ -221,8 +226,9 @@ Future<void> showManageLessonSheetsDialog(
                                         }
                                       } finally {
                                         busyLessons.remove(lesson.number);
-                                        optimisticLessonUnlock
-                                            .remove(lesson.number);
+                                        optimisticLessonUnlock.remove(
+                                          lesson.number,
+                                        );
                                         if (context.mounted) {
                                           setLocal(() {});
                                         }
@@ -581,7 +587,8 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
   final TextEditingController _noteCtrl = TextEditingController();
   final TextEditingController _receiptCtrl = TextEditingController();
 
-  PaymentMethod _method = BackofficePaymentMethods.selectableForNewPayment.first;
+  PaymentMethod _method =
+      BackofficePaymentMethods.selectableForNewPayment.first;
   DateTime _received = DateTime.now();
 
   @override
@@ -924,10 +931,7 @@ class _AddGuidanceDialogBodyState extends State<_AddGuidanceDialogBody> {
                     .map(
                       (name) => DropdownMenuItem(
                         value: name,
-                        child: Text(
-                          name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(name, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(growable: false),
@@ -1010,33 +1014,37 @@ Future<void> showAddGuidanceAppointmentDialog(
   }
 }
 
-/// Pratica in mare da modulo Guide / Agenda — tipo lezione sempre [GuidanceLessonType.practiceSea].
-Future<void> showAgendaSeaPracticeDialog(
-  BuildContext context, {
-  required BackofficeRepository repository,
-  required List<StudentProfile> students,
-  required Future<void> Function() onSaved,
-}) async {
-  if (students.isEmpty) {
-    if (context.mounted) {
-      _backofficeSnack(context, 'Nessun allievo disponibile.');
-    }
-    return;
-  }
+/// Esito persistenza nuova guida pratica in mare (Agenda).
+enum AgendaSeaPracticePersistOutcome { success, conflict, error }
+
+/// Dati inviati dal form guida pratica in mare (Agenda).
+typedef AgendaSeaPracticeResult = ({
+  StudentId studentId,
+  DateTime lessonDate,
+  DateTime start,
+  DateTime end,
+  String instructor,
+  String? notes,
+});
+
+List<StudentProfile> sortAgendaSeaPracticeStudents(
+  List<StudentProfile> students,
+) {
   final sorted = List<StudentProfile>.from(students)
     ..sort((a, b) {
       final c = a.lastName.toLowerCase().compareTo(b.lastName.toLowerCase());
       if (c != 0) return c;
       return a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase());
     });
+  return sorted;
+}
 
-  final result = await showDialog<_AgendaSeaResult>(
-    context: context,
-    builder: (ctx) => _AgendaSeaPracticeDialogBody(students: sorted),
-  );
-
-  if (result == null || !context.mounted) return;
-
+Future<AgendaSeaPracticePersistOutcome> persistNewAgendaSeaPractice({
+  required BuildContext context,
+  required BackofficeRepository repository,
+  required AgendaSeaPracticeResult result,
+  required Future<void> Function() onSaved,
+}) async {
   try {
     final existing = await repository.listGuidanceAppointments();
     final conflict = validateGuidanceSlotConflict(
@@ -1050,7 +1058,7 @@ Future<void> showAgendaSeaPracticeDialog(
       if (context.mounted) {
         _backofficeSnack(context, conflict);
       }
-      return;
+      return AgendaSeaPracticePersistOutcome.conflict;
     }
     await repository.addGuidanceAppointment(
       studentId: result.studentId,
@@ -1065,11 +1073,43 @@ Future<void> showAgendaSeaPracticeDialog(
       _backofficeSnack(context, 'Guida pratica in mare registrata.');
     }
     await onSaved();
+    return AgendaSeaPracticePersistOutcome.success;
   } catch (e) {
     if (context.mounted) {
       _backofficeSnack(context, 'Errore: ${_formatWriteError(e)}');
     }
+    return AgendaSeaPracticePersistOutcome.error;
   }
+}
+
+/// Pratica in mare da modulo Guide / Agenda — tipo lezione sempre [GuidanceLessonType.practiceSea].
+Future<void> showAgendaSeaPracticeDialog(
+  BuildContext context, {
+  required BackofficeRepository repository,
+  required List<StudentProfile> students,
+  required Future<void> Function() onSaved,
+}) async {
+  if (students.isEmpty) {
+    if (context.mounted) {
+      _backofficeSnack(context, 'Nessun allievo disponibile.');
+    }
+    return;
+  }
+  final sorted = sortAgendaSeaPracticeStudents(students);
+
+  final result = await showDialog<AgendaSeaPracticeResult>(
+    context: context,
+    builder: (ctx) => _AgendaSeaPracticeDialogBody(students: sorted),
+  );
+
+  if (result == null || !context.mounted) return;
+
+  await persistNewAgendaSeaPractice(
+    context: context,
+    repository: repository,
+    result: result,
+    onSaved: onSaved,
+  );
 }
 
 /// Azioni disponibili dal blocco guida in Agenda.
@@ -1100,8 +1140,7 @@ Future<AgendaGuidanceBlockAction?> showAgendaGuidanceBlockActions(
           ListTile(
             leading: const Icon(Icons.person_search_outlined),
             title: const Text('Apri Scheda 360'),
-            onTap: () =>
-                Navigator.pop(ctx, AgendaGuidanceBlockAction.open360),
+            onTap: () => Navigator.pop(ctx, AgendaGuidanceBlockAction.open360),
           ),
           ListTile(
             leading: const Icon(Icons.edit_calendar_outlined),
@@ -1136,19 +1175,12 @@ Future<void> showEditAgendaSeaPracticeDialog(
     }
     return;
   }
-  final sorted = List<StudentProfile>.from(students)
-    ..sort((a, b) {
-      final c = a.lastName.toLowerCase().compareTo(b.lastName.toLowerCase());
-      if (c != 0) return c;
-      return a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase());
-    });
+  final sorted = sortAgendaSeaPracticeStudents(students);
 
-  final result = await showDialog<_AgendaSeaResult>(
+  final result = await showDialog<AgendaSeaPracticeResult>(
     context: context,
-    builder: (ctx) => _AgendaSeaPracticeDialogBody(
-      students: sorted,
-      editItem: item,
-    ),
+    builder: (ctx) =>
+        _AgendaSeaPracticeDialogBody(students: sorted, editItem: item),
   );
 
   if (result == null || !context.mounted) return;
@@ -1230,31 +1262,33 @@ Future<void> showDeleteGuidanceAppointmentDialog(
   }
 }
 
-typedef _AgendaSeaResult = ({
-  StudentId studentId,
-  DateTime lessonDate,
-  DateTime start,
-  DateTime end,
-  String instructor,
-  String? notes,
-});
-
-class _AgendaSeaPracticeDialogBody extends StatefulWidget {
-  const _AgendaSeaPracticeDialogBody({
+class AgendaSeaPracticeFormPanel extends StatefulWidget {
+  const AgendaSeaPracticeFormPanel({
+    super.key,
     required this.students,
+    required this.onCancel,
+    required this.onSave,
     this.editItem,
+    this.scrollController,
+    this.isSaving = false,
+    this.showHeader = true,
   });
 
   final List<StudentProfile> students;
   final GuidanceListItem? editItem;
+  final VoidCallback onCancel;
+  final ValueChanged<AgendaSeaPracticeResult> onSave;
+  final ScrollController? scrollController;
+  final bool isSaving;
+  final bool showHeader;
 
   @override
-  State<_AgendaSeaPracticeDialogBody> createState() =>
-      _AgendaSeaPracticeDialogBodyState();
+  State<AgendaSeaPracticeFormPanel> createState() =>
+      _AgendaSeaPracticeFormPanelState();
 }
 
-class _AgendaSeaPracticeDialogBodyState
-    extends State<_AgendaSeaPracticeDialogBody> {
+class _AgendaSeaPracticeFormPanelState
+    extends State<AgendaSeaPracticeFormPanel> {
   late StudentId _studentId;
   late DateTime _day;
   TimeOfDay _startT = const TimeOfDay(hour: 9, minute: 0);
@@ -1264,6 +1298,10 @@ class _AgendaSeaPracticeDialogBodyState
   final TextEditingController _notesCtrl = TextEditingController();
 
   bool get _isEdit => widget.editItem != null;
+
+  String get _title => _isEdit
+      ? 'Modifica guida — pratica in mare'
+      : 'Nuova guida — pratica in mare';
 
   @override
   void initState() {
@@ -1309,26 +1347,16 @@ class _AgendaSeaPracticeDialogBodyState
   void _submit() {
     final inst = _instructorName?.trim();
     if (inst == null || inst.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Seleziona l’istruttore.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _backofficeSnack(context, 'Seleziona l’istruttore.');
       return;
     }
     final start = _combine(_day, _startT);
     final end = _combine(_day, _endT);
     if (!end.isAfter(start)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('L’ora fine deve essere dopo l’ora inizio.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _backofficeSnack(context, 'L’ora fine deve essere dopo l’ora inizio.');
       return;
     }
-    Navigator.of(context).pop((
+    widget.onSave((
       studentId: _studentId,
       lessonDate: _day,
       start: start,
@@ -1338,142 +1366,241 @@ class _AgendaSeaPracticeDialogBodyState
     ));
   }
 
+  Widget _buildFormFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DropdownButtonFormField<StudentId>(
+          key: ValueKey(_studentId),
+          initialValue: _studentId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Allievo',
+            border: OutlineInputBorder(),
+          ),
+          items: widget.students
+              .map(
+                (p) => DropdownMenuItem(
+                  value: p.id,
+                  child: Text(
+                    '${p.firstName} ${p.lastName}'.trim(),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) setState(() => _studentId = v);
+          },
+        ),
+        const SizedBox(height: 10),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('Data · ${BackofficeFormatters.dateUi(_day)}'),
+          trailing: IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            onPressed: () async {
+              final d = await showBackofficeDatePicker(
+                context,
+                initialDate: _day,
+              );
+              if (d != null) setState(() => _day = d);
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('Inizio · ${_startT.format(context)}'),
+          trailing: IconButton(
+            icon: const Icon(Icons.schedule),
+            onPressed: () async {
+              final t = await showBackofficeTimePicker(
+                context,
+                initialTime: _startT,
+              );
+              if (t != null) {
+                setState(() {
+                  _startT = t;
+                  if (!_endTimeManuallySet) {
+                    _endT = guidanceAddOneHour(t);
+                  }
+                });
+              }
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('Fine · ${_endT.format(context)}'),
+          trailing: IconButton(
+            icon: const Icon(Icons.schedule_outlined),
+            onPressed: () async {
+              final t = await showBackofficeTimePicker(
+                context,
+                initialTime: _endT,
+              );
+              if (t != null) {
+                setState(() {
+                  _endT = t;
+                  _endTimeManuallySet = true;
+                });
+              }
+            },
+          ),
+        ),
+        DropdownButtonFormField<String>(
+          key: ValueKey(_instructorName ?? '__none__'),
+          initialValue: _instructorName,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Istruttore assegnato',
+            hintText: 'Scegli dalla lista',
+            border: OutlineInputBorder(),
+          ),
+          items: GuidaDefaultInstructors.selectableInstructorNames
+              .map(
+                (name) => DropdownMenuItem(
+                  value: name,
+                  child: Text(name, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (v) => setState(() => _instructorName = v),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _notesCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Note (opz.)',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionRow() {
+    return Row(
+      children: [
+        TextButton(
+          onPressed: widget.isSaving ? null : widget.onCancel,
+          child: const Text('Annulla'),
+        ),
+        const Spacer(),
+        FilledButton(
+          onPressed: widget.isSaving ? null : _submit,
+          child: widget.isSaving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Salva'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scrollChild = _buildFormFields();
+
+    if (widget.scrollController != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.showHeader) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                _title,
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: BackofficeUiTokens.text,
+                ),
+              ),
+            ),
+          ],
+          Expanded(
+            child: ListView(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              children: [scrollChild],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              12 + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: _buildActionRow(),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.showHeader) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              _title,
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: BackofficeUiTokens.text,
+              ),
+            ),
+          ),
+        ],
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: scrollChild,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: _buildActionRow(),
+        ),
+      ],
+    );
+  }
+}
+
+class _AgendaSeaPracticeDialogBody extends StatelessWidget {
+  const _AgendaSeaPracticeDialogBody({required this.students, this.editItem});
+
+  final List<StudentProfile> students;
+  final GuidanceListItem? editItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = editItem != null;
     return AlertDialog(
       title: Text(
-        _isEdit
+        isEdit
             ? 'Modifica guida — pratica in mare'
             : 'Nuova guida — pratica in mare',
       ),
       content: SizedBox(
         width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<StudentId>(
-                key: ValueKey(_studentId),
-                initialValue: _studentId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Allievo',
-                  border: OutlineInputBorder(),
-                ),
-                items: widget.students
-                    .map(
-                      (p) => DropdownMenuItem(
-                        value: p.id,
-                        child: Text(
-                          '${p.firstName} ${p.lastName}'.trim(),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (v) {
-                  if (v != null) setState(() => _studentId = v);
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Data · ${BackofficeFormatters.dateUi(_day)}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  onPressed: () async {
-                    final d = await showBackofficeDatePicker(
-                      context,
-                      initialDate: _day,
-                    );
-                    if (d != null) setState(() => _day = d);
-                  },
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Inizio · ${_startT.format(context)}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.schedule),
-                  onPressed: () async {
-                    final t = await showBackofficeTimePicker(
-                      context,
-                      initialTime: _startT,
-                    );
-                    if (t != null) {
-                      setState(() {
-                        _startT = t;
-                        if (!_endTimeManuallySet) {
-                          _endT = guidanceAddOneHour(t);
-                        }
-                      });
-                    }
-                  },
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Fine · ${_endT.format(context)}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.schedule_outlined),
-                  onPressed: () async {
-                    final t = await showBackofficeTimePicker(
-                      context,
-                      initialTime: _endT,
-                    );
-                    if (t != null) {
-                      setState(() {
-                        _endT = t;
-                        _endTimeManuallySet = true;
-                      });
-                    }
-                  },
-                ),
-              ),
-              DropdownButtonFormField<String>(
-                key: ValueKey(_instructorName ?? '__none__'),
-                initialValue: _instructorName,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Istruttore assegnato',
-                  hintText: 'Scegli dalla lista',
-                  border: OutlineInputBorder(),
-                ),
-                items: GuidaDefaultInstructors.selectableInstructorNames
-                    .map(
-                      (name) => DropdownMenuItem(
-                        value: name,
-                        child: Text(
-                          name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (v) => setState(() => _instructorName = v),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _notesCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Note (opz.)',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
+        height: 460,
+        child: AgendaSeaPracticeFormPanel(
+          students: students,
+          editItem: editItem,
+          showHeader: false,
+          onCancel: () => Navigator.pop(context),
+          onSave: (result) => Navigator.pop(context, result),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('Salva')),
-      ],
     );
   }
 }

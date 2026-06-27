@@ -47,10 +47,16 @@ class _GuidanceAppointmentsDirectoryPageState
   static const int _agendaEndHour = 20;
   static const double _hourHeight = 48;
   static const double _compactToolbarBreakpoint = 600;
+  static const double _sidePanelBreakpoint = 900;
+  static const double _sidePanelWidth = 400;
   static const double _fabBottomClearance = 76;
 
-  /// Cache locale allievi — precaricata con l’agenda per aprire il dialog subito.
+  /// Cache locale allievi — precaricata con l’agenda per aprire il form subito.
   List<StudentProfile>? _studentProfiles;
+
+  bool _newGuidePanelOpen = false;
+  bool _newGuideSheetOpen = false;
+  bool _savingNewGuide = false;
 
   @override
   void initState() {
@@ -111,6 +117,9 @@ class _GuidanceAppointmentsDirectoryPageState
   }
 
   Future<void> _editGuide(GuidanceListItem item) async {
+    if (_newGuidePanelOpen) {
+      setState(() => _newGuidePanelOpen = false);
+    }
     try {
       final profiles = await _studentProfilesForDialog();
       if (!mounted) return;
@@ -134,6 +143,83 @@ class _GuidanceAppointmentsDirectoryPageState
     }
   }
 
+  bool _useSidePanel(BuildContext context) {
+    return MediaQuery.sizeOf(context).width >= _sidePanelBreakpoint;
+  }
+
+  void _closeNewGuidePanel() {
+    if (_newGuidePanelOpen) {
+      setState(() => _newGuidePanelOpen = false);
+    }
+  }
+
+  Future<void> _handleNewGuideSave(AgendaSeaPracticeResult result) async {
+    setState(() => _savingNewGuide = true);
+    final outcome = await persistNewAgendaSeaPractice(
+      context: context,
+      repository: backofficeRepository,
+      result: result,
+      onSaved: _load,
+    );
+    if (!mounted) return;
+    setState(() => _savingNewGuide = false);
+    if (outcome == AgendaSeaPracticePersistOutcome.success) {
+      _closeNewGuidePanel();
+    }
+  }
+
+  Future<void> _openNewGuideBottomSheet(List<StudentProfile> profiles) async {
+    setState(() => _newGuideSheetOpen = true);
+    final sorted = sortAgendaSeaPracticeStudents(profiles);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.62,
+              minChildSize: 0.38,
+              maxChildSize: 0.92,
+              builder: (context, scrollController) {
+                return AgendaSeaPracticeFormPanel(
+                  students: sorted,
+                  scrollController: scrollController,
+                  isSaving: saving,
+                  onCancel: () => Navigator.pop(sheetContext),
+                  onSave: (result) async {
+                    setSheetState(() => saving = true);
+                    final outcome = await persistNewAgendaSeaPractice(
+                      context: context,
+                      repository: backofficeRepository,
+                      result: result,
+                      onSaved: _load,
+                    );
+                    if (!context.mounted) return;
+                    setSheetState(() => saving = false);
+                    if (outcome == AgendaSeaPracticePersistOutcome.success &&
+                        sheetContext.mounted) {
+                      Navigator.pop(sheetContext);
+                    }
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() => _newGuideSheetOpen = false);
+    }
+  }
+
   Future<void> _openNewSeaLesson() async {
     try {
       final profiles = await _studentProfilesForDialog();
@@ -147,12 +233,13 @@ class _GuidanceAppointmentsDirectoryPageState
         );
         return;
       }
-      await showAgendaSeaPracticeDialog(
-        context,
-        repository: backofficeRepository,
-        students: profiles,
-        onSaved: _load,
-      );
+
+      if (_useSidePanel(context)) {
+        setState(() => _newGuidePanelOpen = !_newGuidePanelOpen);
+        return;
+      }
+
+      await _openNewGuideBottomSheet(profiles);
     } catch (e, st) {
       debugPrint('_openNewSeaLesson: $e\n$st');
       if (mounted) {
@@ -282,15 +369,18 @@ class _GuidanceAppointmentsDirectoryPageState
     );
   }
 
-  Widget _buildNewGuideButton() {
+  Widget _buildNewGuideButton({required bool panelOpen}) {
     return FilledButton.icon(
       onPressed: _loading ? null : _openNewSeaLesson,
-      icon: const Icon(Icons.add_circle_outline, size: 20),
-      label: const Text('Nuova guida'),
+      icon: Icon(
+        panelOpen ? Icons.close_rounded : Icons.add_circle_outline,
+        size: 20,
+      ),
+      label: Text(panelOpen ? 'Chiudi' : 'Nuova guida'),
     );
   }
 
-  Widget _buildSearchToolbar({required bool compact}) {
+  Widget _buildSearchToolbar({required bool compact, required bool panelOpen}) {
     final padding = const EdgeInsets.fromLTRB(16, 10, 16, 6);
     if (compact) {
       return Padding(
@@ -310,7 +400,7 @@ class _GuidanceAppointmentsDirectoryPageState
         children: [
           Expanded(child: _buildSearchField()),
           const SizedBox(width: 8),
-          _buildNewGuideButton(),
+          _buildNewGuideButton(panelOpen: panelOpen),
           const SizedBox(width: 6),
           _buildRefreshButton(),
         ],
@@ -329,11 +419,57 @@ class _GuidanceAppointmentsDirectoryPageState
     );
   }
 
+  Widget _buildNewGuideSidePanel(List<StudentProfile> profiles) {
+    return Material(
+      color: AppVisual.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: AppVisual.border.withValues(alpha: 0.78)),
+          ),
+        ),
+        child: SizedBox(
+          width: _sidePanelWidth,
+          child: AgendaSeaPracticeFormPanel(
+            students: sortAgendaSeaPracticeStudents(profiles),
+            isSaving: _savingNewGuide,
+            onCancel: _closeNewGuidePanel,
+            onSave: _handleNewGuideSave,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgendaArea(TextTheme textTheme, {required bool showFab}) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: showFab ? _fabBottomClearance : 0),
+            child: _buildBody(textTheme),
+          ),
+        ),
+        if (showFab)
+          Positioned(
+            right: 16,
+            bottom: 12,
+            child: SafeArea(top: false, child: _buildNewGuideFab()),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final compact =
-        MediaQuery.sizeOf(context).width < _compactToolbarBreakpoint;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < _compactToolbarBreakpoint;
+    final useSidePanel = width >= _sidePanelBreakpoint;
+    final showSidePanel = useSidePanel && _newGuidePanelOpen;
+    final showFab = compact && !_newGuideSheetOpen && !_newGuidePanelOpen;
+    final profiles = _studentProfiles ?? const <StudentProfile>[];
 
     return ColoredBox(
       color: AppVisual.canvas,
@@ -354,7 +490,7 @@ class _GuidanceAppointmentsDirectoryPageState
                 ),
               ),
             ),
-          _buildSearchToolbar(compact: compact),
+          _buildSearchToolbar(compact: compact, panelOpen: showSidePanel),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(
@@ -407,25 +543,18 @@ class _GuidanceAppointmentsDirectoryPageState
           ),
           const SizedBox(height: 6),
           Expanded(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: compact ? _fabBottomClearance : 0,
-                    ),
-                    child: _buildBody(textTheme),
-                  ),
-                ),
-                if (compact)
-                  Positioned(
-                    right: 16,
-                    bottom: 12,
-                    child: SafeArea(top: false, child: _buildNewGuideFab()),
-                  ),
-              ],
-            ),
+            child: useSidePanel
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _buildAgendaArea(textTheme, showFab: false),
+                      ),
+                      if (showSidePanel && profiles.isNotEmpty)
+                        _buildNewGuideSidePanel(profiles),
+                    ],
+                  )
+                : _buildAgendaArea(textTheme, showFab: showFab),
           ),
         ],
       ),
