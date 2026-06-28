@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
+import '../../repositories/backoffice/backoffice_repository.dart';
 import '../../utils/guidance_appointment_validation.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
@@ -14,10 +15,12 @@ class GuidanceAppointmentsDirectoryPage extends StatefulWidget {
     super.key,
     this.embedded = false,
     required this.onOpenStudent360,
+    this.repository,
   });
 
   final bool embedded;
   final ValueChanged<StudentId> onOpenStudent360;
+  final BackofficeRepository? repository;
 
   @override
   State<GuidanceAppointmentsDirectoryPage> createState() =>
@@ -50,6 +53,9 @@ class _GuidanceAppointmentsDirectoryPageState
   static const double _sidePanelBreakpoint = 900;
   static const double _sidePanelWidth = 400;
   static const double _fabBottomClearance = 76;
+
+  BackofficeRepository get _repository =>
+      widget.repository ?? backofficeRepository;
 
   /// Cache locale allievi — precaricata con l’agenda per aprire il form subito.
   List<StudentProfile>? _studentProfiles;
@@ -101,7 +107,7 @@ class _GuidanceAppointmentsDirectoryPageState
         await showDeleteGuidanceAppointmentDialog(
           context,
           item: item,
-          repository: backofficeRepository,
+          repository: _repository,
           onSaved: _load,
         );
     }
@@ -110,7 +116,7 @@ class _GuidanceAppointmentsDirectoryPageState
   Future<List<StudentProfile>> _studentProfilesForDialog() async {
     final cached = _studentProfiles;
     if (cached != null) return cached;
-    final profiles = await backofficeRepository.listStudentProfiles();
+    final profiles = await _repository.listStudentProfiles();
     if (mounted) {
       setState(() => _studentProfiles = profiles);
     }
@@ -128,7 +134,7 @@ class _GuidanceAppointmentsDirectoryPageState
         context,
         item: item,
         students: profiles,
-        repository: backofficeRepository,
+        repository: _repository,
         onSaved: _load,
       );
     } catch (e, st) {
@@ -211,7 +217,7 @@ class _GuidanceAppointmentsDirectoryPageState
     setState(() => _savingNewGuide = true);
     final outcome = await persistNewAgendaSeaPractice(
       context: context,
-      repository: backofficeRepository,
+      repository: _repository,
       result: result,
       onSaved: _load,
     );
@@ -265,7 +271,7 @@ class _GuidanceAppointmentsDirectoryPageState
                     setSheetState(() => saving = true);
                     final outcome = await persistNewAgendaSeaPractice(
                       context: context,
-                      repository: backofficeRepository,
+                      repository: _repository,
                       result: result,
                       onSaved: _load,
                     );
@@ -339,14 +345,25 @@ class _GuidanceAppointmentsDirectoryPageState
       _error = null;
     });
     try {
-      final results = await Future.wait<Object>([
-        backofficeRepository.listGuidanceAppointments(),
-        backofficeRepository.listStudentProfiles(),
-      ]);
+      final appointmentsFuture = _repository.listGuidanceAppointments();
+      final profilesFuture = Future<List<StudentProfile>>.sync(
+            _repository.listStudentProfiles,
+          )
+          .then<List<StudentProfile>?>((profiles) => profiles)
+          .catchError((Object e, StackTrace st) {
+            debugPrint(
+              'GuidanceAppointmentsDirectoryPage student preload: $e\n$st',
+            );
+            return null;
+          });
+      final appointments = await appointmentsFuture;
+      final profiles = await profilesFuture;
       if (!mounted) return;
       setState(() {
-        _items = results[0] as List<GuidanceListItem>;
-        _studentProfiles = results[1] as List<StudentProfile>;
+        _items = appointments;
+        if (profiles != null) {
+          _studentProfiles = profiles;
+        }
         _loading = false;
       });
     } catch (e, st) {
