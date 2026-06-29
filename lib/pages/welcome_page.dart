@@ -31,6 +31,7 @@ class _WelcomePageState extends State<WelcomePage> {
   /// Anchor per scroll/reveal: hero, blocco “Scoprici”, percorso.
   final GlobalKey _heroSectionKey = GlobalKey();
   final GlobalKey _discoverKey = GlobalKey();
+
   /// Puntamento scroll “SCOPRICI”: allinea il titolo in cima al viewport.
   final GlobalKey _discoverTitleKey = GlobalKey();
   final GlobalKey _journeySectionKey = GlobalKey();
@@ -59,7 +60,8 @@ class _WelcomePageState extends State<WelcomePage> {
     final nd = dv ?? _discoverVisible;
     final nj = jv ?? _journeyVisible;
 
-    final showTop = _scrollController.hasClients && _scrollController.offset > 280;
+    final showTop =
+        _scrollController.hasClients && _scrollController.offset > 280;
 
     if (nh != _heroVisible ||
         nd != _discoverVisible ||
@@ -85,7 +87,8 @@ class _WelcomePageState extends State<WelcomePage> {
     final position = renderBox.localToGlobal(Offset.zero);
     final screenHeight = MediaQuery.of(context).size.height;
 
-    final visible = position.dy < screenHeight * 0.82 &&
+    final visible =
+        position.dy < screenHeight * 0.82 &&
         (position.dy + renderBox.size.height) > screenHeight * 0.10;
 
     return visible;
@@ -106,15 +109,23 @@ class _WelcomePageState extends State<WelcomePage> {
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
-    final targetContext = _discoverTitleKey.currentContext ??
-        _discoverKey.currentContext;
+    final targetContext =
+        _discoverTitleKey.currentContext ?? _discoverKey.currentContext;
     if (targetContext == null || !targetContext.mounted) return;
     if (!_scrollController.hasClients) return;
 
     final viewH = MediaQuery.sizeOf(context).height;
     // Stessi parametri di prima, ma arriviamo al punto finale in una sola animazione (niente “doppio passaggio”).
-    final alignment = viewH >= 800 ? 0.035 : viewH >= 640 ? 0.028 : 0.022;
-    final nudgeUp = viewH >= 800 ? 56.0 : viewH >= 640 ? 44.0 : 36.0;
+    final alignment = viewH >= 800
+        ? 0.035
+        : viewH >= 640
+        ? 0.028
+        : 0.022;
+    final nudgeUp = viewH >= 800
+        ? 56.0
+        : viewH >= 640
+        ? 44.0
+        : 36.0;
 
     final renderObject = targetContext.findRenderObject();
     if (renderObject == null) return;
@@ -181,8 +192,11 @@ class _WelcomePageState extends State<WelcomePage> {
                       onDiscoverTap: _scrollToDiscover,
                       onLoginTap: () =>
                           _handleAction(context, widget.onLoginTap, '/login'),
-                      onRegisterTap: () =>
-                          _handleAction(context, widget.onRegisterTap, '/register'),
+                      onRegisterTap: () => _handleAction(
+                        context,
+                        widget.onRegisterTap,
+                        '/register',
+                      ),
                       onForgotPasswordTap: () => _handleAction(
                         context,
                         widget.onForgotPasswordTap,
@@ -425,87 +439,124 @@ class _HeroSection extends StatelessWidget {
           ),
           SafeArea(
             bottom: false,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 980),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isCompact ? 24 : 40,
-                    vertical: isCompact ? (cramped ? 12 : 20) : 36,
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        child: _HeroLogo(
-                          height: isCompact ? 70 : 86,
-                        ),
-                      ),
-                      Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _heroHeadlineBlock(
-                              cramped: cramped,
-                              isCompact: isCompact,
-                            ),
-                            SizedBox(height: cramped ? 16 : 22),
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 14,
-                              runSpacing: 14,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: onLoginTap,
-                                  style: _HeroSection._heroMainCtaStyle(),
-                                  child: const Text('Accedi'),
-                                ),
-                                OutlinedButton(
-                                  onPressed: onRegisterTap,
-                                  style: _HeroSection._heroMainCtaStyle(),
-                                  child: const Text('Registrati'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            TextButton(
-                              onPressed: onForgotPasswordTap,
-                              style: TextButton.styleFrom(
-                                foregroundColor:
-                                    Colors.white.withValues(alpha: 0.88),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                              ),
-                              child: const Text(
-                                'Password dimenticata?',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: isCompact ? 20 : 22),
-                            OutlinedButton(
-                              onPressed: onDiscoverTap,
-                              style: _HeroSection._heroDiscoverStyle(),
-                              child: const Text('SCOPRICI'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, viewport) {
+                return _HeroSection._heroForeground(
+                  viewportConstraints: viewport,
+                  isCompact: isCompact,
+                  cramped: cramped,
+                  onLoginTap: onLoginTap,
+                  onRegisterTap: onRegisterTap,
+                  onForgotPasswordTap: onForgotPasswordTap,
+                  onDiscoverTap: onDiscoverTap,
+                );
+              },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static Widget _heroForeground({
+    required BoxConstraints viewportConstraints,
+    required bool isCompact,
+    required bool cramped,
+    required VoidCallback onLoginTap,
+    required VoidCallback onRegisterTap,
+    required VoidCallback onForgotPasswordTap,
+    required VoidCallback onDiscoverTap,
+  }) {
+    final horizontalPadding = isCompact ? 24.0 : 40.0;
+    final verticalPadding = isCompact ? (cramped ? 12.0 : 20.0) : 36.0;
+
+    final ctaColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _heroHeadlineBlock(cramped: cramped, isCompact: isCompact),
+        SizedBox(height: cramped ? 12 : 22),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            OutlinedButton(
+              onPressed: onLoginTap,
+              style: _heroMainCtaStyle(),
+              child: const Text('Accedi'),
+            ),
+            OutlinedButton(
+              onPressed: onRegisterTap,
+              style: _heroMainCtaStyle(),
+              child: const Text('Registrati'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: onForgotPasswordTap,
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white.withValues(alpha: 0.88),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          ),
+          child: const Text(
+            'Password dimenticata?',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+        SizedBox(height: isCompact ? (cramped ? 14 : 20) : 22),
+        OutlinedButton(
+          onPressed: onDiscoverTap,
+          style: _heroDiscoverStyle(),
+          child: const Text('SCOPRICI'),
+        ),
+      ],
+    );
+
+    if (isCompact) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: viewportConstraints.maxHeight),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 980),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _HeroLogo(height: cramped ? 56 : 70),
+                ),
+                SizedBox(height: cramped ? 12 : 24),
+                ctaColumn,
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(top: 0, left: 0, child: _HeroLogo(height: 86)),
+              Center(child: ctaColumn),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -526,9 +577,7 @@ class _HeroSection extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
-              fontSize: cramped
-                  ? 32
-                  : (isCompact ? 40 : 68),
+              fontSize: cramped ? 32 : (isCompact ? 40 : 68),
               fontWeight: FontWeight.w700,
               height: 1.08,
               letterSpacing: isCompact ? 0.2 : 0.35,
@@ -543,9 +592,7 @@ class _HeroSection extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.94),
-              fontSize: cramped
-                  ? 16
-                  : (isCompact ? 17 : 20),
+              fontSize: cramped ? 16 : (isCompact ? 17 : 20),
               fontWeight: FontWeight.w500,
               height: 1.45,
             ),
@@ -559,9 +606,7 @@ class _HeroSection extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.88),
-              fontSize: cramped
-                  ? 13
-                  : (isCompact ? 14 : 15),
+              fontSize: cramped ? 13 : (isCompact ? 14 : 15),
               height: 1.55,
             ),
           ),
@@ -774,10 +819,7 @@ class _DiscoverImageCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF2473AE),
-                        Color(0xFF0E3150),
-                      ],
+                      colors: [Color(0xFF2473AE), Color(0xFF0E3150)],
                     ),
                   ),
                 );
@@ -809,9 +851,7 @@ class _DiscoverImageCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFCFEFF5),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: const Color(0xFF9FD9E6),
-                      ),
+                      border: Border.all(color: const Color(0xFF9FD9E6)),
                     ),
                     child: Text(
                       tag,
@@ -989,10 +1029,7 @@ class _JourneySection extends StatelessWidget {
 }
 
 class _FeatureTile extends StatelessWidget {
-  const _FeatureTile({
-    required this.title,
-    required this.description,
-  });
+  const _FeatureTile({required this.title, required this.description});
 
   final String title;
   final String description;
@@ -1004,9 +1041,7 @@ class _FeatureTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppVisual.border.withValues(alpha: 0.75),
-        ),
+        border: Border.all(color: AppVisual.border.withValues(alpha: 0.75)),
         boxShadow: [
           BoxShadow(
             color: AppVisual.ink.withValues(alpha: 0.035),
@@ -1123,7 +1158,9 @@ class _FooterSection extends StatelessWidget {
                               icon: Icons.phone_rounded,
                               label: AppBranding.supportPhoneDisplay,
                               onTap: () =>
-                                  SchoolContactLauncher.dialSupportPhone(context),
+                                  SchoolContactLauncher.dialSupportPhone(
+                                    context,
+                                  ),
                             ),
                             const SizedBox(height: 6),
                             _FooterTappableLine(
@@ -1184,8 +1221,9 @@ class _FooterSection extends StatelessWidget {
                                   SchoolContactLauncher.openInstagram(context),
                               style: lineStyle.copyWith(
                                 decoration: TextDecoration.underline,
-                                decorationColor:
-                                    Colors.white.withValues(alpha: 0.55),
+                                decorationColor: Colors.white.withValues(
+                                  alpha: 0.55,
+                                ),
                               ),
                             ),
                           ],
@@ -1258,9 +1296,9 @@ class _FooterTappableLine extends StatelessWidget {
     required this.label,
     required this.onTap,
   }) : assert(
-          (icon != null) ^ (iconWidget != null),
-          'Usa icon oppure iconWidget',
-        );
+         (icon != null) ^ (iconWidget != null),
+         'Usa icon oppure iconWidget',
+       );
 
   final IconData? icon;
   final Widget? iconWidget;
@@ -1283,11 +1321,7 @@ class _FooterTappableLine extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null)
-                Icon(
-                  icon,
-                  size: 18,
-                  color: Colors.white.withValues(alpha: 0.9),
-                )
+                Icon(icon, size: 18, color: Colors.white.withValues(alpha: 0.9))
               else
                 iconWidget!,
               const SizedBox(width: 8),
@@ -1333,11 +1367,7 @@ class _FooterLinkText extends StatelessWidget {
         splashColor: Colors.white.withValues(alpha: 0.12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: style,
-          ),
+          child: Text(text, textAlign: TextAlign.center, style: style),
         ),
       ),
     );

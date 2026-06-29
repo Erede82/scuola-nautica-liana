@@ -128,8 +128,8 @@ class _ExtraPageState extends State<ExtraPage> {
         title: const SectionAppBarTitle('Extra', logoHeight: 30),
         shape: const RoundedRectangleBorder(),
         actions: [
-          if (studentSession.value?.studentId != null) ...[
-            TextButton.icon(
+          if (studentSession.value?.studentId != null)
+            _ExtraPurchasesAppBarAction(
               onPressed: () {
                 Navigator.push<void>(
                   context,
@@ -138,20 +138,7 @@ class _ExtraPageState extends State<ExtraPage> {
                   ),
                 );
               },
-              icon: const Icon(
-                Icons.receipt_long_outlined,
-                color: Colors.white,
-              ),
-              label: const Text(
-                'I miei acquisti',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
-            const SizedBox(width: 4),
-          ],
         ],
       ),
       body: FutureBuilder<_ExtraPageData>(
@@ -388,6 +375,40 @@ class _ExtraLargeCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// App bar action: icon-only su viewport stretti per evitare overflow.
+class _ExtraPurchasesAppBarAction extends StatelessWidget {
+  const _ExtraPurchasesAppBarAction({required this.onPressed});
+
+  static const double _compactBreakpoint = 380;
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < _compactBreakpoint;
+
+    if (narrow) {
+      return IconButton(
+        onPressed: onPressed,
+        tooltip: 'I miei acquisti',
+        icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
+        label: const Text(
+          'I miei acquisti',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
     );

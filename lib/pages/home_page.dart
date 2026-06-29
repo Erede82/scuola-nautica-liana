@@ -236,36 +236,76 @@ class _StaffStudentAreaBanner extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        final returnButton = TextButton(
+          onPressed: () => returnToAdministrativePanel(context, snap),
+          style: TextButton.styleFrom(
+            foregroundColor: HomePage._primaryColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+          ),
+          child: const Text('Torna al pannello amministrativo'),
+        );
+
         return Material(
           color: HomePage._primaryColor.withValues(alpha: 0.08),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.visibility_outlined,
-                  size: 20,
-                  color: HomePage._primaryColor,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Stai visualizzando l\'area allievo come staff',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppVisual.ink,
-                      fontWeight: FontWeight.w600,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 480;
+                if (narrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            size: 20,
+                            color: HomePage._primaryColor,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Stai visualizzando l\'area allievo come staff',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: AppVisual.ink,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: returnButton,
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_outlined,
+                      size: 20,
+                      color: HomePage._primaryColor,
                     ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => returnToAdministrativePanel(context, snap),
-                  style: TextButton.styleFrom(
-                    foregroundColor: HomePage._primaryColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  child: const Text('Torna al pannello amministrativo'),
-                ),
-              ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Stai visualizzando l\'area allievo come staff',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppVisual.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    returnButton,
+                  ],
+                );
+              },
             ),
           ),
         );
