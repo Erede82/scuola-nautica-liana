@@ -9,6 +9,7 @@ import 'pages/home_page.dart';
 import 'pages/welcome_page.dart';
 import 'repositories/student_auth_registry.dart';
 import 'services/app_auth_bootstrap.dart';
+import 'services/auth_flow_state.dart';
 import 'services/auth_logout_navigation.dart';
 import 'services/demo_student_enrollment.dart';
 import 'services/staff_access_service.dart';
@@ -28,6 +29,7 @@ class _AppAuthGateState extends State<AppAuthGate> {
   StreamSubscription<AuthState>? _authSub;
   VoidCallback? _studentListener;
   VoidCallback? _staffListener;
+  VoidCallback? _registrationListener;
 
   @override
   void initState() {
@@ -38,8 +40,12 @@ class _AppAuthGateState extends State<AppAuthGate> {
     _staffListener = () {
       if (mounted) setState(() {});
     };
+    _registrationListener = () {
+      if (mounted) setState(() {});
+    };
     studentSession.addListener(_studentListener!);
     staffAccessNotifier.addListener(_staffListener!);
+    registrationInProgress.addListener(_registrationListener!);
 
     if (SupabaseConfig.isConfigured) {
       _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
@@ -73,10 +79,16 @@ class _AppAuthGateState extends State<AppAuthGate> {
       final hasStaff = snap.staffRole != null;
       final privileged = AdminAccessUtils.isPrivilegedEmail(email);
       if (!hasStudent && !hasStaff && !privileged) {
-        debugPrint(
-          '[AUTH gate] logout forzato (bootstrap): JWT senza studente/staff/email privilegiata',
-        );
-        await signOutAndReturnToWelcome();
+        if (registrationInProgress.value) {
+          debugPrint(
+            '[AUTH gate] bootstrap: registrazione in corso, nessun logout forzato',
+          );
+        } else {
+          debugPrint(
+            '[AUTH gate] logout forzato (bootstrap): JWT senza studente/staff/email privilegiata',
+          );
+          await signOutAndReturnToWelcome();
+        }
       }
     }
     if (mounted) setState(() => _bootstrapping = false);
@@ -91,15 +103,16 @@ class _AppAuthGateState extends State<AppAuthGate> {
     if (_staffListener != null) {
       staffAccessNotifier.removeListener(_staffListener!);
     }
+    if (_registrationListener != null) {
+      registrationInProgress.removeListener(_registrationListener!);
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_bootstrapping) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!SupabaseConfig.isConfigured) {
@@ -113,9 +126,7 @@ class _AppAuthGateState extends State<AppAuthGate> {
 
     final snap = staffAccessNotifier.value;
     if (snap.isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final email = user.email;
@@ -124,6 +135,11 @@ class _AppAuthGateState extends State<AppAuthGate> {
     final privileged = AdminAccessUtils.isPrivilegedEmail(email);
 
     if (!hasStudent && !hasStaff && !privileged) {
+      // Registrazione in corso: la sessione esiste ma la riga students non è
+      // ancora idratata. Attendi (loading) invece di forzare il logout.
+      if (registrationInProgress.value) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
       debugPrint(
         '[AUTH gate] JWT senza accesso studente/staff: signOut post-frame '
         'user.id=${user.id}',

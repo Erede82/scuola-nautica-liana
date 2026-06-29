@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../data/lesson_quiz_performance_mock.dart';
+import '../data/lesson_quiz_performance_source.dart';
 import '../models/lesson_quiz_performance_snapshot.dart';
 import '../models/license_models.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Grafico a barre orizzontali: tutte le lezioni/topic con **evidenza** sulle 3 maggiori % errori.
 class StatisticsLessonErrorChart extends StatelessWidget {
-  const StatisticsLessonErrorChart({
-    super.key,
-    required this.categoryId,
-  });
+  const StatisticsLessonErrorChart({super.key, required this.categoryId});
 
   final LicenseCategoryId categoryId;
 
@@ -21,12 +18,77 @@ class StatisticsLessonErrorChart extends StatelessWidget {
   static const Color _topIssueColor = Color(0xFFC75D3A);
   static const Color _topIssueBg = Color(0xFFFFF4F0);
 
+  Widget _buildEmptyState(TextTheme textTheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.insights_rounded,
+              color: _primaryColor.withValues(alpha: 0.9),
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Errori per lezione',
+                style: textTheme.titleMedium?.copyWith(
+                  color: _textPrimaryColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _accentColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _neutralColor),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                Icons.query_stats_rounded,
+                color: _primaryColor.withValues(alpha: 0.75),
+                size: 30,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Nessun dato disponibile',
+                textAlign: TextAlign.center,
+                style: textTheme.titleSmall?.copyWith(
+                  color: _textPrimaryColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Completa alcune schede quiz per vedere qui gli errori per lezione.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodySmall?.copyWith(
+                  color: _textPrimaryColor.withValues(alpha: 0.82),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final raw = LessonQuizPerformanceMock.snapshotsFor(categoryId);
+    final raw = LessonQuizPerformanceSource.snapshotsFor(categoryId);
     if (raw.isEmpty) {
-      return const SizedBox.shrink();
+      return _buildEmptyState(textTheme);
     }
 
     final byLesson = List<LessonQuizPerformanceSnapshot>.from(raw)
@@ -34,8 +96,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
 
     final worstFirst = List<LessonQuizPerformanceSnapshot>.from(raw)
       ..sort(
-        (a, b) =>
-            b.averageErrorPercentage.compareTo(a.averageErrorPercentage),
+        (a, b) => b.averageErrorPercentage.compareTo(a.averageErrorPercentage),
       );
     final top3LessonNumbers = worstFirst
         .take(3)
@@ -89,7 +150,10 @@ class StatisticsLessonErrorChart extends StatelessWidget {
         ...byLesson.map((s) {
           final isTop = top3LessonNumbers.contains(s.lessonNumber);
           final frac = (s.averageErrorPercentage / maxErr).clamp(0.0, 1.0);
-          final shortTitle = s.lessonTitle.replaceFirst(RegExp(r'^\d+\.\s*'), '');
+          final shortTitle = s.lessonTitle.replaceFirst(
+            RegExp(r'^\d+\.\s*'),
+            '',
+          );
           final label = 'Lez. ${s.lessonNumber} · $shortTitle';
 
           return Padding(

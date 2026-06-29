@@ -8,6 +8,7 @@ import '../domain/course_taxonomy.dart';
 import '../domain/enrollment_content_mapping.dart';
 import '../models/student_registration.dart';
 import '../models/student_session.dart';
+import '../services/auth_flow_state.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
 import '../services/student_study_access_sync.dart';
@@ -34,6 +35,10 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
     StudentRegistrationRequest request,
   ) async {
     final email = request.email.trim().toLowerCase();
+
+    // Evita che AppAuthGate forzi il logout nella finestra tra signUp e
+    // l'idratazione della riga students (race → ritorno alla Welcome).
+    registrationInProgress.value = true;
 
     try {
       _regLog('1 signUp start', 'email=$email');
@@ -73,20 +78,20 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
             'p_last_name': request.lastName.trim(),
             'p_phone': request.phone.trim(),
             'p_email': email,
-            'p_enrolled_course_path':
-                EnrollmentCoursePathStorage.toStorage(request.enrolledCoursePath),
-            'p_enrolled_license_category': EnrollmentContentMapping
-                .primaryLicenseCategory(request.enrolledCoursePath)
-                .name,
+            'p_enrolled_course_path': EnrollmentCoursePathStorage.toStorage(
+              request.enrolledCoursePath,
+            ),
+            'p_enrolled_license_category':
+                EnrollmentContentMapping.primaryLicenseCategory(
+                  request.enrolledCoursePath,
+                ).name,
           },
         );
         _regLog('3 rpc register_student_app ok');
       } catch (e, st) {
         _regLog('3 rpc FAILED', '$e\n$st');
         await _safeSignOut();
-        return StudentRegistrationResult.error(
-          _mapRegisterRpcError(e),
-        );
+        return StudentRegistrationResult.error(_mapRegisterRpcError(e));
       }
 
       StudentSession? session;
@@ -103,9 +108,7 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
           'code=${e.code} message=${e.message}\n$st',
         );
         await _safeSignOut();
-        return StudentRegistrationResult.error(
-          _mapHydrateOrReadError(e),
-        );
+        return StudentRegistrationResult.error(_mapHydrateOrReadError(e));
       } catch (e, st) {
         _regLog('4 hydrate FAILED', '$e\n$st');
         await _safeSignOut();
@@ -151,6 +154,8 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
       return StudentRegistrationResult.error(
         _mapUnexpectedRegistrationOuter(e),
       );
+    } finally {
+      registrationInProgress.value = false;
     }
   }
 
@@ -161,10 +166,7 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
   }) async {
     final e = email.trim().toLowerCase();
     try {
-      await _client.auth.signInWithPassword(
-        email: e,
-        password: password,
-      );
+      await _client.auth.signInWithPassword(email: e, password: password);
     } on AuthException catch (err) {
       debugPrint(
         '[AUTH signInWithPassword] status=${err.statusCode} message=${err.message}',
@@ -189,10 +191,7 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
       if (e is PostgrestException) {
         _logPostgrestException('[AUTH signIn] hydrate catch', e, st);
       } else {
-        _logSignIn(
-          'hydrate ERRORE',
-          'runtimeType=${e.runtimeType} | $e\n$st',
-        );
+        _logSignIn('hydrate ERRORE', 'runtimeType=${e.runtimeType} | $e\n$st');
       }
       studentSession = null;
     }
@@ -282,7 +281,11 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
   }
 
   /// Log diagnostico completo per errori PostgREST (es. 500 sul `select` students).
-  void _logPostgrestException(String prefix, PostgrestException e, StackTrace st) {
+  void _logPostgrestException(
+    String prefix,
+    PostgrestException e,
+    StackTrace st,
+  ) {
     debugPrint(
       '$prefix | PostgrestException '
       'code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}',
@@ -338,10 +341,12 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
         msg.contains('email or password')) {
       return 'Email o password non corrette';
     }
-    if (msg.contains('email not confirmed') || msg.contains('email_not_confirmed')) {
+    if (msg.contains('email not confirmed') ||
+        msg.contains('email_not_confirmed')) {
       return _loginEmailNotConfirmedMessage();
     }
-    if (msg.contains('user already registered') || msg.contains('already registered')) {
+    if (msg.contains('user already registered') ||
+        msg.contains('already registered')) {
       return 'Questa email è già registrata. Accedi o usa il recupero password.';
     }
     if (msg.contains('jwt') || msg.contains('token')) {
@@ -355,7 +360,8 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
       final m = e.message.toLowerCase();
       final code = e.code;
       if (code == 'PGRST202' ||
-          (m.contains('could not find') && m.contains('register_student_app')) ||
+          (m.contains('could not find') &&
+              m.contains('register_student_app')) ||
           m.contains('schema cache')) {
         return 'Registrazione non disponibile sul server. Contatta la segreteria.';
       }
@@ -371,7 +377,8 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
     }
     final raw = e.toString().toLowerCase();
     if (raw.contains('pgrst202') ||
-        raw.contains('register_student_app') && raw.contains('could not find')) {
+        raw.contains('register_student_app') &&
+            raw.contains('could not find')) {
       return 'Registrazione non disponibile sul server. Contatta la segreteria.';
     }
     return 'Registrazione non completata. Contatta la segreteria.';

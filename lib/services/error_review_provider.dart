@@ -1,5 +1,5 @@
 import '../constants/extra_content_ids.dart';
-import '../data/lesson_quiz_performance_mock.dart';
+import '../data/lesson_quiz_performance_source.dart';
 import '../models/error_review_recommendation.dart';
 import '../models/lesson_quiz_performance_snapshot.dart';
 import '../models/license_models.dart';
@@ -14,12 +14,13 @@ abstract final class ErrorReviewProvider {
   static List<LessonQuizPerformanceSnapshot> weakSnapshotsForCategory(
     LicenseCategoryId categoryId,
   ) {
-    final snapshots = LessonQuizPerformanceMock.snapshotsFor(categoryId);
-    final withActivity =
-        snapshots.where((s) => s.totalAttempts > 0).toList(growable: false);
+    final snapshots = LessonQuizPerformanceSource.snapshotsFor(categoryId);
+    final withActivity = snapshots
+        .where((s) => s.totalAttempts > 0)
+        .toList(growable: false);
     if (withActivity.isEmpty) return [];
 
-    final threshold = LessonQuizPerformanceMock.attentionThresholdPercent;
+    final threshold = LessonQuizPerformanceSource.attentionThresholdPercent;
     final weak = withActivity
         .where((s) => s.averageErrorPercentage >= threshold)
         .toList(growable: false);
@@ -30,12 +31,15 @@ abstract final class ErrorReviewProvider {
   }
 
   static ErrorReviewViewData buildViewData(LicenseCategoryId categoryId) {
-    final snapshots = LessonQuizPerformanceMock.snapshotsFor(categoryId);
-    final withActivity =
-        snapshots.where((s) => s.totalAttempts > 0).toList(growable: false);
+    final snapshots = LessonQuizPerformanceSource.snapshotsFor(categoryId);
+    final withActivity = snapshots
+        .where((s) => s.totalAttempts > 0)
+        .toList(growable: false);
 
-    final totalAttempts =
-        withActivity.fold<int>(0, (sum, s) => sum + s.totalAttempts);
+    final totalAttempts = withActivity.fold<int>(
+      0,
+      (sum, s) => sum + s.totalAttempts,
+    );
 
     if (withActivity.isEmpty) {
       return ErrorReviewViewData(
@@ -46,7 +50,7 @@ abstract final class ErrorReviewProvider {
       );
     }
 
-    final threshold = LessonQuizPerformanceMock.attentionThresholdPercent;
+    final threshold = LessonQuizPerformanceSource.attentionThresholdPercent;
     final weak = withActivity
         .where((s) => s.averageErrorPercentage >= threshold)
         .toList(growable: false);
@@ -64,8 +68,9 @@ abstract final class ErrorReviewProvider {
       (a, b) => b.averageErrorPercentage.compareTo(a.averageErrorPercentage),
     );
 
-    final items =
-        weak.map((s) => _fromSnapshot(s, studyAccessRepository)).toList(growable: false);
+    final items = weak
+        .map((s) => _fromSnapshot(s, studyAccessRepository))
+        .toList(growable: false);
 
     return ErrorReviewViewData(
       categoryId: categoryId,
