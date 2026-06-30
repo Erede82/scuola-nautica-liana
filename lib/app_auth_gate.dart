@@ -30,6 +30,7 @@ class _AppAuthGateState extends State<AppAuthGate> {
   VoidCallback? _studentListener;
   VoidCallback? _staffListener;
   VoidCallback? _registrationListener;
+  VoidCallback? _loginListener;
 
   @override
   void initState() {
@@ -43,9 +44,13 @@ class _AppAuthGateState extends State<AppAuthGate> {
     _registrationListener = () {
       if (mounted) setState(() {});
     };
+    _loginListener = () {
+      if (mounted) setState(() {});
+    };
     studentSession.addListener(_studentListener!);
     staffAccessNotifier.addListener(_staffListener!);
     registrationInProgress.addListener(_registrationListener!);
+    loginInProgress.addListener(_loginListener!);
 
     if (SupabaseConfig.isConfigured) {
       _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
@@ -79,9 +84,9 @@ class _AppAuthGateState extends State<AppAuthGate> {
       final hasStaff = snap.staffRole != null;
       final privileged = AdminAccessUtils.isPrivilegedEmail(email);
       if (!hasStudent && !hasStaff && !privileged) {
-        if (registrationInProgress.value) {
+        if (authFlowInProgress) {
           debugPrint(
-            '[AUTH gate] bootstrap: registrazione in corso, nessun logout forzato',
+            '[AUTH gate] bootstrap: flusso auth in corso, nessun logout forzato',
           );
         } else {
           debugPrint(
@@ -105,6 +110,9 @@ class _AppAuthGateState extends State<AppAuthGate> {
     }
     if (_registrationListener != null) {
       registrationInProgress.removeListener(_registrationListener!);
+    }
+    if (_loginListener != null) {
+      loginInProgress.removeListener(_loginListener!);
     }
     super.dispose();
   }
@@ -135,9 +143,9 @@ class _AppAuthGateState extends State<AppAuthGate> {
     final privileged = AdminAccessUtils.isPrivilegedEmail(email);
 
     if (!hasStudent && !hasStaff && !privileged) {
-      // Registrazione in corso: la sessione esiste ma la riga students non è
-      // ancora idratata. Attendi (loading) invece di forzare il logout.
-      if (registrationInProgress.value) {
+      // Registrazione/login in corso: la sessione esiste ma identità app e
+      // ruolo staff non sono ancora idratati. Attendi invece di forzare logout.
+      if (authFlowInProgress) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
       debugPrint(
