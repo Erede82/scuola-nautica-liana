@@ -165,8 +165,45 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
     required String password,
   }) async {
     final e = email.trim().toLowerCase();
+    loginInProgress.value = true;
     try {
       await _client.auth.signInWithPassword(email: e, password: password);
+
+      StudentSession? studentSession;
+      Object? hydrateFailure;
+      try {
+        studentSession = await _hydrateFromCurrentAuth();
+      } catch (e, st) {
+        hydrateFailure = e;
+        if (e is PostgrestException) {
+          _logPostgrestException('[AUTH signIn] hydrate catch', e, st);
+        } else {
+          _logSignIn(
+            'hydrate ERRORE',
+            'runtimeType=${e.runtimeType} | $e\n$st',
+          );
+        }
+        studentSession = null;
+      }
+
+      if (studentSession != null) {
+        applyStudentSession(studentSession);
+        await syncStudyAccessFromSupabaseForStudent(studentSession.studentId);
+      } else {
+        clearStudentSession();
+      }
+
+      await refreshStaffAccess();
+
+      final snap = staffAccessNotifier.value;
+      if (studentSession == null && snap.staffRole == null) {
+        await _safeSignOut();
+        final msg = _loginDeniedNoStudentNoStaffMessage(hydrateFailure);
+        _logSignIn('accesso negato', msg);
+        return StudentLoginResult.error(msg);
+      }
+
+      return StudentLoginResult.ok(studentSession);
     } on AuthException catch (err) {
       debugPrint(
         '[AUTH signInWithPassword] status=${err.statusCode} message=${err.message}',
@@ -180,40 +217,9 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
       return StudentLoginResult.error(
         'Accesso non riuscito. Riprova tra poco o contatta la segreteria.',
       );
+    } finally {
+      loginInProgress.value = false;
     }
-
-    StudentSession? studentSession;
-    Object? hydrateFailure;
-    try {
-      studentSession = await _hydrateFromCurrentAuth();
-    } catch (e, st) {
-      hydrateFailure = e;
-      if (e is PostgrestException) {
-        _logPostgrestException('[AUTH signIn] hydrate catch', e, st);
-      } else {
-        _logSignIn('hydrate ERRORE', 'runtimeType=${e.runtimeType} | $e\n$st');
-      }
-      studentSession = null;
-    }
-
-    if (studentSession != null) {
-      applyStudentSession(studentSession);
-      await syncStudyAccessFromSupabaseForStudent(studentSession.studentId);
-    } else {
-      clearStudentSession();
-    }
-
-    await refreshStaffAccess();
-
-    final snap = staffAccessNotifier.value;
-    if (studentSession == null && snap.staffRole == null) {
-      await _safeSignOut();
-      final msg = _loginDeniedNoStudentNoStaffMessage(hydrateFailure);
-      _logSignIn('accesso negato', msg);
-      return StudentLoginResult.error(msg);
-    }
-
-    return StudentLoginResult.ok(studentSession);
   }
 
   @override

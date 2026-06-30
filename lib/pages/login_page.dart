@@ -75,10 +75,6 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      await refreshStaffAccess();
-
-      if (!mounted) return;
-
       final staffSnap = staffAccessNotifier.value;
       final summary = AppAuthSummary.fromSources(
         student: result.session,
