@@ -124,22 +124,27 @@ class _AppAuthGateState extends State<AppAuthGate> {
       return const WelcomePage();
     }
 
-    final snap = staffAccessNotifier.value;
-    if (snap.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     final email = user.email;
     final hasStudent = studentSession.value != null;
+    final snap = staffAccessNotifier.value;
     final hasStaff = snap.staffRole != null;
     final privileged = AdminAccessUtils.isPrivilegedEmail(email);
 
-    if (!hasStudent && !hasStaff && !privileged) {
-      // Registrazione in corso: la sessione esiste ma la riga students non è
-      // ancora idratata. Attendi (loading) invece di forzare il logout.
-      if (registrationInProgress.value) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      }
+    // Allievo: Home appena studentSession è idratata — non attendere staff access.
+    if (hasStudent) {
+      final admin = AdminAccessUtils.isSchoolAdmin(
+        email: email,
+        staffRole: snap.staffRole,
+      );
+      return admin ? const AdminHomePage() : const HomePage();
+    }
+
+    // Nessun profilo studente: attendi risoluzione staff o fine registrazione.
+    if (snap.isLoading || registrationInProgress.value) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (!hasStaff && !privileged) {
       debugPrint(
         '[AUTH gate] JWT senza accesso studente/staff: signOut post-frame '
         'user.id=${user.id}',

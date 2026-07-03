@@ -7,6 +7,7 @@ import '../config/supabase_config.dart';
 import '../domain/staff/staff_school_role.dart';
 import '../repositories/staff_role_registry.dart';
 import '../repositories/staff_role_repository.dart';
+import 'auth_flow_state.dart';
 import 'demo_student_enrollment.dart';
 
 /// Stato permessi backoffice staff (lettura centralizzata per UI e guard).
@@ -44,10 +45,8 @@ class StaffAccessSnapshot {
     );
   }
 
-  static StaffAccessSnapshot initial() => const StaffAccessSnapshot(
-        isLoading: true,
-        hasAuthSession: false,
-      );
+  static StaffAccessSnapshot initial() =>
+      const StaffAccessSnapshot(isLoading: true, hasAuthSession: false);
 }
 
 /// Notifier globale — aggiornare dopo login/logout e all’avvio app.
@@ -69,8 +68,10 @@ Future<void> initializeStaffAccess() async {
 
   _authSubscription?.cancel();
   if (SupabaseConfig.isConfigured) {
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      _,
+    ) {
+      if (registrationInProgress.value) return;
       unawaited(refreshStaffAccess());
     });
   }
@@ -79,6 +80,7 @@ Future<void> initializeStaffAccess() async {
 }
 
 void _onLocalSessionChanged() {
+  if (registrationInProgress.value) return;
   unawaited(refreshStaffAccess());
 }
 
@@ -100,9 +102,7 @@ Future<void> refreshStaffAccess() async {
       hasAuthSession: hasAuth,
     );
   } catch (e, st) {
-    debugPrint(
-      '[AUTH session] refreshStaffAccess FAILED: $e\n$st',
-    );
+    debugPrint('[AUTH session] refreshStaffAccess FAILED: $e\n$st');
     staffAccessNotifier.value = StaffAccessSnapshot(
       isLoading: false,
       lastError: e,
