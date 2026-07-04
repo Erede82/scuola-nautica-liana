@@ -244,13 +244,17 @@ class _LoginPageState extends State<LoginPage> {
             OutlinedButton(
               onPressed: _loading
                   ? null
-                  : () {
-                      Navigator.push<void>(
+                  : () async {
+                      final registered = await Navigator.push<bool>(
                         context,
-                        MaterialPageRoute<void>(
+                        MaterialPageRoute<bool>(
                           builder: (_) => const StudentRegistrationPage(),
                         ),
                       );
+
+                      if (registered == true && mounted) {
+                        Navigator.of(context).pop();
+                      }
                     },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
