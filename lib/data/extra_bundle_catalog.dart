@@ -21,6 +21,11 @@ abstract final class ExtraBundleCatalog {
     return <String>[productId];
   }
 
+  /// Righe `student_extra_purchases` da revocare quando lo staff disabilita un
+  /// prodotto.
+  static List<String> productsToRevokeOnAccess(String productId) =>
+      productsToGrantOnAccess(productId);
+
   /// Prodotti da cui leggere i video per la playlist lato allievo/backoffice.
   static List<String> videoSourceProductIds(String productId) {
     if (isBundle(productId)) {
