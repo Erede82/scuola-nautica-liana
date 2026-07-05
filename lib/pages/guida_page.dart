@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../widgets/branded_app_bar_title.dart';
 import '../data/guida_badge_notifier.dart';
 import '../data/guida_reminders_mock.dart';
 import '../models/guida_reminder.dart';
+import '../services/guida_reminders_loader.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/guida_reminder_card.dart';
 import 'guida_reminder_detail_page.dart';
@@ -11,11 +13,9 @@ import '../theme/app_visual_tokens.dart';
 
 /// Promemoria e avvisi per le lezioni di guida.
 class GuidaPage extends StatefulWidget {
-  const GuidaPage({
-    super.key,
-    this.initialReminders,
-  });
+  const GuidaPage({super.key, this.initialReminders});
 
+  /// Solo per test / anteprima; in produzione i dati arrivano da Supabase.
   final List<GuidaReminder>? initialReminders;
 
   @override
@@ -27,19 +27,32 @@ class _GuidaPageState extends State<GuidaPage> {
   static const Color _backgroundColor = AppVisual.canvas;
   static const Color _textPrimaryColor = AppVisual.ink;
 
-  late List<GuidaReminder> _reminders;
+  List<GuidaReminder> _reminders = const [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _reminders = List<GuidaReminder>.from(
-      widget.initialReminders ?? GuidaRemindersMock.seeded,
-    );
-    GuidaBadgeNotifier.refreshFrom(_reminders);
+    if (widget.initialReminders != null) {
+      _reminders = List<GuidaReminder>.from(widget.initialReminders!);
+      _loading = false;
+      GuidaBadgeNotifier.refreshFrom(_reminders);
+    } else {
+      _loadReminders();
+    }
   }
 
-  List<GuidaReminder> get _sorted =>
-      GuidaRemindersMock.sortedUpcomingFirst(_reminders);
+  Future<void> _loadReminders() async {
+    setState(() => _loading = true);
+    final loaded = await GuidaRemindersLoader.loadForCurrentStudent();
+    if (!mounted) return;
+    setState(() {
+      _reminders = loaded;
+      _loading = false;
+    });
+  }
+
+  List<GuidaReminder> get _sorted => _reminders.sortedUpcomingFirst();
 
   DateTime get _startOfToday {
     final now = DateTime.now();
@@ -72,8 +85,6 @@ class _GuidaPageState extends State<GuidaPage> {
     }
   }
 
-  void _syncBadge() => GuidaBadgeNotifier.refreshFrom(_reminders);
-
   List<Widget> _buildReminderBlocks() {
     final filtered = _sorted;
     if (filtered.isEmpty) {
@@ -81,8 +92,10 @@ class _GuidaPageState extends State<GuidaPage> {
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: AppEmptyState(
-            title: 'Nessun promemoria',
-            message: 'Al momento non ci sono comunicazioni da mostrare.',
+            title: 'Non hai ancora guide programmate',
+            message:
+                'Quando la scuola programmerà una guida in Agenda, '
+                'la vedrai qui con data, istruttore e dettagli.',
             icon: Icons.inbox_outlined,
             tagLabel: 'Guida',
           ),
@@ -119,8 +132,8 @@ class _GuidaPageState extends State<GuidaPage> {
           child: AppEmptyState(
             title: 'Nessuna guida imminente',
             message:
-                'Per le prossime uscite, quando la scuola pubblicherà un avviso, lo vedrai in questa sezione. '
-                "Sotto trovi l'archivio.",
+                'Per le prossime uscite, quando la scuola programmerà una guida, '
+                'la vedrai in questa sezione. Sotto trovi l\'archivio.',
             icon: Icons.inbox_outlined,
             tagLabel: 'Calendario',
           ),
@@ -149,43 +162,66 @@ class _GuidaPageState extends State<GuidaPage> {
     return blocks;
   }
 
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: _primaryColor,
+      foregroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(),
+      title: const SectionAppBarTitle('Guida', logoHeight: 28),
+    );
+  }
+
+  Widget _buildEmptyBody() {
+    if (kDebugMode) {
+      return AppEmptyState(
+        title: 'Non hai ancora guide programmate',
+        message:
+            'Quando la scuola programmerà una guida in Agenda, '
+            'la vedrai qui con data, istruttore e dettagli.',
+        icon: Icons.event_available_outlined,
+        tagLabel: 'Area studenti',
+        primaryActionLabel: 'Carica esempi',
+        primaryActionIcon: Icons.refresh_rounded,
+        onPrimaryActionPressed: () => setState(() {
+          _reminders = List<GuidaReminder>.from(GuidaRemindersMock.seeded);
+          GuidaBadgeNotifier.refreshFrom(_reminders);
+        }),
+      );
+    }
+
+    return AppEmptyState(
+      title: 'Non hai ancora guide programmate',
+      message:
+          'Quando la scuola programmerà una guida in Agenda, '
+          'la vedrai qui con data, istruttore e dettagli.',
+      icon: Icons.event_available_outlined,
+      tagLabel: 'Area studenti',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: _buildAppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     if (_reminders.isEmpty) {
       return Scaffold(
         backgroundColor: _backgroundColor,
-        appBar: AppBar(
-          backgroundColor: _primaryColor,
-          foregroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(),
-          title: const SectionAppBarTitle('Guida', logoHeight: 28),
-        ),
-        body: AppEmptyState(
-          title: 'Nessun promemoria',
-          message:
-              'Quando la scuola pubblicherà avvisi sulle lezioni di guida, li vedrai qui.',
-          icon: Icons.event_available_outlined,
-          tagLabel: 'Area studenti',
-          primaryActionLabel: 'Carica esempi',
-          primaryActionIcon: Icons.refresh_rounded,
-          onPrimaryActionPressed: () => setState(() {
-            _reminders = List<GuidaReminder>.from(GuidaRemindersMock.seeded);
-            _syncBadge();
-          }),
-        ),
+        appBar: _buildAppBar(),
+        body: _buildEmptyBody(),
       );
     }
 
     return Scaffold(
       backgroundColor: _backgroundColor,
-      appBar: AppBar(
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(),
-        title: const SectionAppBarTitle('Guida', logoHeight: 28),
-      ),
+      appBar: _buildAppBar(),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
@@ -198,7 +234,8 @@ class _GuidaPageState extends State<GuidaPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Istruttore e dettagli sono definiti dalla scuola. Qui trovi prossime uscite e guide già svolte.',
+            'Istruttore e dettagli sono definiti dalla scuola. '
+            'Qui trovi prossime uscite e guide già svolte.',
             style: textTheme.bodySmall?.copyWith(
               color: _textPrimaryColor.withValues(alpha: 0.82),
               height: 1.4,

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../domain/course_taxonomy.dart';
 import '../models/student_session.dart';
+import '../data/guida_badge_notifier.dart';
 import '../repositories/study_access_repository.dart';
 
 /// Percorso di iscrizione **demo** lato app studente (in attesa di backend reale).
@@ -26,4 +27,5 @@ void clearStudentSession() {
   studentSession.value = null;
   demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
   studyAccessWritableRepository.resetDemoAssignments();
+  GuidaBadgeNotifier.refreshFrom([]);
 }

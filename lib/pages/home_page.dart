@@ -6,6 +6,7 @@ import '../constants/app_branding.dart' show AppBranding;
 import '../data/guida_badge_notifier.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../services/demo_student_enrollment.dart';
+import '../services/guida_reminders_loader.dart';
 import '../services/staff_access_service.dart';
 import '../utils/staff_area_navigation.dart';
 import '../widgets/dashboard_action_card.dart';
@@ -149,6 +150,7 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _GuidaBadgeBootstrap(),
                     const _StaffStudentAreaBanner(),
                     Expanded(
                       child: _HomeMainPanel(
@@ -626,4 +628,34 @@ class _CompactWelcomePanel extends StatelessWidget {
       },
     );
   }
+}
+
+/// Precarica il badge Guida da Supabase quando l’allievo entra in Home.
+class _GuidaBadgeBootstrap extends StatefulWidget {
+  const _GuidaBadgeBootstrap();
+
+  @override
+  State<_GuidaBadgeBootstrap> createState() => _GuidaBadgeBootstrapState();
+}
+
+class _GuidaBadgeBootstrapState extends State<_GuidaBadgeBootstrap> {
+  @override
+  void initState() {
+    super.initState();
+    studentSession.addListener(_onSessionChanged);
+    GuidaRemindersLoader.loadForCurrentStudent();
+  }
+
+  void _onSessionChanged() {
+    GuidaRemindersLoader.loadForCurrentStudent();
+  }
+
+  @override
+  void dispose() {
+    studentSession.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

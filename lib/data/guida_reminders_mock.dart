@@ -2,7 +2,8 @@ import '../models/guida_reminder.dart';
 
 /// Dati statici locali — sostituire con fetch Supabase / notifiche.
 abstract final class GuidaRemindersMock {
-  static List<GuidaReminder> get seeded => List<GuidaReminder>.unmodifiable(_seeded);
+  static List<GuidaReminder> get seeded =>
+      List<GuidaReminder>.unmodifiable(_seeded);
 
   static final List<GuidaReminder> _seeded = [
     GuidaReminder(
@@ -69,9 +70,6 @@ abstract final class GuidaRemindersMock {
   ];
 
   /// Prossimi impegni prima; stessa data → ordine per ora.
-  static List<GuidaReminder> sortedUpcomingFirst(List<GuidaReminder> items) {
-    final copy = List<GuidaReminder>.from(items);
-    copy.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-    return copy;
-  }
+  static List<GuidaReminder> sortedUpcomingFirst(List<GuidaReminder> items) =>
+      items.sortedUpcomingFirst();
 }

@@ -1,9 +1,5 @@
 /// Stato dell’avviso guidato dalla segreteria / istruttore.
-enum GuidaReminderStatus {
-  daLeggere,
-  confermato,
-  completato,
-}
+enum GuidaReminderStatus { daLeggere, confermato, completato }
 
 extension GuidaReminderStatusX on GuidaReminderStatus {
   String get label {
@@ -19,12 +15,7 @@ extension GuidaReminderStatusX on GuidaReminderStatus {
 }
 
 /// Categoria opzionale (filtri / iconografia future).
-enum GuidaReminderCategory {
-  lezionePratica,
-  teoria,
-  documenti,
-  generale,
-}
+enum GuidaReminderCategory { lezionePratica, teoria, documenti, generale }
 
 extension GuidaReminderCategoryX on GuidaReminderCategory {
   String get label {
@@ -134,11 +125,7 @@ extension GuidaReminderActions on GuidaReminder {
     final newStatus = status == GuidaReminderStatus.daLeggere
         ? GuidaReminderStatus.confermato
         : status;
-    return copyWith(
-      isUnread: false,
-      requiresReading: false,
-      status: newStatus,
-    );
+    return copyWith(isUnread: false, requiresReading: false, status: newStatus);
   }
 
   bool get canMarkAsRead {
@@ -146,5 +133,14 @@ extension GuidaReminderActions on GuidaReminder {
     return isUnread ||
         requiresReading ||
         status == GuidaReminderStatus.daLeggere;
+  }
+}
+
+extension GuidaReminderListX on List<GuidaReminder> {
+  /// Prossimi impegni prima; stessa data → ordine per ora.
+  List<GuidaReminder> sortedUpcomingFirst() {
+    final copy = List<GuidaReminder>.from(this);
+    copy.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    return copy;
   }
 }
