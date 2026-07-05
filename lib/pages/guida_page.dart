@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../widgets/branded_app_bar_title.dart';
 import '../data/guida_badge_notifier.dart';
-import '../data/guida_reminders_mock.dart';
 import '../models/guida_reminder.dart';
 import '../services/guida_reminders_loader.dart';
 import '../widgets/app_empty_state.dart';
@@ -172,30 +170,12 @@ class _GuidaPageState extends State<GuidaPage> {
   }
 
   Widget _buildEmptyBody() {
-    if (kDebugMode) {
-      return AppEmptyState(
-        title: 'Non hai ancora guide programmate',
-        message:
-            'Quando la scuola programmerà una guida in Agenda, '
-            'la vedrai qui con data, istruttore e dettagli.',
-        icon: Icons.event_available_outlined,
-        tagLabel: 'Area studenti',
-        primaryActionLabel: 'Carica esempi',
-        primaryActionIcon: Icons.refresh_rounded,
-        onPrimaryActionPressed: () => setState(() {
-          _reminders = List<GuidaReminder>.from(GuidaRemindersMock.seeded);
-          GuidaBadgeNotifier.refreshFrom(_reminders);
-        }),
-      );
-    }
-
     return AppEmptyState(
       title: 'Non hai ancora guide programmate',
       message:
           'Quando la scuola programmerà una guida in Agenda, '
           'la vedrai qui con data, istruttore e dettagli.',
       icon: Icons.event_available_outlined,
-      tagLabel: 'Area studenti',
     );
   }
 

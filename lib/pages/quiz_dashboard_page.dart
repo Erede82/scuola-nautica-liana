@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../widgets/branded_app_bar_title.dart';
 import '../widgets/dashboard_action_card.dart';
+import '../services/student_content_navigation.dart';
 import 'category_selection_page.dart';
 import 'error_review_page.dart';
+import 'statistics_page.dart';
 import '../theme/app_visual_tokens.dart';
 
 class QuizDashboardPage extends StatefulWidget {
@@ -81,6 +83,18 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         useStudentBrandStyle: true,
         onTap: () {
           qfLog('QuizDashboard: tap Statistiche');
+          final categoryId =
+              StudentContentNavigation.directStatisticsCategoryForCurrentUser();
+          if (categoryId != null) {
+            qfLog('QuizDashboard: Statistiche dirette categoryId=$categoryId');
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => StatisticsPage(categoryId: categoryId),
+              ),
+            );
+            return;
+          }
           Navigator.push(
             context,
             MaterialPageRoute<void>(
@@ -101,9 +115,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
           qfLog('QuizDashboard: tap Ripasso errori');
           Navigator.push(
             context,
-            MaterialPageRoute<void>(
-              builder: (_) => const ErrorReviewPage(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const ErrorReviewPage()),
           );
         },
       ),
@@ -119,9 +131,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         style: base?.copyWith(
           color: _textPrimaryColor.withValues(alpha: 0.9),
           height: maxWidth >= 700 ? 1.28 : 1.35,
-          fontSize: wideDesktop
-              ? 14
-              : (maxWidth >= 800 ? 14.5 : null),
+          fontSize: wideDesktop ? 14 : (maxWidth >= 800 ? 14.5 : null),
         ),
       ),
     );
@@ -173,11 +183,11 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: mainGap,
-                                crossAxisSpacing: crossGap,
-                                childAspectRatio: aspect,
-                              ),
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: mainGap,
+                                    crossAxisSpacing: crossGap,
+                                    childAspectRatio: aspect,
+                                  ),
                               children: _quizCardChildren(),
                             );
                           },
