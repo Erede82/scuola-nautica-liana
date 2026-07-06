@@ -2,20 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
+import '../theme/app_visual_tokens.dart';
 
 /// Bucket Storage per figure quiz (`questions.image_path` → `figures/...`).
 const String kQuizQuestionImagesBucket = 'quiz-images';
 
+/// Altezza massima figure quiz: mobile compatto, desktop/web più ampia.
+double quizQuestionImageMaxHeight(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width < 600) return 160;
+  return 200;
+}
+
 /// Risolve e mostra l’immagine di una domanda quiz (`questions.image_path`).
 class QuizQuestionImage extends StatefulWidget {
-  const QuizQuestionImage({
-    super.key,
-    required this.imagePath,
-    this.maxHeight = 220,
-  });
+  const QuizQuestionImage({super.key, required this.imagePath, this.maxHeight});
 
   final String? imagePath;
-  final double maxHeight;
+
+  /// Se null, usa [quizQuestionImageMaxHeight] in base al viewport.
+  final double? maxHeight;
 
   @override
   State<QuizQuestionImage> createState() => _QuizQuestionImageState();
@@ -26,6 +32,9 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   bool _loadingUrl = false;
   bool _triedSignedUrl = false;
   int _loadGeneration = 0;
+
+  static const Color _frameBackground = Color(0xFFF7F8FA);
+  static const Color _frameBorder = Color(0xFFE5E7EB);
 
   @override
   void initState() {
@@ -41,6 +50,9 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
       _prepareUrl();
     }
   }
+
+  double _resolvedMaxHeight(BuildContext context) =>
+      widget.maxHeight ?? quizQuestionImageMaxHeight(context);
 
   Future<void> _prepareUrl() async {
     final path = widget.imagePath?.trim();
@@ -96,20 +108,48 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     }
   }
 
+  Widget _imageFrame({required BuildContext context, required Widget child}) {
+    final maxHeight = _resolvedMaxHeight(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 520),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _frameBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _frameBorder),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Center(child: child),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final path = widget.imagePath?.trim();
     if (path == null || path.isEmpty) return const SizedBox.shrink();
 
+    final maxHeight = _resolvedMaxHeight(context);
+    final imageHeight = maxHeight - 16;
+
     if (_loadingUrl) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+      return _imageFrame(
+        context: context,
         child: SizedBox(
-          height: widget.maxHeight,
+          height: imageHeight,
           child: const Center(
             child: SizedBox(
-              width: 28,
-              height: 28,
+              width: 24,
+              height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
@@ -119,71 +159,81 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
 
     final url = _imageUrl;
     if (url == null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: _ImageFallback(path: path),
+      return _imageFrame(
+        context: context,
+        child: _ImageFallback(path: path, compact: true),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
-          fit: BoxFit.contain,
-          height: widget.maxHeight,
-          width: double.infinity,
-          errorBuilder: (_, _, _) {
-            if (!_triedSignedUrl) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _trySignedUrlFallback();
-              });
-            }
-            return _ImageFallback(path: path);
-          },
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return SizedBox(
-              height: widget.maxHeight,
-              child: const Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+    return _imageFrame(
+      context: context,
+      child: Image.network(
+        url,
+        fit: BoxFit.contain,
+        height: imageHeight,
+        width: double.infinity,
+        alignment: Alignment.center,
+        errorBuilder: (_, _, _) {
+          if (!_triedSignedUrl) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _trySignedUrlFallback();
+            });
+          }
+          return _ImageFallback(path: path, compact: true);
+        },
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return SizedBox(
+            height: imageHeight,
+            child: const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class _ImageFallback extends StatelessWidget {
-  const _ImageFallback({required this.path});
+  const _ImageFallback({required this.path, this.compact = false});
 
   final String path;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: compact ? 10 : 12,
+      ),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        color: AppVisual.chipFill.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade600),
-          const SizedBox(width: 10),
-          Expanded(
+          Icon(
+            Icons.image_not_supported_outlined,
+            color: Colors.grey.shade600,
+            size: compact ? 18 : 20,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
             child: Text(
               'Figura non disponibile',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: compact ? 12 : 13,
+              ),
             ),
           ),
         ],
