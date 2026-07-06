@@ -117,15 +117,17 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   static const Color _cardColor = Color(0xFFFFFFFF);
   static const Color _textPrimaryColor = AppVisual.ink;
   static const Color _neutralColor = AppVisual.chipFill;
-  static const Color _correctColor = Color(0xFF2E9E5B);
-  static const Color _wrongColor = Color(0xFFC62828);
+  static const Color _correctColor = Color(0xFF15803D);
+  static const Color _wrongColor = Color(0xFFD32F2F);
+  static const Color _correctBg = Color(0xFFDFF5E8);
+  static const Color _wrongBg = Color(0xFFFDE8E8);
+  static const Color _unansweredColor = Color(0xFF6B7280);
 
   List<QuizQuestion> _questions = const [];
   List<QuizAnswerOption?> _userAnswers = const [];
   bool _loading = true;
   bool _loadFailed = false;
   int _currentIndex = 0;
-  bool _revealed = false;
   bool _showSummary = false;
 
   @override
@@ -140,7 +142,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       _loadFailed = false;
       _showSummary = false;
       _currentIndex = 0;
-      _revealed = false;
     });
 
     try {
@@ -167,18 +168,15 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     }
   }
 
-  void _retrySheet() {
-    if (_questions.isEmpty) {
-      _loadQuestions();
-      return;
+  int get _totalSheetsInLesson {
+    final category = LicenseCatalog.byId(widget.categoryId);
+    for (final lesson in category.lessons) {
+      if (lesson.number == widget.lessonNumber) return lesson.quizSheets;
     }
-    setState(() {
-      _showSummary = false;
-      _currentIndex = 0;
-      _revealed = false;
-      _userAnswers = List<QuizAnswerOption?>.filled(_questions.length, null);
-    });
+    return 0;
   }
+
+  bool get _hasNextSheet => widget.sheetNumber < _totalSheetsInLesson;
 
   QuizQuestion? get _currentQuestion {
     if (_currentIndex < 0 || _currentIndex >= _questions.length) return null;
@@ -192,39 +190,118 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     return _userAnswers[_currentIndex];
   }
 
-  void _selectAnswer(QuizAnswerOption option) {
-    if (_revealed || _showSummary) return;
-    setState(() {
-      _userAnswers[_currentIndex] = option;
-      _revealed = true;
-    });
-  }
-
-  void _goNext() {
-    if (!_revealed) return;
-    if (_currentIndex + 1 >= _questions.length) {
-      setState(() => _showSummary = true);
-      return;
-    }
-    setState(() {
-      _currentIndex++;
-      _revealed = _userAnswers[_currentIndex] != null;
-    });
-  }
+  bool get _isCurrentAnswered => _selectedAnswer != null;
 
   int get _correctCount {
     var n = 0;
     for (var i = 0; i < _questions.length; i++) {
-      if (_userAnswers[i] == _questions[i].correctOption) n++;
+      final answer = _userAnswers[i];
+      if (answer != null && answer == _questions[i].correctOption) n++;
     }
     return n;
   }
 
-  int get _errorCount => _questions.length - _correctCount;
+  int get _wrongCount {
+    var n = 0;
+    for (var i = 0; i < _questions.length; i++) {
+      final answer = _userAnswers[i];
+      if (answer != null && answer != _questions[i].correctOption) n++;
+    }
+    return n;
+  }
+
+  int get _unansweredCount =>
+      _userAnswers.where((answer) => answer == null).length;
 
   int get _percentCorrect {
     if (_questions.isEmpty) return 0;
     return ((_correctCount / _questions.length) * 100).round();
+  }
+
+  void _selectAnswer(QuizAnswerOption option) {
+    if (_showSummary || _isCurrentAnswered) return;
+    setState(() => _userAnswers[_currentIndex] = option);
+  }
+
+  void _goBack() {
+    if (_currentIndex <= 0) return;
+    setState(() => _currentIndex--);
+  }
+
+  void _goForward() {
+    if (_currentIndex + 1 >= _questions.length) {
+      _tryShowSummary();
+      return;
+    }
+    setState(() => _currentIndex++);
+  }
+
+  Future<void> _tryShowSummary() async {
+    final unanswered = _unansweredCount;
+    if (unanswered > 0) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Domande senza risposta'),
+          content: Text(
+            'Hai ancora $unanswered domande senza risposta. '
+            'Vuoi completarle prima di vedere il riepilogo?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Torna alle domande'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Vedi riepilogo comunque'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true || !mounted) return;
+    }
+    setState(() => _showSummary = true);
+  }
+
+  Future<bool> _confirmLeaveSheet() async {
+    final unanswered = _unansweredCount;
+    if (unanswered == 0) return true;
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Uscire dalla scheda?'),
+        content: Text(
+          'Hai ancora $unanswered domande senza risposta. '
+          'Vuoi uscire dalla scheda?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Resta nella scheda'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Esci comunque'),
+          ),
+        ],
+      ),
+    );
+    return leave == true;
+  }
+
+  void _openNextSheet() {
+    if (!_hasNextSheet) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => QuizSheetDetailPage(
+          lessonNumber: widget.lessonNumber,
+          sheetNumber: widget.sheetNumber + 1,
+          categoryId: widget.categoryId,
+        ),
+      ),
+    );
   }
 
   PreferredSizeWidget _buildAppBar(String title) {
@@ -298,21 +375,47 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
               ),
               _SummaryStatRow(
                 label: 'Errori',
-                value: '$_errorCount',
-                valueColor: _errorCount > 0 ? _wrongColor : _textPrimaryColor,
+                value: '$_wrongCount',
+                valueColor: _wrongCount > 0 ? _wrongColor : _textPrimaryColor,
               ),
+              if (_unansweredCount > 0)
+                _SummaryStatRow(
+                  label: 'Non risposte',
+                  value: '$_unansweredCount',
+                  valueColor: _unansweredColor,
+                ),
               _SummaryStatRow(label: 'Percentuale', value: '$_percentCorrect%'),
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _retrySheet,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Riprova scheda'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              if (_hasNextSheet)
+                FilledButton.icon(
+                  onPressed: _openNextSheet,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: Text('Prossima scheda (${widget.sheetNumber + 1})'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _neutralColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Hai completato l’ultima scheda di questa lezione.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: _textPrimaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => Navigator.maybePop(context),
@@ -330,198 +433,366 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
 
     final question = _currentQuestion!;
     final selected = _selectedAnswer;
+    final revealed = _isCurrentAnswered;
 
-    return Scaffold(
-      backgroundColor: _backgroundColor,
-      appBar: _buildAppBar(_appBarTitle),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: (_currentIndex + 1) / _questions.length,
-                      minHeight: 6,
-                      backgroundColor: _neutralColor,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        _primaryColor,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${_currentIndex + 1}/${_questions.length}',
-                  style: textTheme.labelLarge?.copyWith(
-                    color: _textPrimaryColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmLeaveSheet() && context.mounted) {
+          Navigator.maybePop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: _buildAppBar(_appBarTitle),
+        body: Column(
+          children: [
+            _QuizSheetProgressPanel(
+              currentIndex: _currentIndex,
+              total: _questions.length,
+              correctCount: _correctCount,
+              wrongCount: _wrongCount,
+              unansweredCount: _unansweredCount,
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: _cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _neutralColor),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Domanda ${_currentIndex + 1}',
-                          style: textTheme.labelLarge?.copyWith(
-                            color: _primaryColor,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        QuizQuestionImage(imagePath: question.imagePath),
-                        Text(
-                          question.prompt,
-                          style: textTheme.titleMedium?.copyWith(
-                            color: _textPrimaryColor,
-                            fontWeight: FontWeight.w700,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  ...question.options.map(
-                    (option) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _AnswerOptionTile(
-                        letter: option.letter,
-                        text: question.textForOption(option),
-                        onTap: _revealed ? null : () => _selectAnswer(option),
-                        backgroundColor: _optionBackground(option, selected),
-                        borderColor: _optionBorder(option, selected),
-                        textColor: _textPrimaryColor,
-                      ),
-                    ),
-                  ),
-                  if (_revealed) ...[
-                    const SizedBox(height: 4),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: selected == question.correctOption
-                            ? _correctColor.withValues(alpha: 0.12)
-                            : _wrongColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selected == question.correctOption
-                              ? _correctColor.withValues(alpha: 0.45)
-                              : _wrongColor.withValues(alpha: 0.35),
-                        ),
+                        color: _cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _neutralColor),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            selected == question.correctOption
-                                ? 'Risposta corretta'
-                                : 'Risposta errata',
-                            style: textTheme.titleSmall?.copyWith(
-                              color: selected == question.correctOption
-                                  ? _correctColor
-                                  : _wrongColor,
+                            'Domanda ${_currentIndex + 1}',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: _primaryColor,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (selected != question.correctOption) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              'La risposta corretta è ${question.correctOption.letter}.',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: _textPrimaryColor,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          const SizedBox(height: 10),
+                          QuizQuestionImage(imagePath: question.imagePath),
+                          Text(
+                            question.prompt,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: _textPrimaryColor,
+                              fontWeight: FontWeight.w700,
+                              height: 1.4,
                             ),
-                          ],
-                          if (question.explanation != null &&
-                              question.explanation!.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              question.explanation!,
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.9),
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _revealed ? _goNext : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: _primaryColor.withValues(
-                      alpha: 0.35,
+                    const SizedBox(height: 14),
+                    ...question.options.map(
+                      (option) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _AnswerOptionTile(
+                          letter: option.letter,
+                          text: question.textForOption(option),
+                          onTap: revealed ? null : () => _selectAnswer(option),
+                          backgroundColor: _optionBackground(
+                            option,
+                            selected,
+                            revealed,
+                          ),
+                          borderColor: _optionBorder(
+                            option,
+                            selected,
+                            revealed,
+                          ),
+                          borderWidth: _optionBorderWidth(
+                            option,
+                            selected,
+                            revealed,
+                          ),
+                          textColor: _textPrimaryColor,
+                        ),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text(
-                    _currentIndex + 1 >= _questions.length
-                        ? 'Vedi riepilogo'
-                        : 'Avanti',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+                    if (revealed) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: selected == question.correctOption
+                              ? _correctBg
+                              : _wrongBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selected == question.correctOption
+                                ? _correctColor
+                                : _wrongColor,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              selected == question.correctOption
+                                  ? 'Risposta corretta'
+                                  : 'Risposta errata',
+                              style: textTheme.titleSmall?.copyWith(
+                                color: selected == question.correctOption
+                                    ? _correctColor
+                                    : _wrongColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (selected != question.correctOption) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'La risposta corretta è ${question.correctOption.letter}.',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: _textPrimaryColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                            if (question.explanation != null &&
+                                question.explanation!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                question.explanation!,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: _textPrimaryColor.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Row(
+                  children: [
+                    IconButton.filledTonal(
+                      onPressed: _currentIndex > 0 ? _goBack : null,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      tooltip: 'Domanda precedente',
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _goForward,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          _currentIndex + 1 >= _questions.length
+                              ? 'Vedi riepilogo'
+                              : 'Avanti',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: _goForward,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      tooltip: 'Domanda successiva',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _optionBackground(
+    QuizAnswerOption option,
+    QuizAnswerOption? selected,
+    bool revealed,
+  ) {
+    if (!revealed) return _cardColor;
+    final correct = _currentQuestion!.correctOption;
+    if (option == correct) return _correctBg;
+    if (option == selected) return _wrongBg;
+    return _cardColor;
+  }
+
+  Color _optionBorder(
+    QuizAnswerOption option,
+    QuizAnswerOption? selected,
+    bool revealed,
+  ) {
+    if (!revealed) return _neutralColor;
+    final correct = _currentQuestion!.correctOption;
+    if (option == correct) return _correctColor;
+    if (option == selected && option != correct) return _wrongColor;
+    return _neutralColor;
+  }
+
+  double _optionBorderWidth(
+    QuizAnswerOption option,
+    QuizAnswerOption? selected,
+    bool revealed,
+  ) {
+    if (!revealed) return 1.2;
+    final correct = _currentQuestion!.correctOption;
+    if (option == correct || option == selected) return 2.4;
+    return 1.2;
+  }
+}
+
+class _QuizSheetProgressPanel extends StatelessWidget {
+  const _QuizSheetProgressPanel({
+    required this.currentIndex,
+    required this.total,
+    required this.correctCount,
+    required this.wrongCount,
+    required this.unansweredCount,
+  });
+
+  final int currentIndex;
+  final int total;
+  final int correctCount;
+  final int wrongCount;
+  final int unansweredCount;
+
+  static const Color _primaryColor = AppVisual.logoBlue;
+  static const Color _textPrimaryColor = AppVisual.ink;
+  static const Color _neutralColor = AppVisual.chipFill;
+  static const Color _correctColor = Color(0xFF15803D);
+  static const Color _wrongColor = Color(0xFFD32F2F);
+  static const Color _unansweredColor = Color(0xFF6B7280);
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _neutralColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: total == 0 ? 0 : (currentIndex + 1) / total,
+                    minHeight: 7,
+                    backgroundColor: _neutralColor,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      _primaryColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${currentIndex + 1}/$total',
+                style: textTheme.titleSmall?.copyWith(
+                  color: _textPrimaryColor,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _StatChip(
+                label: 'Corrette',
+                value: '$correctCount',
+                color: _correctColor,
+                background: const Color(0xFFDFF5E8),
+              ),
+              _StatChip(
+                label: 'Errori',
+                value: '$wrongCount',
+                color: _wrongColor,
+                background: const Color(0xFFFDE8E8),
+              ),
+              _StatChip(
+                label: 'Non risposte',
+                value: '$unansweredCount',
+                color: _unansweredColor,
+                background: const Color(0xFFF3F4F6),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
 
-  Color _optionBackground(QuizAnswerOption option, QuizAnswerOption? selected) {
-    if (!_revealed) return _cardColor;
-    final correct = _currentQuestion!.correctOption;
-    if (option == correct) {
-      return _correctColor.withValues(alpha: 0.14);
-    }
-    if (option == selected) {
-      return _wrongColor.withValues(alpha: 0.12);
-    }
-    return _cardColor;
-  }
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.background,
+  });
 
-  Color _optionBorder(QuizAnswerOption option, QuizAnswerOption? selected) {
-    if (!_revealed) return _neutralColor;
-    final correct = _currentQuestion!.correctOption;
-    if (option == correct) return _correctColor;
-    if (option == selected && option != correct) return _wrongColor;
-    return _neutralColor;
+  final String label;
+  final String value;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        '$label: $value',
+        style: textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 
@@ -532,6 +803,7 @@ class _AnswerOptionTile extends StatelessWidget {
     required this.onTap,
     required this.backgroundColor,
     required this.borderColor,
+    required this.borderWidth,
     required this.textColor,
   });
 
@@ -540,6 +812,7 @@ class _AnswerOptionTile extends StatelessWidget {
   final VoidCallback? onTap;
   final Color backgroundColor;
   final Color borderColor;
+  final double borderWidth;
   final Color textColor;
 
   @override
@@ -555,7 +828,7 @@ class _AnswerOptionTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: 1.2),
+            border: Border.all(color: borderColor, width: borderWidth),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -567,14 +840,14 @@ class _AnswerOptionTile extends StatelessWidget {
                   height: 30,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: borderColor.withValues(alpha: 0.12),
+                    color: borderColor.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
-                    border: Border.all(color: borderColor),
+                    border: Border.all(color: borderColor, width: 1.5),
                   ),
                   child: Text(
                     letter,
                     style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                       color: textColor,
                     ),
                   ),
@@ -586,6 +859,7 @@ class _AnswerOptionTile extends StatelessWidget {
                     style: textTheme.bodyLarge?.copyWith(
                       color: textColor,
                       height: 1.35,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

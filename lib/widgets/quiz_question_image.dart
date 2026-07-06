@@ -3,8 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 
+/// Bucket Storage per figure quiz (`questions.image_path` → `figures/...`).
+const String kQuizQuestionImagesBucket = 'quiz-images';
+
 /// Risolve e mostra l’immagine di una domanda quiz (`questions.image_path`).
-class QuizQuestionImage extends StatelessWidget {
+class QuizQuestionImage extends StatefulWidget {
   const QuizQuestionImage({
     super.key,
     required this.imagePath,
@@ -15,9 +18,112 @@ class QuizQuestionImage extends StatelessWidget {
   final double maxHeight;
 
   @override
+  State<QuizQuestionImage> createState() => _QuizQuestionImageState();
+}
+
+class _QuizQuestionImageState extends State<QuizQuestionImage> {
+  String? _imageUrl;
+  bool _loadingUrl = false;
+  bool _triedSignedUrl = false;
+  int _loadGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareUrl();
+  }
+
+  @override
+  void didUpdateWidget(covariant QuizQuestionImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imagePath != widget.imagePath) {
+      _triedSignedUrl = false;
+      _prepareUrl();
+    }
+  }
+
+  Future<void> _prepareUrl() async {
+    final path = widget.imagePath?.trim();
+    if (path == null || path.isEmpty) {
+      setState(() {
+        _imageUrl = null;
+        _loadingUrl = false;
+      });
+      return;
+    }
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      setState(() {
+        _imageUrl = path;
+        _loadingUrl = false;
+      });
+      return;
+    }
+
+    if (!SupabaseConfig.isConfigured) {
+      setState(() {
+        _imageUrl = null;
+        _loadingUrl = false;
+      });
+      return;
+    }
+
+    setState(() => _loadingUrl = true);
+    final publicUrl = resolveQuizQuestionPublicUrl(path);
+    if (!mounted) return;
+    setState(() {
+      _imageUrl = publicUrl;
+      _loadingUrl = false;
+    });
+  }
+
+  Future<void> _trySignedUrlFallback() async {
+    if (_triedSignedUrl || !SupabaseConfig.isConfigured) return;
+    final objectPath = resolveQuizQuestionObjectPath(widget.imagePath);
+    if (objectPath == null) return;
+
+    _triedSignedUrl = true;
+    final generation = ++_loadGeneration;
+    try {
+      final signed = await Supabase.instance.client.storage
+          .from(kQuizQuestionImagesBucket)
+          .createSignedUrl(objectPath, 3600);
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _imageUrl = signed);
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _imageUrl = null);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = resolveQuizQuestionImageUrl(imagePath);
-    if (url == null) return const SizedBox.shrink();
+    final path = widget.imagePath?.trim();
+    if (path == null || path.isEmpty) return const SizedBox.shrink();
+
+    if (_loadingUrl) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: SizedBox(
+          height: widget.maxHeight,
+          child: const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final url = _imageUrl;
+    if (url == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: _ImageFallback(path: path),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -26,13 +132,20 @@ class QuizQuestionImage extends StatelessWidget {
         child: Image.network(
           url,
           fit: BoxFit.contain,
-          height: maxHeight,
+          height: widget.maxHeight,
           width: double.infinity,
-          errorBuilder: (_, _, _) => _ImageFallback(path: imagePath!),
+          errorBuilder: (_, _, _) {
+            if (!_triedSignedUrl) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _trySignedUrlFallback();
+              });
+            }
+            return _ImageFallback(path: path);
+          },
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return SizedBox(
-              height: maxHeight,
+              height: widget.maxHeight,
               child: const Center(
                 child: SizedBox(
                   width: 28,
@@ -69,7 +182,7 @@ class _ImageFallback extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Immagine non disponibile',
+              'Figura non disponibile',
               style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
             ),
           ),
@@ -79,26 +192,30 @@ class _ImageFallback extends StatelessWidget {
   }
 }
 
-/// Tenta di costruire un URL pubblico Supabase Storage da path relativo.
-String? resolveQuizQuestionImageUrl(String? imagePath) {
+/// Path oggetto in `quiz-images` (es. `figures/figura_26.png`).
+String? resolveQuizQuestionObjectPath(String? imagePath) {
   final raw = imagePath?.trim();
   if (raw == null || raw.isEmpty) return null;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-  if (!SupabaseConfig.isConfigured) return null;
-
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return null;
   final normalized = raw.startsWith('/') ? raw.substring(1) : raw;
-  final segments = normalized.split('/');
-  if (segments.length < 2) return null;
+  return normalized.isEmpty ? null : normalized;
+}
 
-  final bucket = segments.first;
-  final objectPath = segments.sublist(1).join('/');
-  if (bucket.isEmpty || objectPath.isEmpty) return null;
+/// URL pubblico Supabase Storage per figure quiz.
+String? resolveQuizQuestionPublicUrl(String? imagePath) {
+  final objectPath = resolveQuizQuestionObjectPath(imagePath);
+  if (objectPath == null) return null;
+  if (!SupabaseConfig.isConfigured) return null;
 
   try {
     return Supabase.instance.client.storage
-        .from(bucket)
+        .from(kQuizQuestionImagesBucket)
         .getPublicUrl(objectPath);
   } catch (_) {
     return null;
   }
 }
+
+/// Compat legacy: alias del resolver pubblico.
+String? resolveQuizQuestionImageUrl(String? imagePath) =>
+    resolveQuizQuestionPublicUrl(imagePath);
