@@ -456,129 +456,143 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
               unansweredCount: _unansweredCount,
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: _cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _neutralColor),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Domanda ${_currentIndex + 1}',
-                            style: textTheme.labelLarge?.copyWith(
-                              color: _primaryColor,
-                              fontWeight: FontWeight.w800,
-                            ),
+              child: LayoutBuilder(
+                builder: (context, viewport) {
+                  final compact =
+                      viewport.maxWidth < 600 ||
+                      MediaQuery.sizeOf(context).height < 640;
+                  final cardPadding = compact ? 14.0 : 16.0;
+                  final promptStyle = compact
+                      ? textTheme.titleSmall
+                      : textTheme.titleMedium;
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(cardPadding),
+                          decoration: BoxDecoration(
+                            color: _cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: _neutralColor),
                           ),
-                          const SizedBox(height: 10),
-                          QuizQuestionImage(imagePath: question.imagePath),
-                          Text(
-                            question.prompt,
-                            style: textTheme.titleMedium?.copyWith(
-                              color: _textPrimaryColor,
-                              fontWeight: FontWeight.w700,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    ...question.options.map(
-                      (option) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _AnswerOptionTile(
-                          letter: option.letter,
-                          text: question.textForOption(option),
-                          onTap: revealed ? null : () => _selectAnswer(option),
-                          backgroundColor: _optionBackground(
-                            option,
-                            selected,
-                            revealed,
-                          ),
-                          borderColor: _optionBorder(
-                            option,
-                            selected,
-                            revealed,
-                          ),
-                          borderWidth: _optionBorderWidth(
-                            option,
-                            selected,
-                            revealed,
-                          ),
-                          textColor: _textPrimaryColor,
-                        ),
-                      ),
-                    ),
-                    if (revealed) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: selected == question.correctOption
-                              ? _correctBg
-                              : _wrongBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected == question.correctOption
-                                ? _correctColor
-                                : _wrongColor,
-                            width: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Domanda ${_currentIndex + 1}',
+                                style: textTheme.labelLarge?.copyWith(
+                                  color: _primaryColor,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: compact ? 8 : 10),
+                              QuizQuestionImage(imagePath: question.imagePath),
+                              Text(
+                                question.prompt,
+                                style: promptStyle?.copyWith(
+                                  color: _textPrimaryColor,
+                                  fontWeight: FontWeight.w700,
+                                  height: compact ? 1.35 : 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selected == question.correctOption
-                                  ? 'Risposta corretta'
-                                  : 'Risposta errata',
-                              style: textTheme.titleSmall?.copyWith(
+                        const SizedBox(height: 12),
+                        ...question.options.map(
+                          (option) => Padding(
+                            padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+                            child: _AnswerOptionTile(
+                              letter: option.letter,
+                              text: question.textForOption(option),
+                              onTap: revealed
+                                  ? null
+                                  : () => _selectAnswer(option),
+                              backgroundColor: _optionBackground(
+                                option,
+                                selected,
+                                revealed,
+                              ),
+                              borderColor: _optionBorder(
+                                option,
+                                selected,
+                                revealed,
+                              ),
+                              borderWidth: _optionBorderWidth(
+                                option,
+                                selected,
+                                revealed,
+                              ),
+                              textColor: _textPrimaryColor,
+                            ),
+                          ),
+                        ),
+                        if (revealed) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.all(compact ? 12 : 14),
+                            decoration: BoxDecoration(
+                              color: selected == question.correctOption
+                                  ? _correctBg
+                                  : _wrongBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
                                 color: selected == question.correctOption
                                     ? _correctColor
                                     : _wrongColor,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
+                                width: 2,
                               ),
                             ),
-                            if (selected != question.correctOption) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'La risposta corretta è ${question.correctOption.letter}.',
-                                style: textTheme.bodyMedium?.copyWith(
-                                  color: _textPrimaryColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                            if (question.explanation != null &&
-                                question.explanation!.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                question.explanation!,
-                                style: textTheme.bodyMedium?.copyWith(
-                                  color: _textPrimaryColor.withValues(
-                                    alpha: 0.9,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  selected == question.correctOption
+                                      ? 'Risposta corretta'
+                                      : 'Risposta errata',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    color: selected == question.correctOption
+                                        ? _correctColor
+                                        : _wrongColor,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: compact ? 15 : 16,
                                   ),
-                                  height: 1.4,
                                 ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                                if (selected != question.correctOption) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'La risposta corretta è ${question.correctOption.letter}.',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: _textPrimaryColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                                if (question.explanation != null &&
+                                    question.explanation!.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    question.explanation!,
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: _textPrimaryColor.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             SafeArea(

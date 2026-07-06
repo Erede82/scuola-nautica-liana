@@ -1,18 +1,57 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
-import '../theme/app_visual_tokens.dart';
 
 /// Bucket Storage per figure quiz (`questions.image_path` → `figures/...`).
 const String kQuizQuestionImagesBucket = 'quiz-images';
 
-/// Altezza massima figure quiz: mobile compatto, desktop/web più ampia.
-double quizQuestionImageMaxHeight(BuildContext context) {
-  final width = MediaQuery.sizeOf(context).width;
-  if (width < 600) return 160;
-  return 200;
+/// Limiti layout figure quiz in base a viewport (mobile / tablet / desktop).
+class QuizQuestionImageLayout {
+  QuizQuestionImageLayout._();
+
+  static double maxHeight(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = size.width;
+    final height = size.height;
+
+    double base;
+    if (width < 360) {
+      base = 112;
+    } else if (width < 600) {
+      base = 128;
+    } else if (width < 1200) {
+      base = 145;
+    } else {
+      base = 160;
+    }
+
+    if (height < 480) {
+      return math.min(base, 105);
+    }
+    if (height < 640) {
+      return math.min(base, 118);
+    }
+    return base;
+  }
+
+  static double maxWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 600) {
+      return math.max(240, width - 48);
+    }
+    if (width < 900) {
+      return 340;
+    }
+    return 360;
+  }
 }
+
+/// Altezza massima figure quiz — alias di [QuizQuestionImageLayout.maxHeight].
+double quizQuestionImageMaxHeight(BuildContext context) =>
+    QuizQuestionImageLayout.maxHeight(context);
 
 /// Risolve e mostra l’immagine di una domanda quiz (`questions.image_path`).
 class QuizQuestionImage extends StatefulWidget {
@@ -20,7 +59,7 @@ class QuizQuestionImage extends StatefulWidget {
 
   final String? imagePath;
 
-  /// Se null, usa [quizQuestionImageMaxHeight] in base al viewport.
+  /// Se null, usa [QuizQuestionImageLayout.maxHeight] in base al viewport.
   final double? maxHeight;
 
   @override
@@ -52,7 +91,7 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   }
 
   double _resolvedMaxHeight(BuildContext context) =>
-      widget.maxHeight ?? quizQuestionImageMaxHeight(context);
+      widget.maxHeight ?? QuizQuestionImageLayout.maxHeight(context);
 
   Future<void> _prepareUrl() async {
     final path = widget.imagePath?.trim();
@@ -108,27 +147,52 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     }
   }
 
-  Widget _imageFrame({required BuildContext context, required Widget child}) {
-    final maxHeight = _resolvedMaxHeight(context);
+  BoxConstraints _constraints(BuildContext context) {
+    return BoxConstraints(
+      maxHeight: _resolvedMaxHeight(context),
+      maxWidth: QuizQuestionImageLayout.maxWidth(context),
+    );
+  }
+
+  Widget _imageFrame({
+    required BuildContext context,
+    required Widget child,
+    bool shrinkWrap = true,
+  }) {
+    final constraints = _constraints(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Center(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: Alignment.center,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 520),
+          constraints: constraints,
           child: Container(
-            width: double.infinity,
             decoration: BoxDecoration(
               color: _frameBackground,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _frameBorder),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Center(child: child),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: shrinkWrap
+                ? Center(child: child)
+                : SizedBox(
+                    width: constraints.maxWidth,
+                    child: Center(child: child),
+                  ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _loadingIndicator() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+      child: SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
     );
   }
@@ -138,23 +202,8 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     final path = widget.imagePath?.trim();
     if (path == null || path.isEmpty) return const SizedBox.shrink();
 
-    final maxHeight = _resolvedMaxHeight(context);
-    final imageHeight = maxHeight - 16;
-
     if (_loadingUrl) {
-      return _imageFrame(
-        context: context,
-        child: SizedBox(
-          height: imageHeight,
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-      );
+      return _imageFrame(context: context, child: _loadingIndicator());
     }
 
     final url = _imageUrl;
@@ -165,35 +214,29 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
       );
     }
 
+    final constraints = _constraints(context);
+
     return _imageFrame(
       context: context,
-      child: Image.network(
-        url,
-        fit: BoxFit.contain,
-        height: imageHeight,
-        width: double.infinity,
-        alignment: Alignment.center,
-        errorBuilder: (_, _, _) {
-          if (!_triedSignedUrl) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _trySignedUrlFallback();
-            });
-          }
-          return _ImageFallback(path: path, compact: true);
-        },
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return SizedBox(
-            height: imageHeight,
-            child: const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        },
+      child: ConstrainedBox(
+        constraints: constraints,
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          alignment: Alignment.center,
+          errorBuilder: (_, _, _) {
+            if (!_triedSignedUrl) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _trySignedUrlFallback();
+              });
+            }
+            return _ImageFallback(path: path, compact: true);
+          },
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return _loadingIndicator();
+          },
+        ),
       ),
     );
   }
@@ -207,32 +250,28 @@ class _ImageFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: compact ? 10 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: AppVisual.chipFill.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 8 : 10,
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.image_not_supported_outlined,
             color: Colors.grey.shade600,
-            size: compact ? 18 : 20,
+            size: compact ? 16 : 18,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Flexible(
             child: Text(
               'Figura non disponibile',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey.shade700,
-                fontSize: compact ? 12 : 13,
+                fontSize: compact ? 11.5 : 12.5,
               ),
             ),
           ),
