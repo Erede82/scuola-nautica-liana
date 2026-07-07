@@ -8,6 +8,7 @@ import '../widgets/dashboard_action_card.dart';
 import '../services/student_content_navigation.dart';
 import 'category_selection_page.dart';
 import 'error_review_page.dart';
+import 'lesson_list_page.dart';
 import 'statistics_page.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -44,6 +45,18 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         icon: Icons.menu_book_rounded,
         useStudentBrandStyle: true,
         onTap: () {
+          final categoryId =
+              StudentContentNavigation.directLessonsCategoryForCurrentUser();
+          if (categoryId != null) {
+            qfLog('QuizDashboard: Lezioni dirette categoryId=$categoryId');
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => LessonListPage(categoryId: categoryId),
+              ),
+            );
+            return;
+          }
           qfLog(
             'QuizDashboard: tap "Lezioni e schede" → CategorySelection(lessons)',
           );

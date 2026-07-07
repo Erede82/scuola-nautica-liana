@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/quiz_sheet_exit_policy.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
 import '../repositories/quiz_attempt_repository.dart';
@@ -344,15 +345,17 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   }
 
   Future<bool> _confirmLeaveSheet() async {
-    final unanswered = _unansweredCount;
-    if (unanswered == 0) return true;
+    if (!shouldConfirmExitBeforeSummary(_userAnswers)) {
+      return true;
+    }
+
     final leave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Uscire dalla scheda?'),
-        content: Text(
-          'Hai ancora $unanswered domande senza risposta. '
-          'Vuoi uscire dalla scheda?',
+        content: const Text(
+          'Hai risposto ad alcune domande ma non hai completato la scheda. '
+          'Se esci ora, nessun risultato verrà salvato e la scheda resterà da svolgere.',
         ),
         actions: [
           TextButton(
@@ -361,7 +364,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Esci comunque'),
+            child: const Text('Esci senza salvare'),
           ),
         ],
       ),

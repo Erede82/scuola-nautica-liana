@@ -23,4 +23,19 @@ abstract final class StudentContentNavigation {
 
     return categoryId;
   }
+
+  /// Categoria lezioni del percorso iscrizione attivo (bypass scelta categoria).
+  ///
+  /// Restituisce `null` per staff (scelta manuale) o categoria non disponibile.
+  static LicenseCategoryId? directLessonsCategoryForCurrentUser() {
+    if (staffAccessNotifier.value.staffRole != null) return null;
+
+    final path =
+        studentSession.value?.enrolledCoursePath ??
+        demoStudentEnrollmentPath.value;
+    final categoryId = EnrollmentContentMapping.primaryLicenseCategory(path);
+    if (!LicenseCatalog.byId(categoryId).isAvailable) return null;
+
+    return categoryId;
+  }
 }

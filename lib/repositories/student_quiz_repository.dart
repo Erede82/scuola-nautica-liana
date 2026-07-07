@@ -5,6 +5,7 @@ import '../config/supabase_config.dart';
 import '../data/quiz_question_mapper.dart';
 import '../data/supabase/dto/question_row.dart';
 import '../models/lesson_quiz_sheet_content.dart';
+import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
 
@@ -23,6 +24,12 @@ abstract class StudentQuizRepository {
     required int lessonNumber,
     required int sheetNumber,
     int limit = 20,
+  });
+
+  /// Schede con almeno un tentativo salvato (`quiz_results`) per l'utente corrente.
+  Future<LessonSheetCompletionSnapshot> fetchLessonSheetCompletion({
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
   });
 }
 
@@ -133,6 +140,64 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
     );
     return content?.questions ?? const [];
   }
+
+  @override
+  Future<LessonSheetCompletionSnapshot> fetchLessonSheetCompletion({
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+  }) async {
+    final dbCategory = _dbLicenseCategory(categoryId);
+    if (dbCategory == null) return LessonSheetCompletionSnapshot.empty;
+
+    final setsRes = await _client
+        .from('quiz_sets')
+        .select('id, sheet_number')
+        .eq('kind', 'lesson')
+        .eq('license_category', dbCategory)
+        .eq('lesson_number', lessonNumber)
+        .order('sheet_number', ascending: true);
+
+    final quizSetIdBySheet = <int, String>{};
+    for (final row in setsRes as List<dynamic>) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final sheetNumber = (map['sheet_number'] as num?)?.toInt();
+      final quizSetId = map['id']?.toString();
+      if (sheetNumber == null || quizSetId == null || quizSetId.isEmpty) {
+        continue;
+      }
+      quizSetIdBySheet[sheetNumber] = quizSetId;
+    }
+
+    if (quizSetIdBySheet.isEmpty) {
+      return LessonSheetCompletionSnapshot.empty;
+    }
+
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      return buildLessonSheetCompletionSnapshot(
+        quizSetIdBySheet: quizSetIdBySheet,
+        completedQuizSetIds: const {},
+      );
+    }
+
+    final resultsRes = await _client
+        .from('quiz_results')
+        .select('quiz_set_id')
+        .eq('user_id', userId)
+        .inFilter('quiz_set_id', quizSetIdBySheet.values.toList());
+
+    final completedQuizSetIds = <String>{};
+    for (final row in resultsRes as List<dynamic>) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final id = map['quiz_set_id']?.toString();
+      if (id != null && id.isNotEmpty) completedQuizSetIds.add(id);
+    }
+
+    return buildLessonSheetCompletionSnapshot(
+      quizSetIdBySheet: quizSetIdBySheet,
+      completedQuizSetIds: completedQuizSetIds,
+    );
+  }
 }
 
 String? _dbLicenseCategory(LicenseCategoryId categoryId) {
@@ -163,6 +228,12 @@ class StudentQuizRepositoryEmpty implements StudentQuizRepository {
     required int sheetNumber,
     int limit = 20,
   }) async => const [];
+
+  @override
+  Future<LessonSheetCompletionSnapshot> fetchLessonSheetCompletion({
+    required LicenseCategoryId categoryId,
+    required int lessonNumber,
+  }) async => LessonSheetCompletionSnapshot.empty;
 }
 
 StudentQuizRepository get studentQuizRepository {

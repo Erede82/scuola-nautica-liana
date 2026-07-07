@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
 import '../models/study_content_access.dart';
+import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../widgets/app_empty_state.dart';
 import 'quiz_sheet_detail_page.dart';
@@ -27,6 +29,10 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _backgroundColor = AppVisual.canvas;
 
+  LessonSheetCompletionSnapshot _completion =
+      LessonSheetCompletionSnapshot.empty;
+  bool _loadingCompletion = true;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +40,7 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
       'route: LessonQuizListPage init lessonNum=${widget.lessonNumber} '
       'categoryId=${widget.categoryId}',
     );
+    _loadCompletionStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -43,14 +50,89 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
         (item) => item.number == widget.lessonNumber,
       );
       final lesson = hasLesson
-          ? category.lessons
-              .firstWhere((item) => item.number == widget.lessonNumber)
+          ? category.lessons.firstWhere(
+              (item) => item.number == widget.lessonNumber,
+            )
           : null;
       qfLog(
         'LessonQuizListPage: first frame (loaded) sheetsInCatalog='
         '${lesson?.quizSheets ?? 0} categoryAvailable=${category.isAvailable}',
       );
     });
+  }
+
+  Future<void> _loadCompletionStatus() async {
+    setState(() => _loadingCompletion = true);
+    try {
+      final snapshot = await studentQuizRepository.fetchLessonSheetCompletion(
+        categoryId: widget.categoryId,
+        lessonNumber: widget.lessonNumber,
+      );
+      if (!mounted) return;
+      setState(() {
+        _completion = snapshot;
+        _loadingCompletion = false;
+      });
+    } catch (err, st) {
+      debugPrint('LessonQuizListPage completion load error: $err\n$st');
+      if (!mounted) return;
+      setState(() => _loadingCompletion = false);
+    }
+  }
+
+  Future<void> _onSheetTap({
+    required BuildContext context,
+    required int sheetNumber,
+    required StudyContentAccessSnapshot access,
+  }) async {
+    qfLog(
+      'LessonQuizList: tap scheda L${widget.lessonNumber} '
+      'sheet=$sheetNumber locked=${access.isLocked}',
+    );
+    if (access.isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            access.lockedMessage ??
+                'Questa scheda sarà disponibile quando la scuola la abiliterà.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_completion.isSheetCompleted(sheetNumber)) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Scheda già svolta'),
+          content: const Text(
+            'Scheda già svolta. Rivolgiti alla scuola se vuoi ripeterla.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => QuizSheetDetailPage(
+          lessonNumber: widget.lessonNumber,
+          sheetNumber: sheetNumber,
+          categoryId: widget.categoryId,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _loadCompletionStatus();
   }
 
   @override
@@ -96,7 +178,7 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
               : '${category.name} — Disponibile prossimamente',
           message: isVela
               ? 'Le schede quiz per la patente a vela non sono ancora disponibili. '
-                  'Disponibile prossimamente, con le stesse regole di abilitazione della scuola.'
+                    'Disponibile prossimamente, con le stesse regole di abilitazione della scuola.'
               : 'I contenuti di quiz per questa categoria sono in preparazione.',
           icon: Icons.lock_outline_rounded,
           tagLabel: 'Disponibile prossimamente',
@@ -153,9 +235,11 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
 
     final sheets = List.generate(
       sheetCount,
-      (index) => _buildSheetData(
-        lessonNumber: widget.lessonNumber,
+      (index) => QuizSheetItem(
         sheetNumber: index + 1,
+        progress: _completion.isSheetCompleted(index + 1)
+            ? QuizSheetProgress.completed
+            : QuizSheetProgress.todo,
       ),
     );
 
@@ -186,6 +270,11 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
             textTheme: textTheme,
           ),
           const SizedBox(height: 14),
+          if (_loadingCompletion)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(minHeight: 3),
+            ),
           ...List.generate(sheets.length, (index) {
             final sheet = sheets[index];
             final sheetNumber = index + 1;
@@ -198,70 +287,19 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
             return _QuizSheetCard(
               sheet: sheet,
               access: access,
+              isCompleted: _completion.isSheetCompleted(sheetNumber),
               textTheme: textTheme,
-              onTap: () {
-                qfLog(
-                  'LessonQuizList: tap scheda L${widget.lessonNumber} '
-                  'sheet=$sheetNumber locked=${access.isLocked}',
-                );
-                if (access.isLocked) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        access.lockedMessage ??
-                            'Questa scheda sarà disponibile quando la scuola la abiliterà.',
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  return;
-                }
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => QuizSheetDetailPage(
-                      lessonNumber: widget.lessonNumber,
-                      sheetNumber: sheet.sheetNumber,
-                      categoryId: widget.categoryId,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => _onSheetTap(
+                context: context,
+                sheetNumber: sheetNumber,
+                access: access,
+              ),
             );
           }),
         ],
       ),
     );
   }
-
-  static QuizSheetItem _buildSheetData({
-    required int lessonNumber,
-    required int sheetNumber,
-  }) {
-    final seed = (lessonNumber * 11 + sheetNumber * 7) % 10;
-
-    if (seed <= 4) {
-      return QuizSheetItem(
-        sheetNumber: sheetNumber,
-        progress: QuizSheetProgress.todo,
-      );
-    }
-
-    if (seed <= 7) {
-      return QuizSheetItem(
-        sheetNumber: sheetNumber,
-        progress: QuizSheetProgress.completed,
-        errorCount: seed - 4,
-      );
-    }
-
-    return QuizSheetItem(
-      sheetNumber: sheetNumber,
-      progress: QuizSheetProgress.review,
-      errorCount: seed - 6,
-    );
-  }
-
 }
 
 class _LessonSummaryCard extends StatelessWidget {
@@ -287,8 +325,7 @@ class _LessonSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final coverage =
-        totalSheets == 0 ? 0.0 : enabledSheets / totalSheets;
+    final coverage = totalSheets == 0 ? 0.0 : enabledSheets / totalSheets;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -351,12 +388,14 @@ class _QuizSheetCard extends StatelessWidget {
   const _QuizSheetCard({
     required this.sheet,
     required this.access,
+    required this.isCompleted,
     required this.onTap,
     required this.textTheme,
   });
 
   final QuizSheetItem sheet;
   final StudyContentAccessSnapshot access;
+  final bool isCompleted;
   final VoidCallback onTap;
   final TextTheme textTheme;
 
@@ -365,6 +404,7 @@ class _QuizSheetCard extends StatelessWidget {
   static const Color _secondaryColor = Color(0xFF44BBCA);
   static const Color _neutralColor = AppVisual.chipFill;
   static const Color _primaryColor = AppVisual.logoBlue;
+  static const Color _completedColor = Color(0xFF15803D);
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +424,10 @@ class _QuizSheetCard extends StatelessWidget {
           side: BorderSide(color: borderColor, width: 1.1),
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 8,
+          ),
           leading: Container(
             width: 42,
             height: 42,
@@ -395,8 +438,16 @@ class _QuizSheetCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              locked ? Icons.lock_outline_rounded : Icons.quiz_rounded,
-              color: locked ? _secondaryColor : _primaryColor,
+              locked
+                  ? Icons.lock_outline_rounded
+                  : isCompleted
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.quiz_rounded,
+              color: locked
+                  ? _secondaryColor
+                  : isCompleted
+                  ? _completedColor
+                  : _primaryColor,
             ),
           ),
           title: Text(
@@ -430,6 +481,13 @@ class _QuizSheetCard extends StatelessWidget {
                       height: 1.35,
                     ),
                   ),
+                ] else if (isCompleted) ...[
+                  Text(
+                    'Tentativo registrato sul tuo account.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: _textPrimaryColor.withValues(alpha: 0.78),
+                    ),
+                  ),
                 ] else ...[
                   if (access.unlockMessage != null)
                     Padding(
@@ -458,8 +516,10 @@ class _QuizSheetCard extends StatelessWidget {
             children: [
               if (locked)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppVisual.chipFill.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(999),
@@ -472,11 +532,15 @@ class _QuizSheetCard extends StatelessWidget {
                     ),
                   ),
                 )
+              else if (isCompleted)
+                const _SvoltaChip()
               else
                 const _DaSvolgereChip(),
               const SizedBox(height: 6),
               Icon(
-                locked ? Icons.info_outline_rounded : Icons.arrow_forward_ios_rounded,
+                locked
+                    ? Icons.info_outline_rounded
+                    : Icons.arrow_forward_ios_rounded,
                 size: 16,
                 color: _secondaryColor,
               ),
@@ -511,6 +575,32 @@ class _DaSvolgereChip extends StatelessWidget {
         style: textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w700,
           color: _textPrimaryColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _SvoltaChip extends StatelessWidget {
+  const _SvoltaChip();
+
+  static const Color _completedColor = Color(0xFF15803D);
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _completedColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Svolta',
+        style: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: _completedColor,
         ),
       ),
     );
