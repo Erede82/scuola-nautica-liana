@@ -4,13 +4,14 @@ import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
+import '../repositories/quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/quiz_question_image.dart';
 import '../theme/app_visual_tokens.dart';
 
-/// Dettaglio scheda quiz per lezione — domande reali da `questions` (read-only).
+/// Dettaglio scheda quiz per lezione — domande da `quiz_sets` / `quiz_set_items`.
 class QuizSheetDetailPage extends StatefulWidget {
   const QuizSheetDetailPage({
     super.key,
@@ -125,10 +126,16 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
 
   List<QuizQuestion> _questions = const [];
   List<QuizAnswerOption?> _userAnswers = const [];
+  String? _quizSetId;
+  DateTime? _startedAt;
+  DateTime? _completedAt;
   bool _loading = true;
   bool _loadFailed = false;
   int _currentIndex = 0;
   bool _showSummary = false;
+  _AttemptSaveStatus _saveStatus = _AttemptSaveStatus.idle;
+  String? _saveErrorMessage;
+  String? _partialQuizResultId;
 
   @override
   void initState() {
@@ -145,15 +152,22 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     });
 
     try {
-      final loaded = await studentQuizRepository.fetchLessonSheetQuestions(
+      final content = await studentQuizRepository.fetchLessonSheetContent(
         categoryId: widget.categoryId,
         lessonNumber: widget.lessonNumber,
         sheetNumber: widget.sheetNumber,
       );
       if (!mounted) return;
+      final loaded = content?.questions ?? const [];
       setState(() {
+        _quizSetId = loaded.isEmpty ? null : content?.quizSetId;
         _questions = loaded;
         _userAnswers = List<QuizAnswerOption?>.filled(loaded.length, null);
+        _startedAt = loaded.isEmpty ? null : DateTime.now();
+        _completedAt = null;
+        _saveStatus = _AttemptSaveStatus.idle;
+        _saveErrorMessage = null;
+        _partialQuizResultId = null;
         _loading = false;
       });
     } catch (err, st) {
@@ -162,6 +176,8 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       setState(() {
         _questions = const [];
         _userAnswers = const [];
+        _quizSetId = null;
+        _startedAt = null;
         _loading = false;
         _loadFailed = true;
       });
@@ -261,7 +277,70 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       );
       if (proceed != true || !mounted) return;
     }
-    setState(() => _showSummary = true);
+    setState(() {
+      _showSummary = true;
+      _completedAt = DateTime.now();
+      _saveStatus = _AttemptSaveStatus.saving;
+    });
+    await _saveAttempt();
+  }
+
+  Future<void> _saveAttempt() async {
+    if (_saveStatus == _AttemptSaveStatus.saved) {
+      return;
+    }
+
+    final quizSetId = _quizSetId;
+    final startedAt = _startedAt;
+    final completedAt = _completedAt;
+    if (quizSetId == null || startedAt == null || completedAt == null) {
+      setState(() {
+        _saveStatus = _AttemptSaveStatus.failed;
+        _saveErrorMessage =
+            'Scheda non collegata al database: impossibile salvare il risultato.';
+      });
+      return;
+    }
+
+    setState(() {
+      _saveStatus = _AttemptSaveStatus.saving;
+      _saveErrorMessage = null;
+    });
+
+    try {
+      final result = await quizAttemptRepository.submitLessonSheetAttempt(
+        quizSetId: quizSetId,
+        questions: _questions,
+        answers: _userAnswers,
+        startedAt: startedAt,
+        completedAt: completedAt,
+        existingQuizResultId: _partialQuizResultId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _saveStatus = _AttemptSaveStatus.saved;
+        _partialQuizResultId = null;
+        _saveErrorMessage = null;
+      });
+      qfLog('quiz attempt saved: ${result.quizResultId}');
+    } on QuizAttemptAnswersPartialFailure catch (err, st) {
+      debugPrint('QuizSheetPlayer partial save: ${err.message}\n$st');
+      if (!mounted) return;
+      setState(() {
+        _partialQuizResultId = err.quizResultId;
+        _saveStatus = _AttemptSaveStatus.failed;
+        _saveErrorMessage = err.message;
+      });
+    } catch (err, st) {
+      debugPrint('QuizSheetPlayer save error: $err\n$st');
+      if (!mounted) return;
+      setState(() {
+        _saveStatus = _AttemptSaveStatus.failed;
+        _saveErrorMessage = err is StateError
+            ? err.message
+            : 'Salvataggio non riuscito. Riprova.';
+      });
+    }
   }
 
   Future<bool> _confirmLeaveSheet() async {
@@ -385,6 +464,14 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                   valueColor: _unansweredColor,
                 ),
               _SummaryStatRow(label: 'Percentuale', value: '$_percentCorrect%'),
+              const SizedBox(height: 16),
+              _AttemptSaveStatusCard(
+                status: _saveStatus,
+                errorMessage: _saveErrorMessage,
+                onRetry: _saveStatus == _AttemptSaveStatus.failed
+                    ? _saveAttempt
+                    : null,
+              ),
               const SizedBox(height: 24),
               if (_hasNextSheet)
                 FilledButton.icon(
@@ -881,6 +968,128 @@ class _AnswerOptionTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+enum _AttemptSaveStatus { idle, saving, saved, failed }
+
+class _AttemptSaveStatusCard extends StatelessWidget {
+  const _AttemptSaveStatusCard({
+    required this.status,
+    this.errorMessage,
+    this.onRetry,
+  });
+
+  final _AttemptSaveStatus status;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
+
+  static const Color _primaryColor = AppVisual.logoBlue;
+  static const Color _textPrimaryColor = AppVisual.ink;
+  static const Color _savedColor = Color(0xFF15803D);
+  static const Color _wrongColor = Color(0xFFD32F2F);
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    late final IconData icon;
+    late final String title;
+    late final String message;
+    late final Color accent;
+    late final Color background;
+
+    switch (status) {
+      case _AttemptSaveStatus.idle:
+      case _AttemptSaveStatus.saving:
+        icon = Icons.cloud_upload_outlined;
+        title = 'Salvataggio in corso';
+        message = 'Stiamo registrando il risultato sul tuo account…';
+        accent = _primaryColor;
+        background = const Color(0xFFE8F4FA);
+      case _AttemptSaveStatus.saved:
+        icon = Icons.check_circle_outline_rounded;
+        title = 'Risultato salvato';
+        message =
+            'Il tentativo è stato registrato. Potrai rivederlo nelle statistiche quando saranno disponibili.';
+        accent = _savedColor;
+        background = const Color(0xFFDFF5E8);
+      case _AttemptSaveStatus.failed:
+        icon = Icons.error_outline_rounded;
+        title = 'Risultato non salvato';
+        message =
+            errorMessage ??
+            'Non è stato possibile salvare il tentativo. Puoi riprovare.';
+        accent = _wrongColor;
+        background = const Color(0xFFFDE8E8);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (status == _AttemptSaveStatus.saving)
+                const Padding(
+                  padding: EdgeInsets.only(top: 2, right: 10),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Icon(icon, color: accent),
+                ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: textTheme.titleSmall?.copyWith(
+                        color: _textPrimaryColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: _textPrimaryColor.withValues(alpha: 0.9),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (status == _AttemptSaveStatus.failed && onRetry != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Riprova salvataggio'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accent,
+                side: BorderSide(color: accent),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
