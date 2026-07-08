@@ -9,6 +9,7 @@ import '../services/student_content_navigation.dart';
 import 'category_selection_page.dart';
 import 'error_review_page.dart';
 import 'lesson_list_page.dart';
+import 'quiz_exam_page.dart';
 import 'statistics_page.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -77,7 +78,21 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         icon: Icons.quiz_rounded,
         useStudentBrandStyle: true,
         onTap: () {
-          qfLog('QuizDashboard: tap "Quiz esame"');
+          final categoryId =
+              StudentContentNavigation.directExamCategoryForCurrentUser();
+          if (categoryId != null) {
+            qfLog('QuizDashboard: Esame diretto categoryId=$categoryId');
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => QuizExamPage(categoryId: categoryId),
+              ),
+            );
+            return;
+          }
+          qfLog(
+            'QuizDashboard: tap "Quiz esame" → CategorySelection(quizExam)',
+          );
           Navigator.push(
             context,
             MaterialPageRoute<void>(
