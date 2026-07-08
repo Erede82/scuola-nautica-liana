@@ -56,5 +56,25 @@ void main() {
         isTrue,
       );
     });
+
+    test('all answers → confirm exit', () {
+      expect(
+        shouldConfirmExitBeforeSummary([
+          QuizAnswerOption.a,
+          QuizAnswerOption.b,
+        ]),
+        isTrue,
+      );
+    });
+  });
+
+  group('allowsImmediateQuizSheetExit', () {
+    test('no answers → immediate pop allowed', () {
+      expect(allowsImmediateQuizSheetExit(const [null, null]), isTrue);
+    });
+
+    test('partial answers → must confirm before pop', () {
+      expect(allowsImmediateQuizSheetExit([QuizAnswerOption.a, null]), isFalse);
+    });
   });
 }

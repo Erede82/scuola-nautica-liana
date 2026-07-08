@@ -344,13 +344,16 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     }
   }
 
+  bool get _allowsImmediatePop => allowsImmediateQuizSheetExit(_userAnswers);
+
   Future<bool> _confirmLeaveSheet() async {
-    if (!shouldConfirmExitBeforeSummary(_userAnswers)) {
+    if (_allowsImmediatePop) {
       return true;
     }
 
     final leave = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Uscire dalla scheda?'),
         content: const Text(
@@ -370,6 +373,17 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       ),
     );
     return leave == true;
+  }
+
+  /// Uscita dal player senza salvataggio (dopo conferma se necessaria).
+  Future<void> _leaveSheet() async {
+    if (!await _confirmLeaveSheet()) {
+      qfLog('QuizSheetPlayer: stay on sheet (exit cancelled)');
+      return;
+    }
+    if (!mounted) return;
+    qfLog('QuizSheetPlayer: exit without save');
+    Navigator.of(context).pop();
   }
 
   void _openNextSheet() {
@@ -526,12 +540,13 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     final revealed = _isCurrentAnswered;
 
     return PopScope(
-      canPop: false,
+      canPop: _allowsImmediatePop,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        if (await _confirmLeaveSheet() && context.mounted) {
-          Navigator.maybePop(context);
+        if (didPop) {
+          qfLog('QuizSheetPlayer: immediate exit (no answers selected)');
+          return;
         }
+        await _leaveSheet();
       },
       child: Scaffold(
         backgroundColor: _backgroundColor,
