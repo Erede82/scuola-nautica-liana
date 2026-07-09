@@ -1,4 +1,4 @@
-/// Stato completamento schede lezione da `quiz_results` (read-only).
+/// Stato completamento schede lezione da `quiz_results` + `quiz_attempt_answers`.
 class LessonSheetCompletionSnapshot {
   const LessonSheetCompletionSnapshot({
     required this.quizSetIdBySheet,
@@ -17,7 +17,43 @@ class LessonSheetCompletionSnapshot {
   );
 }
 
-/// Sheet numbers con almeno un [quiz_results] per il set corrispondente.
+/// Riga minima di `quiz_results` per valutare completamento scheda.
+class LessonQuizResultAttempt {
+  const LessonQuizResultAttempt({
+    required this.id,
+    required this.quizSetId,
+    required this.totalQuestions,
+  });
+
+  final String id;
+  final String quizSetId;
+  final int totalQuestions;
+}
+
+/// Tentativo completo: risposte salvate == domande totali (> 0).
+bool isLessonQuizResultComplete({
+  required int answerCount,
+  required int totalQuestions,
+}) => totalQuestions > 0 && answerCount == totalQuestions;
+
+/// `quiz_set_id` con almeno un tentativo completo e coerente.
+Set<String> completedQuizSetIdsFromAttempts({
+  required Iterable<LessonQuizResultAttempt> results,
+  required Map<String, int> answerCountByResultId,
+}) {
+  final completed = <String>{};
+  for (final result in results) {
+    if (isLessonQuizResultComplete(
+      answerCount: answerCountByResultId[result.id] ?? 0,
+      totalQuestions: result.totalQuestions,
+    )) {
+      completed.add(result.quizSetId);
+    }
+  }
+  return completed;
+}
+
+/// Sheet numbers con almeno un tentativo completo per il set corrispondente.
 Set<int> completedSheetNumbers({
   required Map<int, String> quizSetIdBySheet,
   required Set<String> completedQuizSetIds,

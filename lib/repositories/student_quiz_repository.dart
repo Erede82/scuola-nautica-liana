@@ -26,7 +26,7 @@ abstract class StudentQuizRepository {
     int limit = 20,
   });
 
-  /// Schede con almeno un tentativo salvato (`quiz_results`) per l'utente corrente.
+  /// Schede con tentativo completo (`quiz_results` + `quiz_attempt_answers` coerenti).
   Future<LessonSheetCompletionSnapshot> fetchLessonSheetCompletion({
     required LicenseCategoryId categoryId,
     required int lessonNumber,
@@ -182,16 +182,50 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
 
     final resultsRes = await _client
         .from('quiz_results')
-        .select('quiz_set_id')
+        .select('id, quiz_set_id, total_questions')
         .eq('user_id', userId)
         .inFilter('quiz_set_id', quizSetIdBySheet.values.toList());
 
-    final completedQuizSetIds = <String>{};
+    final attempts = <LessonQuizResultAttempt>[];
+    final resultIds = <String>[];
     for (final row in resultsRes as List<dynamic>) {
       final map = Map<String, dynamic>.from(row as Map);
-      final id = map['quiz_set_id']?.toString();
-      if (id != null && id.isNotEmpty) completedQuizSetIds.add(id);
+      final id = map['id']?.toString();
+      final quizSetId = map['quiz_set_id']?.toString();
+      final totalQuestions = (map['total_questions'] as num?)?.toInt() ?? 0;
+      if (id == null || id.isEmpty || quizSetId == null || quizSetId.isEmpty) {
+        continue;
+      }
+      attempts.add(
+        LessonQuizResultAttempt(
+          id: id,
+          quizSetId: quizSetId,
+          totalQuestions: totalQuestions,
+        ),
+      );
+      resultIds.add(id);
     }
+
+    final answerCountByResultId = <String, int>{};
+    if (resultIds.isNotEmpty) {
+      final answersRes = await _client
+          .from('quiz_attempt_answers')
+          .select('quiz_result_id')
+          .inFilter('quiz_result_id', resultIds);
+
+      for (final row in answersRes as List<dynamic>) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final resultId = map['quiz_result_id']?.toString();
+        if (resultId == null || resultId.isEmpty) continue;
+        answerCountByResultId[resultId] =
+            (answerCountByResultId[resultId] ?? 0) + 1;
+      }
+    }
+
+    final completedQuizSetIds = completedQuizSetIdsFromAttempts(
+      results: attempts,
+      answerCountByResultId: answerCountByResultId,
+    );
 
     return buildLessonSheetCompletionSnapshot(
       quizSetIdBySheet: quizSetIdBySheet,
