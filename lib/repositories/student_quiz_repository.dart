@@ -8,6 +8,7 @@ import '../models/lesson_quiz_sheet_content.dart';
 import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
+import '../domain/exam_question_selection.dart';
 
 export '../domain/quiz_sheet_slicing.dart';
 
@@ -30,6 +31,11 @@ abstract class StudentQuizRepository {
   Future<LessonSheetCompletionSnapshot> fetchLessonSheetCompletion({
     required LicenseCategoryId categoryId,
     required int lessonNumber,
+  });
+
+  /// Domande esame raggruppate per `exam_topic_code` (read-only).
+  Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
+    required LicenseCategoryId categoryId,
   });
 }
 
@@ -232,6 +238,46 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
       completedQuizSetIds: completedQuizSetIds,
     );
   }
+
+  @override
+  Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
+    required LicenseCategoryId categoryId,
+  }) async {
+    final dbCategory = _dbLicenseCategory(categoryId);
+    if (dbCategory == null) return {};
+
+    final quotas = examTopicQuotasForCategory(dbCategory);
+    if (quotas == null || quotas.isEmpty) return {};
+
+    final poolByTopic = <String, List<QuizQuestion>>{};
+    for (final topic in quotas.keys) {
+      final res = await _client
+          .from('questions')
+          .select(_questionSelectColumns)
+          .eq('license_category', dbCategory)
+          .eq('exam_topic_code', topic);
+
+      final questions = <QuizQuestion>[];
+      for (final row in res as List<dynamic>) {
+        try {
+          final map = Map<String, dynamic>.from(row as Map);
+          final questionRow = QuestionRow.fromJson(map);
+          final question = QuizQuestionMapper.fromRow(questionRow);
+          if (question != null) questions.add(question);
+        } catch (err, st) {
+          debugPrint(
+            'StudentQuizRepository.fetchExamQuestionsByTopic: skip row: '
+            '$err\n$st',
+          );
+        }
+      }
+      if (questions.isNotEmpty) {
+        poolByTopic[topic] = questions;
+      }
+    }
+
+    return poolByTopic;
+  }
 }
 
 String? _dbLicenseCategory(LicenseCategoryId categoryId) {
@@ -268,6 +314,11 @@ class StudentQuizRepositoryEmpty implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required int lessonNumber,
   }) async => LessonSheetCompletionSnapshot.empty;
+
+  @override
+  Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
+    required LicenseCategoryId categoryId,
+  }) async => {};
 }
 
 StudentQuizRepository get studentQuizRepository {
