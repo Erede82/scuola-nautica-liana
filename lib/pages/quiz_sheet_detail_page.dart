@@ -9,6 +9,7 @@ import '../repositories/quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_image.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -611,7 +612,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                           (option) => Padding(
                             padding: EdgeInsets.only(bottom: compact ? 8 : 10),
                             child: _AnswerOptionTile(
-                              letter: option.letter,
+                              answerNumber: option.index + 1,
                               text: question.textForOption(option),
                               onTap: revealed
                                   ? null
@@ -632,6 +633,12 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                                 revealed,
                               ),
                               textColor: _textPrimaryColor,
+                              markerState: _markerState(
+                                option,
+                                selected,
+                                revealed,
+                              ),
+                              compact: compact,
                             ),
                           ),
                         ),
@@ -742,6 +749,21 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         ),
       ),
     );
+  }
+
+  NauticalAnswerMarkerState _markerState(
+    QuizAnswerOption option,
+    QuizAnswerOption? selected,
+    bool revealed,
+  ) {
+    final correct = _currentQuestion!.correctOption;
+    if (revealed) {
+      if (option == correct) return NauticalAnswerMarkerState.correct;
+      if (option == selected) return NauticalAnswerMarkerState.wrong;
+      return NauticalAnswerMarkerState.neutral;
+    }
+    if (option == selected) return NauticalAnswerMarkerState.selected;
+    return NauticalAnswerMarkerState.neutral;
   }
 
   Color _optionBackground(
@@ -917,22 +939,26 @@ class _StatChip extends StatelessWidget {
 
 class _AnswerOptionTile extends StatelessWidget {
   const _AnswerOptionTile({
-    required this.letter,
+    required this.answerNumber,
     required this.text,
     required this.onTap,
     required this.backgroundColor,
     required this.borderColor,
     required this.borderWidth,
     required this.textColor,
+    required this.markerState,
+    this.compact = false,
   });
 
-  final String letter;
+  final int answerNumber;
   final String text;
   final VoidCallback? onTap;
   final Color backgroundColor;
   final Color borderColor;
   final double borderWidth;
   final Color textColor;
+  final NauticalAnswerMarkerState markerState;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -950,28 +976,15 @@ class _AnswerOptionTile extends StatelessWidget {
             border: Border.all(color: borderColor, width: borderWidth),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: EdgeInsets.fromLTRB(
+              compact ? 12 : 14,
+              compact ? 12 : 14,
+              compact ? 10 : 12,
+              compact ? 12 : 14,
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: borderColor.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: borderColor, width: 1.5),
-                  ),
-                  child: Text(
-                    letter,
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     text,
@@ -981,6 +994,12 @@ class _AnswerOptionTile extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
+                const SizedBox(width: 10),
+                NauticalAnswerMarker(
+                  answerNumber: answerNumber,
+                  state: markerState,
+                  compact: compact,
                 ),
               ],
             ),

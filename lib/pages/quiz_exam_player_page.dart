@@ -9,8 +9,12 @@ import '../domain/exam_quiz_rules.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
 import '../repositories/student_quiz_repository.dart';
+import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_image.dart';
 import '../theme/app_visual_tokens.dart';
+
+/// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
+const String kExamRestartSimulationResult = 'restart_exam_simulation';
 
 /// Player simulazione esame con domande reali (nessun salvataggio DB in P9C.4-A).
 class QuizExamPlayerPage extends StatefulWidget {
@@ -224,7 +228,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                     (option) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _ExamAnswerTile(
-                        letter: option.letter,
+                        answerNumber: option.index + 1,
                         text: question.textForOption(option),
                         selected: selected == option,
                         onTap: () => _selectAnswer(option),
@@ -346,6 +350,18 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                   : _textPrimaryColor,
             ),
             const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.pop(context, kExamRestartSimulationResult),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Nuova simulazione'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => Navigator.maybePop(context),
               icon: const Icon(Icons.arrow_back_rounded),
@@ -408,13 +424,13 @@ class _ExamProgressPanel extends StatelessWidget {
 
 class _ExamAnswerTile extends StatelessWidget {
   const _ExamAnswerTile({
-    required this.letter,
+    required this.answerNumber,
     required this.text,
     required this.selected,
     required this.onTap,
   });
 
-  final String letter;
+  final int answerNumber;
   final String text;
   final bool selected;
   final VoidCallback onTap;
@@ -422,6 +438,7 @@ class _ExamAnswerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final compact = MediaQuery.sizeOf(context).width < 420;
 
     return Material(
       color: selected ? const Color(0xFFE8F4FA) : Colors.white,
@@ -430,7 +447,12 @@ class _ExamAnswerTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: EdgeInsets.fromLTRB(
+            compact ? 12 : 14,
+            compact ? 12 : 14,
+            compact ? 10 : 12,
+            compact ? 12 : 14,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -441,14 +463,6 @@ class _ExamAnswerTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                letter,
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: AppVisual.logoBlue,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   text,
@@ -457,6 +471,14 @@ class _ExamAnswerTile extends StatelessWidget {
                     height: 1.35,
                   ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              NauticalAnswerMarker(
+                answerNumber: answerNumber,
+                state: selected
+                    ? NauticalAnswerMarkerState.selected
+                    : NauticalAnswerMarkerState.neutral,
+                compact: compact,
               ),
             ],
           ),
@@ -509,39 +531,44 @@ Future<void> startExamSimulation({
   required BuildContext context,
   required LicenseCategoryId categoryId,
 }) async {
-  final pool = await studentQuizRepository.fetchExamQuestionsByTopic(
-    categoryId: categoryId,
-  );
   final dbCategory = categoryId == LicenseCategoryId.motore ? 'A12' : 'D1';
   final quotas = examTopicQuotasForCategory(dbCategory);
   if (quotas == null) return;
 
-  final questions = pickExamQuestions(
-    poolByTopic: pool,
-    topicQuotas: quotas,
-    random: Random(),
-  );
+  while (context.mounted) {
+    final pool = await studentQuizRepository.fetchExamQuestionsByTopic(
+      categoryId: categoryId,
+    );
 
-  if (!context.mounted) return;
+    final questions = pickExamQuestions(
+      poolByTopic: pool,
+      topicQuotas: quotas,
+      random: Random(),
+    );
 
-  if (questions.length < ExamQuizRules.questionCount) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Domande insufficienti per la simulazione '
-          '(${questions.length}/${ExamQuizRules.questionCount}).',
+    if (!context.mounted) return;
+
+    if (questions.length < ExamQuizRules.questionCount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Domande insufficienti per la simulazione '
+            '(${questions.length}/${ExamQuizRules.questionCount}).',
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
+      );
+      return;
+    }
+
+    final result = await Navigator.push<String?>(
+      context,
+      MaterialPageRoute<String?>(
+        builder: (_) =>
+            QuizExamPlayerPage(categoryId: categoryId, questions: questions),
       ),
     );
-    return;
-  }
 
-  await Navigator.push<void>(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) =>
-          QuizExamPlayerPage(categoryId: categoryId, questions: questions),
-    ),
-  );
+    if (result != kExamRestartSimulationResult) return;
+  }
 }
