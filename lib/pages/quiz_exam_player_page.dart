@@ -16,6 +16,9 @@ import '../theme/app_visual_tokens.dart';
 /// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
 const String kExamRestartSimulationResult = 'restart_exam_simulation';
 
+/// Risultato [Navigator.pop] per tornare alla home Quiz (dashboard 4 card).
+const String kExamExitToQuizHomeResult = 'exit_to_quiz_home';
+
 /// Player simulazione esame con domande reali (nessun salvataggio DB in P9C.4-A).
 class QuizExamPlayerPage extends StatefulWidget {
   const QuizExamPlayerPage({
@@ -363,9 +366,10 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: () => Navigator.maybePop(context),
+              onPressed: () =>
+                  Navigator.pop(context, kExamExitToQuizHomeResult),
               icon: const Icon(Icons.arrow_back_rounded),
-              label: const Text('Torna al quiz esame'),
+              label: const Text('Torna alla home quiz'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -568,6 +572,11 @@ Future<void> startExamSimulation({
             QuizExamPlayerPage(categoryId: categoryId, questions: questions),
       ),
     );
+
+    if (result == kExamExitToQuizHomeResult) {
+      if (context.mounted) Navigator.pop(context);
+      return;
+    }
 
     if (result != kExamRestartSimulationResult) return;
   }

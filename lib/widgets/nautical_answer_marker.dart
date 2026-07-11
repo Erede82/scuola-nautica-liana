@@ -5,8 +5,7 @@ import '../theme/app_visual_tokens.dart';
 /// Stato visivo dell'indicatore risposta (stile scheda esame nautico).
 enum NauticalAnswerMarkerState { neutral, selected, correct, wrong }
 
-/// Indicatore compatto a destra della risposta: riquadro numerato 1/2/3 e tre
-/// quadratini in stile software nautico/SIDA.
+/// Indicatore compatto a destra della risposta: riquadro numerato 1/2/3.
 class NauticalAnswerMarker extends StatelessWidget {
   const NauticalAnswerMarker({
     super.key,
@@ -25,8 +24,6 @@ class NauticalAnswerMarker extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final boxSize = compact ? 30.0 : 34.0;
-    final dotSize = compact ? 6.0 : 7.0;
-    final dotGap = compact ? 3.0 : 4.0;
 
     final accent = _accentColor();
     final boxFill = _boxFillColor();
@@ -34,50 +31,25 @@ class NauticalAnswerMarker extends StatelessWidget {
 
     return SizedBox(
       width: _minColumnWidth,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: boxSize,
-            height: boxSize,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: boxFill,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: accent, width: borderWidth),
-            ),
-            child: Text(
-              '$answerNumber',
-              style: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: accent,
-                height: 1,
-              ),
+      child: Center(
+        child: Container(
+          width: boxSize,
+          height: boxSize,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: boxFill,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: accent, width: borderWidth),
+          ),
+          child: Text(
+            '$answerNumber',
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: accent,
+              height: 1,
             ),
           ),
-          SizedBox(height: compact ? 5 : 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(3, (index) {
-              final filled = _dotFilled(index);
-              return Padding(
-                padding: EdgeInsets.only(left: index == 0 ? 0 : dotGap),
-                child: Container(
-                  width: dotSize,
-                  height: dotSize,
-                  decoration: BoxDecoration(
-                    color: filled ? accent : Colors.transparent,
-                    borderRadius: BorderRadius.circular(1.5),
-                    border: Border.all(
-                      color: accent.withValues(alpha: filled ? 1 : 0.55),
-                      width: 1.2,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -105,19 +77,6 @@ class NauticalAnswerMarker extends StatelessWidget {
         return const Color(0xFFE8F7EE);
       case NauticalAnswerMarkerState.wrong:
         return const Color(0xFFFDECEC);
-    }
-  }
-
-  /// Evidenzia il quadratino centrale in selezione; tutti e tre su esito rivelato.
-  bool _dotFilled(int index) {
-    switch (state) {
-      case NauticalAnswerMarkerState.neutral:
-        return false;
-      case NauticalAnswerMarkerState.selected:
-        return index == 1;
-      case NauticalAnswerMarkerState.correct:
-      case NauticalAnswerMarkerState.wrong:
-        return true;
     }
   }
 }

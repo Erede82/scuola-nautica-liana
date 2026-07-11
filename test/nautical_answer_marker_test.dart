@@ -34,4 +34,23 @@ void main() {
     expect(marker.state, NauticalAnswerMarkerState.selected);
     expect(marker.answerNumber, 1);
   });
+
+  testWidgets('NauticalAnswerMarker correct usa stato verde', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: NauticalAnswerMarker(
+            answerNumber: 3,
+            state: NauticalAnswerMarkerState.correct,
+          ),
+        ),
+      ),
+    );
+
+    final marker = tester.widget<NauticalAnswerMarker>(
+      find.byType(NauticalAnswerMarker),
+    );
+    expect(marker.state, NauticalAnswerMarkerState.correct);
+    expect(find.text('3'), findsOneWidget);
+  });
 }
