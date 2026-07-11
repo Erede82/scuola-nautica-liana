@@ -55,12 +55,20 @@ double quizQuestionImageMaxHeight(BuildContext context) =>
 
 /// Risolve e mostra l’immagine di una domanda quiz (`questions.image_path`).
 class QuizQuestionImage extends StatefulWidget {
-  const QuizQuestionImage({super.key, required this.imagePath, this.maxHeight});
+  const QuizQuestionImage({
+    super.key,
+    required this.imagePath,
+    this.maxHeight,
+    this.sidePanelLayout = false,
+  });
 
   final String? imagePath;
 
   /// Se null, usa [QuizQuestionImageLayout.maxHeight] in base al viewport.
   final double? maxHeight;
+
+  /// Layout compatto per pannello laterale (figura a sinistra del testo).
+  final bool sidePanelLayout;
 
   @override
   State<QuizQuestionImage> createState() => _QuizQuestionImageState();
@@ -90,8 +98,25 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     }
   }
 
-  double _resolvedMaxHeight(BuildContext context) =>
-      widget.maxHeight ?? QuizQuestionImageLayout.maxHeight(context);
+  double _resolvedMaxHeight(BuildContext context) {
+    if (widget.maxHeight != null) return widget.maxHeight!;
+    if (widget.sidePanelLayout) {
+      final width = MediaQuery.sizeOf(context).width;
+      if (width < 600) return 140;
+      if (width < 900) return 180;
+      return 220;
+    }
+    return QuizQuestionImageLayout.maxHeight(context);
+  }
+
+  double _resolvedMaxWidth(BuildContext context) {
+    if (widget.sidePanelLayout) {
+      final width = MediaQuery.sizeOf(context).width;
+      if (width < 600) return 200;
+      return 240;
+    }
+    return QuizQuestionImageLayout.maxWidth(context);
+  }
 
   Future<void> _prepareUrl() async {
     final path = widget.imagePath?.trim();
@@ -150,7 +175,7 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   BoxConstraints _constraints(BuildContext context) {
     return BoxConstraints(
       maxHeight: _resolvedMaxHeight(context),
-      maxWidth: QuizQuestionImageLayout.maxWidth(context),
+      maxWidth: _resolvedMaxWidth(context),
     );
   }
 
@@ -160,11 +185,14 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     bool shrinkWrap = true,
   }) {
     final constraints = _constraints(context);
+    final bottomPad = widget.sidePanelLayout ? 0.0 : 10.0;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: bottomPad),
       child: Align(
-        alignment: Alignment.center,
+        alignment: widget.sidePanelLayout
+            ? Alignment.topLeft
+            : Alignment.center,
         child: ConstrainedBox(
           constraints: constraints,
           child: Container(

@@ -10,7 +10,7 @@ import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/nautical_answer_marker.dart';
-import '../widgets/quiz_question_image.dart';
+import '../widgets/quiz_question_prompt_panel.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Dettaglio scheda quiz per lezione — domande da `quiz_sets` / `quiz_set_items`.
@@ -568,9 +568,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                       viewport.maxWidth < 600 ||
                       MediaQuery.sizeOf(context).height < 640;
                   final cardPadding = compact ? 14.0 : 16.0;
-                  final promptStyle = compact
-                      ? textTheme.titleSmall
-                      : textTheme.titleMedium;
 
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -584,27 +581,13 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: _neutralColor),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Domanda ${_currentIndex + 1}',
-                                style: textTheme.labelLarge?.copyWith(
-                                  color: _primaryColor,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              SizedBox(height: compact ? 8 : 10),
-                              QuizQuestionImage(imagePath: question.imagePath),
-                              Text(
-                                question.prompt,
-                                style: promptStyle?.copyWith(
-                                  color: _textPrimaryColor,
-                                  fontWeight: FontWeight.w700,
-                                  height: compact ? 1.35 : 1.4,
-                                ),
-                              ),
-                            ],
+                          child: QuizQuestionPromptPanel(
+                            questionNumber: _currentIndex + 1,
+                            prompt: question.prompt,
+                            imagePath: question.imagePath,
+                            compact: compact,
+                            labelColor: _primaryColor,
+                            textColor: _textPrimaryColor,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -634,6 +617,11 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                               ),
                               textColor: _textPrimaryColor,
                               markerState: _markerState(
+                                option,
+                                selected,
+                                revealed,
+                              ),
+                              showMarker: _markerVisible(
                                 option,
                                 selected,
                                 revealed,
@@ -749,6 +737,18 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         ),
       ),
     );
+  }
+
+  bool _markerVisible(
+    QuizAnswerOption option,
+    QuizAnswerOption? selected,
+    bool revealed,
+  ) {
+    final correct = _currentQuestion!.correctOption;
+    if (revealed) {
+      return option == correct || option == selected;
+    }
+    return option == selected;
   }
 
   NauticalAnswerMarkerState _markerState(
@@ -947,6 +947,7 @@ class _AnswerOptionTile extends StatelessWidget {
     required this.borderWidth,
     required this.textColor,
     required this.markerState,
+    required this.showMarker,
     this.compact = false,
   });
 
@@ -958,11 +959,15 @@ class _AnswerOptionTile extends StatelessWidget {
   final double borderWidth;
   final Color textColor;
   final NauticalAnswerMarkerState markerState;
+  final bool showMarker;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final answerStyle = QuizAnswerTextStyle.answer(
+      context,
+      compact: compact,
+    ).copyWith(color: textColor);
 
     return Material(
       color: Colors.transparent,
@@ -985,19 +990,11 @@ class _AnswerOptionTile extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    text,
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: textColor,
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                Expanded(child: Text(text, style: answerStyle)),
                 const SizedBox(width: 10),
                 NauticalAnswerMarker(
                   answerNumber: answerNumber,
+                  visible: showMarker,
                   state: markerState,
                   compact: compact,
                 ),

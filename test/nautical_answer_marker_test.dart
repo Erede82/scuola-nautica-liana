@@ -35,6 +35,24 @@ void main() {
     expect(marker.answerNumber, 1);
   });
 
+  testWidgets('NauticalAnswerMarker hidden when visible is false', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: NauticalAnswerMarker(answerNumber: 2, visible: false),
+        ),
+      ),
+    );
+
+    expect(find.text('2'), findsNothing);
+    final marker = tester.widget<NauticalAnswerMarker>(
+      find.byType(NauticalAnswerMarker),
+    );
+    expect(marker.visible, isFalse);
+  });
+
   testWidgets('NauticalAnswerMarker correct usa stato verde', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

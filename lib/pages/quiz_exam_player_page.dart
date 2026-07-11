@@ -4,13 +4,15 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../debug/quiz_flow_debug.dart';
+import '../domain/exam_error_review.dart';
 import '../domain/exam_question_selection.dart';
 import '../domain/exam_quiz_rules.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
+import '../pages/quiz_exam_error_review_page.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../widgets/nautical_answer_marker.dart';
-import '../widgets/quiz_question_image.dart';
+import '../widgets/quiz_question_prompt_panel.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
@@ -151,9 +153,24 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
     });
   }
 
+  void _openErrorReview() {
+    final entries = buildExamErrorReviewEntries(
+      questions: widget.questions,
+      userAnswers: _userAnswers,
+    );
+    if (entries.isEmpty) return;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => QuizExamErrorReviewPage(entries: entries),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final compact = MediaQuery.sizeOf(context).width < 600;
 
     if (_showSummary && _summary != null) {
       return _buildSummaryScaffold(context, textTheme, _summary!);
@@ -203,27 +220,13 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: _neutralColor),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Domanda ${_currentIndex + 1}',
-                          style: textTheme.labelLarge?.copyWith(
-                            color: _primaryColor,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        QuizQuestionImage(imagePath: question.imagePath),
-                        Text(
-                          question.prompt,
-                          style: textTheme.titleMedium?.copyWith(
-                            color: _textPrimaryColor,
-                            fontWeight: FontWeight.w700,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                    child: QuizQuestionPromptPanel(
+                      questionNumber: _currentIndex + 1,
+                      prompt: question.prompt,
+                      imagePath: question.imagePath,
+                      compact: compact,
+                      labelColor: _primaryColor,
+                      textColor: _textPrimaryColor,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -234,6 +237,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                         answerNumber: option.index + 1,
                         text: question.textForOption(option),
                         selected: selected == option,
+                        compact: compact,
                         onTap: () => _selectAnswer(option),
                       ),
                     ),
@@ -353,6 +357,17 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                   : _textPrimaryColor,
             ),
             const SizedBox(height: 24),
+            if (summary.errorCount > 0) ...[
+              OutlinedButton.icon(
+                onPressed: _openErrorReview,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Rivedi errori'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             FilledButton.icon(
               onPressed: () =>
                   Navigator.pop(context, kExamRestartSimulationResult),
@@ -432,17 +447,18 @@ class _ExamAnswerTile extends StatelessWidget {
     required this.text,
     required this.selected,
     required this.onTap,
+    this.compact = false,
   });
 
   final int answerNumber;
   final String text;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final compact = MediaQuery.sizeOf(context).width < 420;
+    final answerStyle = QuizAnswerTextStyle.answer(context, compact: compact);
 
     return Material(
       color: selected ? const Color(0xFFE8F4FA) : Colors.white,
@@ -467,18 +483,11 @@ class _ExamAnswerTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  text,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
-                ),
-              ),
+              Expanded(child: Text(text, style: answerStyle)),
               const SizedBox(width: 10),
               NauticalAnswerMarker(
                 answerNumber: answerNumber,
+                visible: selected,
                 state: selected
                     ? NauticalAnswerMarkerState.selected
                     : NauticalAnswerMarkerState.neutral,
