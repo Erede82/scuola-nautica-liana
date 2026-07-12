@@ -5,6 +5,8 @@ import '../data/extra_content_mapper.dart';
 import '../domain/backoffice/backoffice.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
 import '../services/demo_student_enrollment.dart';
+import '../pages/student_area_preview_blocked_page.dart';
+import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
 import '../utils/guida_datetime_format.dart';
 import '../widgets/app_empty_state.dart';
@@ -68,6 +70,13 @@ class _ExtraMyPurchasesPageState extends State<ExtraMyPurchasesPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (StudentAreaContext.blocksWrites(context)) {
+      return const StudentAreaPreviewBlockedPage(
+        title: 'I miei acquisti',
+        message: 'Non disponibile in modalità anteprima.',
+      );
+    }
+
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(

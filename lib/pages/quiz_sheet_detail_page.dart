@@ -5,12 +5,16 @@ import '../debug/quiz_flow_debug.dart';
 import '../domain/quiz_sheet_exit_policy.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
+import '../domain/quiz_sheet_player_navigation.dart';
 import '../repositories/quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
+import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
+import '../widgets/quiz_question_progress_strip.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Dettaglio scheda quiz per lezione — domande da `quiz_sets` / `quiz_set_items`.
@@ -247,38 +251,69 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   }
 
   void _goForward() {
-    if (_currentIndex + 1 >= _questions.length) {
-      _tryShowSummary();
+    if (!QuizSheetPlayerNavigation.canGoForward(
+      currentIndex: _currentIndex,
+      questionCount: _questions.length,
+    )) {
       return;
     }
     setState(() => _currentIndex++);
   }
 
-  Future<void> _tryShowSummary() async {
+  Future<void> _closeSheet() async {
     final unanswered = _unansweredCount;
     if (unanswered > 0) {
-      final proceed = await showDialog<bool>(
+      final closeAnyway = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Domande senza risposta'),
+          title: const Text('Domande non completate'),
           content: Text(
-            'Hai ancora $unanswered domande senza risposta. '
-            'Vuoi completarle prima di vedere il riepilogo?',
+            'Hai lasciato $unanswered domande senza risposta. '
+            'Puoi ricontrollarle oppure chiudere comunque la scheda.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Torna alle domande'),
+              child: const Text('Ricontrolla'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Vedi riepilogo comunque'),
+              child: const Text('Chiudi scheda'),
             ),
           ],
         ),
       );
-      if (proceed != true || !mounted) return;
+      if (!mounted) return;
+      if (closeAnyway != true) {
+        final firstGap = QuizSheetPlayerNavigation.firstUnansweredIndex(
+          _userAnswers,
+        );
+        if (firstGap != null) {
+          setState(() => _currentIndex = firstGap);
+        }
+        return;
+      }
     }
+
+    if (StudentAreaContext.blocksWrites(context)) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Anteprima staff'),
+          content: const Text(StudentAreaPreviewCopy.quizSaveBlockedMessage),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      return;
+    }
+
     setState(() {
       _showSummary = true;
       _completedAt = DateTime.now();
@@ -288,6 +323,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   }
 
   Future<void> _saveAttempt() async {
+    if (StudentAreaContext.blocksWrites(context)) {
+      return;
+    }
+
     if (_saveStatus == _AttemptSaveStatus.saved) {
       return;
     }
@@ -407,6 +446,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       foregroundColor: Colors.white,
       title: Text(title),
       centerTitle: true,
+      actions: const [StaffPreviewAppBarBadge()],
     );
   }
 
@@ -557,6 +597,11 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
             _QuizSheetProgressPanel(
               currentIndex: _currentIndex,
               total: _questions.length,
+              isAnswered: (index) =>
+                  QuizSheetPlayerNavigation.isQuestionAnswered(
+                    _userAnswers,
+                    index,
+                  ),
               correctCount: _correctCount,
               wrongCount: _wrongCount,
               unansweredCount: _unansweredCount,
@@ -617,11 +662,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                               ),
                               textColor: _textPrimaryColor,
                               markerState: _markerState(
-                                option,
-                                selected,
-                                revealed,
-                              ),
-                              showMarker: _markerVisible(
                                 option,
                                 selected,
                                 revealed,
@@ -709,23 +749,36 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton(
-                        onPressed: _goForward,
+                        onPressed:
+                            QuizSheetPlayerNavigation.canGoForward(
+                              currentIndex: _currentIndex,
+                              questionCount: _questions.length,
+                            )
+                            ? _goForward
+                            : _closeSheet,
                         style: FilledButton.styleFrom(
                           backgroundColor: _primaryColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: Text(
-                          _currentIndex + 1 >= _questions.length
-                              ? 'Vedi riepilogo'
-                              : 'Avanti',
+                          QuizSheetPlayerNavigation.primaryButtonLabel(
+                            currentIndex: _currentIndex,
+                            questionCount: _questions.length,
+                          ),
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     IconButton.filledTonal(
-                      onPressed: _goForward,
+                      onPressed:
+                          QuizSheetPlayerNavigation.canGoForward(
+                            currentIndex: _currentIndex,
+                            questionCount: _questions.length,
+                          )
+                          ? _goForward
+                          : null,
                       icon: const Icon(Icons.chevron_right_rounded),
                       tooltip: 'Domanda successiva',
                     ),
@@ -737,18 +790,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         ),
       ),
     );
-  }
-
-  bool _markerVisible(
-    QuizAnswerOption option,
-    QuizAnswerOption? selected,
-    bool revealed,
-  ) {
-    final correct = _currentQuestion!.correctOption;
-    if (revealed) {
-      return option == correct || option == selected;
-    }
-    return option == selected;
   }
 
   NauticalAnswerMarkerState _markerState(
@@ -806,6 +847,7 @@ class _QuizSheetProgressPanel extends StatelessWidget {
   const _QuizSheetProgressPanel({
     required this.currentIndex,
     required this.total,
+    required this.isAnswered,
     required this.correctCount,
     required this.wrongCount,
     required this.unansweredCount,
@@ -813,12 +855,11 @@ class _QuizSheetProgressPanel extends StatelessWidget {
 
   final int currentIndex;
   final int total;
+  final bool Function(int index) isAnswered;
   final int correctCount;
   final int wrongCount;
   final int unansweredCount;
 
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _textPrimaryColor = AppVisual.ink;
   static const Color _neutralColor = AppVisual.chipFill;
   static const Color _correctColor = Color(0xFF15803D);
   static const Color _wrongColor = Color(0xFFD32F2F);
@@ -826,8 +867,6 @@ class _QuizSheetProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -847,30 +886,10 @@ class _QuizSheetProgressPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: total == 0 ? 0 : (currentIndex + 1) / total,
-                    minHeight: 7,
-                    backgroundColor: _neutralColor,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      _primaryColor,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${currentIndex + 1}/$total',
-                style: textTheme.titleSmall?.copyWith(
-                  color: _textPrimaryColor,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          QuizQuestionProgressStrip(
+            currentIndex: currentIndex,
+            total: total,
+            isAnswered: isAnswered,
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -947,7 +966,6 @@ class _AnswerOptionTile extends StatelessWidget {
     required this.borderWidth,
     required this.textColor,
     required this.markerState,
-    required this.showMarker,
     this.compact = false,
   });
 
@@ -959,7 +977,6 @@ class _AnswerOptionTile extends StatelessWidget {
   final double borderWidth;
   final Color textColor;
   final NauticalAnswerMarkerState markerState;
-  final bool showMarker;
   final bool compact;
 
   @override
@@ -994,7 +1011,6 @@ class _AnswerOptionTile extends StatelessWidget {
                 const SizedBox(width: 10),
                 NauticalAnswerMarker(
                   answerNumber: answerNumber,
-                  visible: showMarker,
                   state: markerState,
                   compact: compact,
                 ),

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../domain/exam_error_review.dart';
+import '../models/quiz_question.dart';
 import '../theme/app_visual_tokens.dart';
+import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_image.dart';
+import '../widgets/quiz_question_prompt_panel.dart';
 
 /// Review locale errori/non risposte post-simulazione esame (nessun DB).
 class QuizExamErrorReviewPage extends StatelessWidget {
@@ -62,10 +65,6 @@ class _ReviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final question = entry.question;
-    final userText = entry.isUnanswered
-        ? 'Non risposta'
-        : question.textForOption(entry.userAnswer!);
-    final correctText = question.textForOption(question.correctOption);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -98,59 +97,99 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _AnswerLine(
-            label: entry.isUnanswered ? 'Non risposta' : 'La tua risposta',
-            value: userText,
-            accent: entry.isUnanswered
-                ? QuizExamErrorReviewPage._wrongColor
-                : QuizExamErrorReviewPage._wrongColor,
-          ),
-          const SizedBox(height: 8),
-          _AnswerLine(
-            label: 'Risposta corretta',
-            value: correctText,
-            accent: QuizExamErrorReviewPage._correctColor,
+          ...question.options.map(
+            (option) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _ReviewOptionTile(
+                answerNumber: option.index + 1,
+                text: question.textForOption(option),
+                markerState: _reviewMarkerState(
+                  option: option,
+                  correct: question.correctOption,
+                  userAnswer: entry.userAnswer,
+                ),
+                rowHighlighted:
+                    option == question.correctOption ||
+                    (entry.userAnswer != null && option == entry.userAnswer),
+                isCorrectRow: option == question.correctOption,
+                isWrongRow:
+                    entry.userAnswer != null &&
+                    option == entry.userAnswer &&
+                    option != question.correctOption,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  NauticalAnswerMarkerState _reviewMarkerState({
+    required QuizAnswerOption option,
+    required QuizAnswerOption correct,
+    required QuizAnswerOption? userAnswer,
+  }) {
+    if (option == correct) return NauticalAnswerMarkerState.correct;
+    if (userAnswer != null && option == userAnswer) {
+      return NauticalAnswerMarkerState.wrong;
+    }
+    return NauticalAnswerMarkerState.neutral;
+  }
 }
 
-class _AnswerLine extends StatelessWidget {
-  const _AnswerLine({
-    required this.label,
-    required this.value,
-    required this.accent,
+class _ReviewOptionTile extends StatelessWidget {
+  const _ReviewOptionTile({
+    required this.answerNumber,
+    required this.text,
+    required this.markerState,
+    required this.rowHighlighted,
+    required this.isCorrectRow,
+    required this.isWrongRow,
   });
 
-  final String label;
-  final String value;
-  final Color accent;
+  final int answerNumber;
+  final String text;
+  final NauticalAnswerMarkerState markerState;
+  final bool rowHighlighted;
+  final bool isCorrectRow;
+  final bool isWrongRow;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final answerStyle = QuizAnswerTextStyle.answer(context, compact: false);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: textTheme.labelMedium?.copyWith(
-            color: accent,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            height: 1.35,
-          ),
-        ),
-      ],
+    Color background = Colors.white;
+    Color border = AppVisual.chipFill;
+    var borderWidth = 1.2;
+
+    if (isCorrectRow) {
+      background = const Color(0xFFE8F7EE);
+      border = QuizExamErrorReviewPage._correctColor;
+      borderWidth = 2.2;
+    } else if (isWrongRow) {
+      background = const Color(0xFFFDECEC);
+      border = QuizExamErrorReviewPage._wrongColor;
+      borderWidth = 2.2;
+    } else if (rowHighlighted) {
+      border = AppVisual.logoBlue;
+      borderWidth = 1.6;
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border, width: borderWidth),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(text, style: answerStyle)),
+          const SizedBox(width: 10),
+          NauticalAnswerMarker(answerNumber: answerNumber, state: markerState),
+        ],
+      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import '../domain/enrollment_content_mapping.dart';
 import '../models/license_models.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
+import '../services/student_area_context.dart';
 
 /// Risolve navigazione contenuti studente senza passaggi UI superflui.
 abstract final class StudentContentNavigation {
@@ -12,7 +13,7 @@ abstract final class StudentContentNavigation {
   /// Restituisce `null` per staff (scelta manuale), assenza sessione allievo,
   /// o categoria non ancora disponibile nel catalogo app.
   static LicenseCategoryId? directStatisticsCategoryForCurrentUser() {
-    if (staffAccessNotifier.value.staffRole != null) return null;
+    if (_staffManualCategorySelectionRequired) return null;
 
     final session = studentSession.value;
     if (session == null) return null;
@@ -38,7 +39,7 @@ abstract final class StudentContentNavigation {
       _directCategoryForStudentEnrollment();
 
   static LicenseCategoryId? _directCategoryForStudentEnrollment() {
-    if (staffAccessNotifier.value.staffRole != null) return null;
+    if (_staffManualCategorySelectionRequired) return null;
 
     final path =
         studentSession.value?.enrolledCoursePath ??
@@ -53,5 +54,13 @@ abstract final class StudentContentNavigation {
     final categoryId = EnrollmentContentMapping.primaryLicenseCategory(path);
     if (!LicenseCatalog.byId(categoryId).isAvailable) return null;
     return categoryId;
+  }
+
+  /// Staff fuori anteprima deve scegliere la categoria manualmente.
+  static bool get _staffManualCategorySelectionRequired {
+    if (studentAreaPreviewActiveMode.value == StudentAreaMode.staffPreview) {
+      return false;
+    }
+    return staffAccessNotifier.value.staffRole != null;
   }
 }

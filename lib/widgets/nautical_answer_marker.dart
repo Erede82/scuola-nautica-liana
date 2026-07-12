@@ -12,15 +12,11 @@ class NauticalAnswerMarker extends StatelessWidget {
     required this.answerNumber,
     this.state = NauticalAnswerMarkerState.neutral,
     this.compact = false,
-    this.visible = true,
   }) : assert(answerNumber >= 1 && answerNumber <= 3);
 
   final int answerNumber;
   final NauticalAnswerMarkerState state;
   final bool compact;
-
-  /// Se false, mantiene lo spazio riservato senza mostrare il riquadro.
-  final bool visible;
 
   static const double _minColumnWidth = 40;
 
@@ -35,28 +31,26 @@ class NauticalAnswerMarker extends StatelessWidget {
 
     return SizedBox(
       width: _minColumnWidth,
-      child: visible
-          ? Center(
-              child: Container(
-                width: boxSize,
-                height: boxSize,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: boxFill,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: accent, width: borderWidth),
-                ),
-                child: Text(
-                  '$answerNumber',
-                  style: textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: accent,
-                    height: 1,
-                  ),
-                ),
-              ),
-            )
-          : const SizedBox.shrink(),
+      child: Center(
+        child: Container(
+          width: boxSize,
+          height: boxSize,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: boxFill,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: accent, width: borderWidth),
+          ),
+          child: Text(
+            '$answerNumber',
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: accent,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

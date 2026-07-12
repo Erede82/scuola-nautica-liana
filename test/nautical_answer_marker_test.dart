@@ -33,24 +33,33 @@ void main() {
     );
     expect(marker.state, NauticalAnswerMarkerState.selected);
     expect(marker.answerNumber, 1);
+    expect(find.text('1'), findsOneWidget);
   });
 
-  testWidgets('NauticalAnswerMarker hidden when visible is false', (
-    tester,
-  ) async {
+  testWidgets('tutti e tre i marker restano visibili insieme', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: NauticalAnswerMarker(answerNumber: 2, visible: false),
+          body: Row(
+            children: [
+              NauticalAnswerMarker(answerNumber: 1),
+              NauticalAnswerMarker(
+                answerNumber: 2,
+                state: NauticalAnswerMarkerState.wrong,
+              ),
+              NauticalAnswerMarker(
+                answerNumber: 3,
+                state: NauticalAnswerMarkerState.correct,
+              ),
+            ],
+          ),
         ),
       ),
     );
 
-    expect(find.text('2'), findsNothing);
-    final marker = tester.widget<NauticalAnswerMarker>(
-      find.byType(NauticalAnswerMarker),
-    );
-    expect(marker.visible, isFalse);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
   });
 
   testWidgets('NauticalAnswerMarker correct usa stato verde', (tester) async {

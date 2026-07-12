@@ -24,6 +24,7 @@ import 'backoffice/student_360_direct_page.dart';
 import 'backoffice/video_courses_admin_page.dart';
 import 'feature_placeholder_page.dart';
 import 'home_page.dart';
+import 'student_area_preview_page.dart';
 import 'study_access_admin_page.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -622,10 +623,7 @@ class _ManagementModulePageState extends State<_ManagementModulePage> {
                 size: 22,
               ),
             ),
-            label: const Text(
-              'Home',
-              style: TextStyle(color: Colors.white),
-            ),
+            label: const Text('Home', style: TextStyle(color: Colors.white)),
           ),
           const SizedBox(width: 8),
         ],
@@ -885,12 +883,14 @@ class _AdminDrawer extends StatelessWidget {
                 ),
                 _DrawerItem(
                   icon: Icons.visibility_rounded,
-                  label: 'Area allievo',
+                  label: 'Controlla area utente',
                   onTap: () {
                     final nav = Navigator.of(context);
                     nav.pop();
                     nav.push<void>(
-                      MaterialPageRoute<void>(builder: (_) => const HomePage()),
+                      MaterialPageRoute<void>(
+                        builder: (_) => const StudentAreaPreviewPage(),
+                      ),
                     );
                   },
                 ),

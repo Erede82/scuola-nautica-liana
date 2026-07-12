@@ -7,12 +7,15 @@ import '../debug/quiz_flow_debug.dart';
 import '../domain/exam_error_review.dart';
 import '../domain/exam_question_selection.dart';
 import '../domain/exam_quiz_rules.dart';
+import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
 import '../pages/quiz_exam_error_review_page.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../widgets/nautical_answer_marker.dart';
+import '../widgets/quiz_question_progress_strip.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
@@ -127,11 +130,51 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
   }
 
   void _goForward() {
-    if (_currentIndex + 1 >= widget.questions.length) {
-      _finishExam(timeExpired: false);
+    if (!QuizSheetPlayerNavigation.canGoForward(
+      currentIndex: _currentIndex,
+      questionCount: widget.questions.length,
+    )) {
       return;
     }
     setState(() => _currentIndex++);
+  }
+
+  Future<void> _completeExamFlow() async {
+    final unanswered = _unansweredCount;
+    if (unanswered > 0) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Domande non completate'),
+          content: Text(
+            'Hai lasciato $unanswered domande senza risposta. '
+            'Puoi ricontrollarle oppure chiudere comunque la simulazione.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Ricontrolla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Vedi riepilogo'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (proceed != true) {
+        final firstGap = QuizSheetPlayerNavigation.firstUnansweredIndex(
+          _userAnswers,
+        );
+        if (firstGap != null) {
+          setState(() => _currentIndex = firstGap);
+        }
+        return;
+      }
+    }
+
+    _finishExam(timeExpired: false);
   }
 
   void _finishExam({required bool timeExpired}) {
@@ -187,6 +230,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
         title: const Text('Simulazione esame'),
         centerTitle: true,
         actions: [
+          const StaffPreviewAppBarBadge(),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Center(
@@ -206,6 +250,10 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
           _ExamProgressPanel(
             currentIndex: _currentIndex,
             total: widget.questions.length,
+            isAnswered: (index) => QuizSheetPlayerNavigation.isQuestionAnswered(
+              _userAnswers,
+              index,
+            ),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -260,23 +308,36 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton(
-                      onPressed: _goForward,
+                      onPressed:
+                          QuizSheetPlayerNavigation.canGoForward(
+                            currentIndex: _currentIndex,
+                            questionCount: widget.questions.length,
+                          )
+                          ? _goForward
+                          : _completeExamFlow,
                       style: FilledButton.styleFrom(
                         backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        _currentIndex + 1 >= widget.questions.length
-                            ? 'Vedi riepilogo'
-                            : 'Avanti',
+                        QuizSheetPlayerNavigation.examPrimaryButtonLabel(
+                          currentIndex: _currentIndex,
+                          questionCount: widget.questions.length,
+                        ),
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed: _goForward,
+                    onPressed:
+                        QuizSheetPlayerNavigation.canGoForward(
+                          currentIndex: _currentIndex,
+                          questionCount: widget.questions.length,
+                        )
+                        ? _goForward
+                        : null,
                     icon: const Icon(Icons.chevron_right_rounded),
                     tooltip: 'Domanda successiva',
                   ),
@@ -303,6 +364,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
         foregroundColor: Colors.white,
         title: const Text('Riepilogo esame'),
         centerTitle: true,
+        actions: const [StaffPreviewAppBarBadge()],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
@@ -397,15 +459,18 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
 }
 
 class _ExamProgressPanel extends StatelessWidget {
-  const _ExamProgressPanel({required this.currentIndex, required this.total});
+  const _ExamProgressPanel({
+    required this.currentIndex,
+    required this.total,
+    required this.isAnswered,
+  });
 
   final int currentIndex;
   final int total;
+  final bool Function(int index) isAnswered;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -415,27 +480,10 @@ class _ExamProgressPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppVisual.chipFill),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: total == 0 ? 0 : (currentIndex + 1) / total,
-                minHeight: 7,
-                backgroundColor: AppVisual.chipFill,
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  AppVisual.logoBlue,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '${currentIndex + 1}/$total',
-            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-          ),
-        ],
+      child: QuizQuestionProgressStrip(
+        currentIndex: currentIndex,
+        total: total,
+        isAnswered: isAnswered,
       ),
     );
   }
@@ -461,7 +509,7 @@ class _ExamAnswerTile extends StatelessWidget {
     final answerStyle = QuizAnswerTextStyle.answer(context, compact: compact);
 
     return Material(
-      color: selected ? const Color(0xFFE8F4FA) : Colors.white,
+      color: Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -475,10 +523,7 @@ class _ExamAnswerTile extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? AppVisual.logoBlue : AppVisual.chipFill,
-              width: selected ? 2.2 : 1.2,
-            ),
+            border: Border.all(color: AppVisual.chipFill, width: 1.2),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,7 +532,6 @@ class _ExamAnswerTile extends StatelessWidget {
               const SizedBox(width: 10),
               NauticalAnswerMarker(
                 answerNumber: answerNumber,
-                visible: selected,
                 state: selected
                     ? NauticalAnswerMarkerState.selected
                     : NauticalAnswerMarkerState.neutral,

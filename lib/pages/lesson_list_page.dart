@@ -5,6 +5,7 @@ import '../debug/quiz_flow_debug.dart';
 import '../models/license_models.dart';
 import 'lesson_quiz_list_page.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import '../theme/app_visual_tokens.dart';
 
 class LessonListPage extends StatefulWidget {
@@ -43,6 +44,7 @@ class _LessonListPageState extends State<LessonListPage> {
         foregroundColor: Colors.white,
         title: const Text('Lezioni'),
         centerTitle: true,
+        actions: const [StaffPreviewAppBarBadge()],
       ),
       body: hasActiveLessons
           ? ListView(
@@ -51,9 +53,9 @@ class _LessonListPageState extends State<LessonListPage> {
                 Text(
                   widget.categoryId == LicenseCategoryId.d1
                       ? 'Percorso D1 attivo: seleziona una lezione per aprire le schede quiz '
-                          '(${category.name}). Le schede seguono le abilitazioni della scuola.'
+                            '(${category.name}). Le schede seguono le abilitazioni della scuola.'
                       : 'Seleziona una lezione per visualizzare le relative schede quiz '
-                          '(${category.name}).',
+                            '(${category.name}).',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: _textPrimaryColor,
                   ),
@@ -140,14 +142,15 @@ class _LessonsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tagLabel =
-        isAvailable ? 'Nessun contenuto' : 'Disponibile prossimamente';
+    final tagLabel = isAvailable
+        ? 'Nessun contenuto'
+        : 'Disponibile prossimamente';
     final message = isAvailable
         ? 'Nessuna lezione disponibile per questa categoria.'
         : (categoryId == LicenseCategoryId.vela
-            ? 'Contenuti vela in preparazione. Le lezioni e le schede saranno disponibili '
-                'non appena completati i materiali didattici.'
-            : 'Contenuti lezioni in arrivo. Questa categoria sarà disponibile presto.');
+              ? 'Contenuti vela in preparazione. Le lezioni e le schede saranno disponibili '
+                    'non appena completati i materiali didattici.'
+              : 'Contenuti lezioni in arrivo. Questa categoria sarà disponibile presto.');
 
     return AppEmptyState(
       title: categoryName,

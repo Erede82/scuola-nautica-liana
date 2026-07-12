@@ -7,7 +7,9 @@ import '../data/extra_content_mock.dart';
 import '../models/extra_content_item.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
 import '../services/demo_student_enrollment.dart';
+import '../services/student_area_context.dart';
 import '../widgets/branded_app_bar_title.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import 'extra_item_detail_page.dart';
 import 'extra_my_purchases_page.dart';
 import '../theme/app_visual_tokens.dart';
@@ -128,7 +130,9 @@ class _ExtraPageState extends State<ExtraPage> {
         title: const SectionAppBarTitle('Extra', logoHeight: 30),
         shape: const RoundedRectangleBorder(),
         actions: [
-          if (studentSession.value?.studentId != null)
+          const StaffPreviewAppBarBadge(),
+          if (studentSession.value?.studentId != null &&
+              !StudentAreaContext.blocksWrites(context))
             _ExtraPurchasesAppBarAction(
               onPressed: () {
                 Navigator.push<void>(
@@ -174,6 +178,7 @@ class _ExtraPageState extends State<ExtraPage> {
                     item: item,
                     accent: extraCardAccentForProductId(item.id),
                     purchased: purchased,
+                    previewMode: StudentAreaContext.blocksWrites(context),
                     onTap: () => _openDetail(context, item, purchased),
                   ),
                 );
@@ -198,12 +203,14 @@ class _ExtraLargeCard extends StatelessWidget {
     required this.item,
     required this.accent,
     required this.purchased,
+    required this.previewMode,
     required this.onTap,
   });
 
   final ExtraContentItem item;
   final ExtraCardAccent accent;
   final bool purchased;
+  final bool previewMode;
   final VoidCallback onTap;
 
   static const Color _textPrimary = AppVisual.ink;
@@ -357,20 +364,39 @@ class _ExtraLargeCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  FilledButton(
-                    onPressed: onTap,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _primary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                  if (previewMode && !purchased && !item.isComingSoon)
+                    OutlinedButton(
+                      onPressed: null,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _textPrimary.withValues(alpha: 0.55),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        side: BorderSide(
+                          color: _textPrimary.withValues(alpha: 0.25),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      child: const Text('Anteprima'),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: onTap,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _primary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
+                      child: Text(purchased ? 'Guarda' : 'Acquista'),
                     ),
-                    child: Text(purchased ? 'Guarda' : 'Acquista'),
-                  ),
                 ],
               ),
             ],

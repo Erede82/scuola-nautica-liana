@@ -10,7 +10,9 @@ import '../models/extra_content_item.dart';
 import '../repositories/backoffice/management_repository.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
 import '../services/demo_student_enrollment.dart';
+import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import 'extra_video_player_page.dart';
 
 /// Dettaglio scheda Extra con checkout verso Stripe (UI preparatoria).
@@ -88,8 +90,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
     try {
       if (_isBundle) {
         final sections = <({String title, List<ExtraVideoItem> videos})>[];
-        for (final sourceId
-            in ExtraBundleCatalog.bundleIncludedProductIds) {
+        for (final sourceId in ExtraBundleCatalog.bundleIncludedProductIds) {
           final list = await managementRepository.listExtraVideoItems(sourceId);
           final activeVideos = list.where((v) => v.active).toList();
           if (activeVideos.isNotEmpty) {
@@ -108,7 +109,9 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
         return;
       }
 
-      final list = await managementRepository.listExtraVideoItems(widget.item.id);
+      final list = await managementRepository.listExtraVideoItems(
+        widget.item.id,
+      );
       if (!mounted) return;
       if (list.isEmpty) {
         debugPrint(
@@ -147,10 +150,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
     Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => ExtraVideoPlayerPage(
-          title: video.title,
-          videoUrl: url,
-        ),
+        builder: (_) => ExtraVideoPlayerPage(title: video.title, videoUrl: url),
       ),
     );
   }
@@ -187,6 +187,16 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
   }
 
   Future<void> _handlePurchaseTap(BuildContext context) async {
+    if (StudentAreaContext.blocksWrites(context)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(StudentAreaPreviewCopy.purchasesBlockedMessage),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (_checkoutBusy) return;
     setState(() => _checkoutBusy = true);
     try {
@@ -256,6 +266,7 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: const [StaffPreviewAppBarBadge()],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
@@ -560,7 +571,8 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _checkoutBusy
+                onPressed:
+                    _checkoutBusy || StudentAreaContext.blocksWrites(context)
                     ? null
                     : () => _handlePurchaseTap(context),
                 style: FilledButton.styleFrom(
@@ -572,7 +584,11 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
                   ),
                 ),
                 child: Text(
-                  _checkoutBusy ? 'Reindirizzamento...' : 'Acquista',
+                  _checkoutBusy
+                      ? 'Reindirizzamento...'
+                      : StudentAreaContext.blocksWrites(context)
+                      ? 'Acquisto non disponibile in anteprima'
+                      : 'Acquista',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),

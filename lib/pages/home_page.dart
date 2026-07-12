@@ -8,6 +8,7 @@ import '../debug/quiz_flow_debug.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/guida_reminders_loader.dart';
 import '../services/staff_access_service.dart';
+import '../services/student_area_context.dart';
 import '../utils/staff_area_navigation.dart';
 import '../widgets/dashboard_action_card.dart';
 import '../widgets/student_home_sidebar.dart';
@@ -230,6 +231,98 @@ class _StaffStudentAreaBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final areaContext = StudentAreaContext.of(context);
+
+    if (areaContext.isStaffPreview) {
+      final returnButton = TextButton(
+        onPressed: () =>
+            returnToAdministrativePanel(context, staffAccessNotifier.value),
+        style: TextButton.styleFrom(
+          foregroundColor: HomePage._primaryColor,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        child: const Text('Torna al pannello amministrativo'),
+      );
+
+      return Material(
+        color: HomePage._primaryColor.withValues(alpha: 0.08),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 480;
+              final title = Text(
+                StudentAreaPreviewCopy.bannerTitle,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppVisual.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              );
+              final subtitle = Text(
+                StudentAreaPreviewCopy.bannerSubtitle,
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppVisual.ink.withValues(alpha: 0.82),
+                  height: 1.35,
+                ),
+              );
+
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.visibility_outlined,
+                          size: 20,
+                          color: HomePage._primaryColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              title,
+                              const SizedBox(height: 4),
+                              subtitle,
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: returnButton,
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 20,
+                    color: HomePage._primaryColor,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [title, const SizedBox(height: 4), subtitle],
+                    ),
+                  ),
+                  returnButton,
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
 
     return ValueListenableBuilder<StaffAccessSnapshot>(
       valueListenable: staffAccessNotifier,
@@ -543,89 +636,113 @@ class _CompactWelcomePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPreview = StudentAreaContext.of(context).isStaffPreview;
+
+    if (isPreview) {
+      return _buildPreviewWelcome(textTheme);
+    }
+
     return ValueListenableBuilder(
       valueListenable: studentSession,
       builder: (context, sess, _) {
         final greeting = sess != null && sess.displayName.trim().isNotEmpty
             ? 'Ciao, ${_formatPersonNameForDisplay(sess.displayName)}'
             : AppBranding.inAppName;
-        const hint = 'Scegli una sezione per continuare il tuo percorso.';
-
-        final iconBubble = Container(
-          width: wideLayout ? 52 : 46,
-          height: wideLayout ? 52 : 46,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.22),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.directions_boat_rounded,
-            color: Colors.white,
-            size: wideLayout ? 28 : 25,
-          ),
-        );
-
-        final title = Text(
-          greeting,
-          style: (wideLayout ? textTheme.titleMedium : textTheme.titleSmall)
-              ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
-        );
-
-        final subtitle = Text(
-          hint,
-          maxLines: wideLayout ? 2 : 3,
-          overflow: TextOverflow.ellipsis,
-          textAlign: wideLayout ? TextAlign.start : TextAlign.center,
-          style: textTheme.bodySmall?.copyWith(
-            color: Colors.white.withValues(alpha: 0.9),
-            height: 1.32,
-            fontWeight: FontWeight.w500,
-          ),
-        );
-
-        return Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: wideLayout ? 20 : 16,
-            vertical: wideLayout ? 18 : 16,
-          ),
-          decoration: BoxDecoration(
-            color: _brandAqua,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: _brandAqua.withValues(alpha: 0.28),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: wideLayout
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    iconBubble,
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [title, const SizedBox(height: 6), subtitle],
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    iconBubble,
-                    const SizedBox(height: 10),
-                    title,
-                    const SizedBox(height: 8),
-                    subtitle,
-                  ],
-                ),
+        return _buildWelcomeBody(
+          textTheme: textTheme,
+          greeting: greeting,
+          hint: 'Scegli una sezione per continuare il tuo percorso.',
         );
       },
+    );
+  }
+
+  Widget _buildPreviewWelcome(TextTheme textTheme) {
+    return _buildWelcomeBody(
+      textTheme: textTheme,
+      greeting: StudentAreaPreviewCopy.welcomeTitle,
+      hint: StudentAreaPreviewCopy.welcomeHint,
+    );
+  }
+
+  Widget _buildWelcomeBody({
+    required TextTheme textTheme,
+    required String greeting,
+    required String hint,
+  }) {
+    final iconBubble = Container(
+      width: wideLayout ? 52 : 46,
+      height: wideLayout ? 52 : 46,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.22),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.directions_boat_rounded,
+        color: Colors.white,
+        size: wideLayout ? 28 : 25,
+      ),
+    );
+
+    final title = Text(
+      greeting,
+      style: (wideLayout ? textTheme.titleMedium : textTheme.titleSmall)
+          ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
+    );
+
+    final subtitle = Text(
+      hint,
+      maxLines: wideLayout ? 2 : 3,
+      overflow: TextOverflow.ellipsis,
+      textAlign: wideLayout ? TextAlign.start : TextAlign.center,
+      style: textTheme.bodySmall?.copyWith(
+        color: Colors.white.withValues(alpha: 0.9),
+        height: 1.32,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: wideLayout ? 20 : 16,
+        vertical: wideLayout ? 18 : 16,
+      ),
+      decoration: BoxDecoration(
+        color: _brandAqua,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _brandAqua.withValues(alpha: 0.28),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: wideLayout
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                iconBubble,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [title, const SizedBox(height: 6), subtitle],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                iconBubble,
+                const SizedBox(height: 10),
+                title,
+                const SizedBox(height: 8),
+                subtitle,
+              ],
+            ),
     );
   }
 }

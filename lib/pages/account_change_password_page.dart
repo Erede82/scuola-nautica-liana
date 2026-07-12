@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../pages/student_area_preview_blocked_page.dart';
+import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -15,6 +17,13 @@ class AccountChangePasswordPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (StudentAreaContext.blocksWrites(context)) {
+      return const StudentAreaPreviewBlockedPage(
+        title: 'Cambio password',
+        message: 'Non disponibile in modalità anteprima.',
+      );
+    }
+
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(

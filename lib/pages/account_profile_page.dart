@@ -9,7 +9,9 @@ import '../services/auth_identity.dart';
 import '../services/auth_logout_navigation.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
+import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 
 /// Scheda profilo: supporta allievo, account solo staff e anteprima ospite.
 class AccountProfilePage extends StatelessWidget {
@@ -103,6 +105,7 @@ class AccountProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isPreview = StudentAreaContext.blocksWrites(context);
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -110,6 +113,7 @@ class AccountProfilePage extends StatelessWidget {
         title: const Text('Profilo'),
         backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
+        actions: const [StaffPreviewAppBarBadge()],
       ),
       body: AnimatedBuilder(
         animation: Listenable.merge([
@@ -129,7 +133,9 @@ class AccountProfilePage extends StatelessWidget {
           final guestPreview = summary.kind == AppUserKind.guest;
           final hasStudent = summary.hasStudentProfile;
 
-          final displayName = guestPreview
+          final displayName = isPreview
+              ? StudentAreaPreviewCopy.previewAccountName
+              : guestPreview
               ? 'Studente demo'
               : hasStudent
               ? session!.displayName
@@ -137,11 +143,15 @@ class AccountProfilePage extends StatelessWidget {
               ? 'Account staff'
               : summary.displayNameOrPlaceholder;
 
-          final email = guestPreview
+          final email = isPreview
+              ? StudentAreaPreviewCopy.previewAccountEmail
+              : guestPreview
               ? 'studente@esempio.it'
               : (AuthIdentity.resolvedAccountEmail() ?? '—');
 
-          final phone = hasStudent
+          final phone = isPreview
+              ? '—'
+              : hasStudent
               ? (session!.phone ?? '+39 — —— —— ——')
               : (summary.hasStaffAccess ? '—' : '+39 — —— —— ——');
 
@@ -222,7 +232,7 @@ class AccountProfilePage extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (summary.hasStaffAccess) ...[
+                    if (!isPreview && summary.hasStaffAccess) ...[
                       const SizedBox(height: 10),
                       Text(
                         'Funzioni staff: ${summary.staffRole!.labelIt}',
@@ -243,7 +253,9 @@ class AccountProfilePage extends StatelessWidget {
                           height: 1.35,
                         ),
                       ),
-                    ] else if (summary.hasStaffAccess && !hasStudent) ...[
+                    ] else if (!isPreview &&
+                        summary.hasStaffAccess &&
+                        !hasStudent) ...[
                       const SizedBox(height: 12),
                       Text(
                         'Profilo studente non disponibile per questo account.',
@@ -256,9 +268,15 @@ class AccountProfilePage extends StatelessWidget {
                     ],
                     const SizedBox(height: 18),
                     OutlinedButton.icon(
-                      onPressed: () => _showEditPlaceholderSheet(context),
+                      onPressed: isPreview
+                          ? null
+                          : () => _showEditPlaceholderSheet(context),
                       icon: const Icon(Icons.edit_outlined, size: 20),
-                      label: const Text('Modifica profilo'),
+                      label: Text(
+                        isPreview
+                            ? 'Modifica profilo (non disponibile in anteprima)'
+                            : 'Modifica profilo',
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _primaryColor,
                         side: const BorderSide(color: _neutralColor),
@@ -296,7 +314,40 @@ class AccountProfilePage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    if (guestPreview)
+                    if (isPreview)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Percorso dimostrativo',
+                              style: textTheme.labelMedium?.copyWith(
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.65,
+                                ),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              path.labelIt,
+                              style: textTheme.titleSmall?.copyWith(
+                                color: _textPrimaryColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              StudentAreaPreviewCopy.previewAccountPathNote,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: _textPrimaryColor.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (guestPreview)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
                         child: Column(
@@ -305,7 +356,9 @@ class AccountProfilePage extends StatelessWidget {
                             Text(
                               'Anteprima percorso (demo)',
                               style: textTheme.labelMedium?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.65),
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.65,
+                                ),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -315,7 +368,9 @@ class AccountProfilePage extends StatelessWidget {
                               initialValue: path,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: _primaryColor.withValues(alpha: 0.06),
+                                fillColor: _primaryColor.withValues(
+                                  alpha: 0.06,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: const BorderSide(
@@ -346,7 +401,9 @@ class AccountProfilePage extends StatelessWidget {
                               'Senza account puoi provare i filtri contenuto. '
                               'Con registrazione il percorso resta quello scelto in iscrizione.',
                               style: textTheme.bodySmall?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.65),
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.65,
+                                ),
                               ),
                             ),
                           ],
@@ -361,7 +418,9 @@ class AccountProfilePage extends StatelessWidget {
                             Text(
                               'Percorso di iscrizione',
                               style: textTheme.labelMedium?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.65),
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.65,
+                                ),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -384,7 +443,7 @@ class AccountProfilePage extends StatelessWidget {
                           ],
                         ),
                       )
-                    else if (summary.hasStaffAccess)
+                    else if (!isPreview && summary.hasStaffAccess)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
                         child: Column(
@@ -393,7 +452,9 @@ class AccountProfilePage extends StatelessWidget {
                             Text(
                               'Percorso allievo',
                               style: textTheme.labelMedium?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.65),
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.65,
+                                ),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -401,7 +462,9 @@ class AccountProfilePage extends StatelessWidget {
                             Text(
                               'Account non associato a un profilo studente.',
                               style: textTheme.bodySmall?.copyWith(
-                                color: _textPrimaryColor.withValues(alpha: 0.78),
+                                color: _textPrimaryColor.withValues(
+                                  alpha: 0.78,
+                                ),
                                 height: 1.35,
                               ),
                             ),
@@ -426,7 +489,7 @@ class AccountProfilePage extends StatelessWidget {
                       label: 'Cellulare',
                       value: phone,
                     ),
-                    if (summary.hasStaffAccess) ...[
+                    if (!isPreview && summary.hasStaffAccess) ...[
                       const Divider(height: 1, indent: 56),
                       _ProfileRow(
                         icon: Icons.admin_panel_settings_outlined,
@@ -434,7 +497,7 @@ class AccountProfilePage extends StatelessWidget {
                         value: summary.staffRole!.labelIt,
                       ),
                     ],
-                    if (hasStudent || guestPreview) ...[
+                    if (hasStudent || guestPreview || isPreview) ...[
                       const Divider(height: 1, indent: 56),
                       _ProfileRow(
                         icon: Icons.menu_book_outlined,
@@ -447,7 +510,7 @@ class AccountProfilePage extends StatelessWidget {
                   ],
                 ),
               ),
-              if (summary.canSignOut) ...[
+              if (!isPreview && summary.canSignOut) ...[
                 const SizedBox(height: 18),
                 OutlinedButton.icon(
                   onPressed: () => _confirmSignOut(context),

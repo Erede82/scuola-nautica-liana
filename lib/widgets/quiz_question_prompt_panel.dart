@@ -24,6 +24,19 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
   static const double _sideLayoutMinWidth = 600;
 
+  static double stackedImageBoxHeight(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 600) return 132;
+    if (width < 900) return 148;
+    return 156;
+  }
+
+  static double sideImageBoxHeight(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 700) return 156;
+    return 168;
+  }
+
   bool _hasImage(String? path) {
     final trimmed = path?.trim();
     return trimmed != null && trimmed.isNotEmpty;
@@ -63,6 +76,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     }
 
     if (sideLayout) {
+      final imageHeight = sideImageBoxHeight(context);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -72,10 +86,13 @@ class QuizQuestionPromptPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: compact ? 200 : 240,
+                width: 220,
+                height: imageHeight,
                 child: QuizQuestionImage(
                   imagePath: imagePath,
                   sidePanelLayout: true,
+                  maxHeight: imageHeight,
+                  maxWidth: 220,
                 ),
               ),
               const SizedBox(width: 14),
@@ -86,12 +103,21 @@ class QuizQuestionPromptPanel extends StatelessWidget {
       );
     }
 
+    final imageHeight = stackedImageBoxHeight(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Domanda $questionNumber', style: labelStyle),
         SizedBox(height: compact ? 8 : 10),
-        QuizQuestionImage(imagePath: imagePath),
+        SizedBox(
+          height: imageHeight,
+          width: double.infinity,
+          child: QuizQuestionImage(
+            imagePath: imagePath,
+            maxHeight: imageHeight,
+          ),
+        ),
+        const SizedBox(height: 10),
         promptWidget,
       ],
     );

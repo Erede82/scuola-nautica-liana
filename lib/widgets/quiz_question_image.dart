@@ -59,13 +59,17 @@ class QuizQuestionImage extends StatefulWidget {
     super.key,
     required this.imagePath,
     this.maxHeight,
+    this.maxWidth,
     this.sidePanelLayout = false,
   });
 
   final String? imagePath;
 
-  /// Se null, usa [QuizQuestionImageLayout.maxHeight] in base al viewport.
+  /// Altezza massima esplicita (override layout responsive).
   final double? maxHeight;
+
+  /// Larghezza massima esplicita.
+  final double? maxWidth;
 
   /// Layout compatto per pannello laterale (figura a sinistra del testo).
   final bool sidePanelLayout;
@@ -101,19 +105,15 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   double _resolvedMaxHeight(BuildContext context) {
     if (widget.maxHeight != null) return widget.maxHeight!;
     if (widget.sidePanelLayout) {
-      final width = MediaQuery.sizeOf(context).width;
-      if (width < 600) return 140;
-      if (width < 900) return 180;
-      return 220;
+      return 168;
     }
     return QuizQuestionImageLayout.maxHeight(context);
   }
 
   double _resolvedMaxWidth(BuildContext context) {
+    if (widget.maxWidth != null) return widget.maxWidth!;
     if (widget.sidePanelLayout) {
-      final width = MediaQuery.sizeOf(context).width;
-      if (width < 600) return 200;
-      return 240;
+      return 220;
     }
     return QuizQuestionImageLayout.maxWidth(context);
   }
@@ -179,11 +179,7 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
     );
   }
 
-  Widget _imageFrame({
-    required BuildContext context,
-    required Widget child,
-    bool shrinkWrap = true,
-  }) {
+  Widget _imageFrame({required BuildContext context, required Widget child}) {
     final constraints = _constraints(context);
     final bottomPad = widget.sidePanelLayout ? 0.0 : 10.0;
 
@@ -196,18 +192,15 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
         child: ConstrainedBox(
           constraints: constraints,
           child: Container(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
             decoration: BoxDecoration(
               color: _frameBackground,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _frameBorder),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: shrinkWrap
-                ? Center(child: child)
-                : SizedBox(
-                    width: constraints.maxWidth,
-                    child: Center(child: child),
-                  ),
+            child: Center(child: child),
           ),
         ),
       ),

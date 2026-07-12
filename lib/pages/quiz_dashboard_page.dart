@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../widgets/branded_app_bar_title.dart';
 import '../widgets/dashboard_action_card.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import '../services/student_content_navigation.dart';
 import 'category_selection_page.dart';
 import 'error_review_page.dart';
@@ -177,6 +178,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         shape: const RoundedRectangleBorder(),
         toolbarHeight: 58,
         title: const SectionAppBarTitle('Quiz', logoHeight: 30),
+        actions: const [StaffPreviewAppBarBadge()],
       ),
       body: LayoutBuilder(
         builder: (context, c) {

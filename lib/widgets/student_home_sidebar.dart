@@ -8,6 +8,7 @@ import '../pages/account_contacts_page.dart';
 import '../pages/account_profile_page.dart';
 import '../pages/backoffice/backoffice_entry_page.dart';
 import '../services/auth_identity.dart';
+import '../services/student_area_context.dart';
 import '../services/auth_logout_navigation.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
@@ -28,7 +29,8 @@ class StudentHomeSidebar extends StatelessWidget {
   });
 
   final bool closeDrawerOnNavigate;
-  final void Function(String title, String message, IconData icon) onOpenPlaceholder;
+  final void Function(String title, String message, IconData icon)
+  onOpenPlaceholder;
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _backgroundColor = AppVisual.canvas;
@@ -42,9 +44,9 @@ class StudentHomeSidebar extends StatelessWidget {
 
   void _push(BuildContext context, Widget page) {
     _maybePopDrawer(context);
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
+    Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   void _phoneWhatsAppSheet(BuildContext context) {
@@ -91,6 +93,8 @@ class StudentHomeSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final areaContext = StudentAreaContext.of(context);
+    final isPreview = areaContext.isStaffPreview;
 
     return ColoredBox(
       color: _backgroundColor,
@@ -102,58 +106,99 @@ class StudentHomeSidebar extends StatelessWidget {
             child: SafeArea(
               bottom: false,
               child: SizedBox(
-                height: 110,
-                child: ValueListenableBuilder<StudentSession?>(
-                  valueListenable: studentSession,
-                  builder: (context, sess, _) {
-                    final email = AuthIdentity.resolvedAccountEmail() ??
-                        sess?.email ??
-                        '';
-                    final name = sess != null && sess.displayName.trim().isNotEmpty
-                        ? sess.displayName.trim()
-                        : (email.isNotEmpty
-                            ? email.split('@').first
-                            : 'Allievo');
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const CircleAvatar(
-                            radius: 22,
-                            backgroundColor: Colors.white24,
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                              size: 26,
+                height: isPreview ? 145 : 110,
+                child: isPreview
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircleAvatar(
+                              radius: 22,
+                              backgroundColor: Colors.white24,
+                              child: Icon(
+                                Icons.visibility_outlined,
+                                color: Colors.white,
+                                size: 26,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Area personale',
-                            textAlign: TextAlign.center,
-                            style: textTheme.labelLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
+                            const SizedBox(height: 6),
+                            Text(
+                              StudentAreaPreviewCopy.headerTitle,
+                              textAlign: TextAlign.center,
+                              style: textTheme.labelLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: textTheme.bodyLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                            const SizedBox(height: 4),
+                            Text(
+                              StudentAreaPreviewCopy.headerSubtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: textTheme.bodyLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      )
+                    : ValueListenableBuilder<StudentSession?>(
+                        valueListenable: studentSession,
+                        builder: (context, sess, _) {
+                          final email =
+                              AuthIdentity.resolvedAccountEmail() ??
+                              sess?.email ??
+                              '';
+                          final name =
+                              sess != null && sess.displayName.trim().isNotEmpty
+                              ? sess.displayName.trim()
+                              : (email.isNotEmpty
+                                    ? email.split('@').first
+                                    : 'Allievo');
+                          return Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.person_rounded,
+                                    color: Colors.white,
+                                    size: 26,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Area personale',
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.labelLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ),
           ),
@@ -161,20 +206,32 @@ class StudentHomeSidebar extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.only(top: 8, bottom: 8),
               children: [
-                _sectionLabel('IL TUO ACCOUNT'),
-                _navTile(
-                  context,
-                  icon: Icons.person_rounded,
-                  label: 'Profilo',
-                  onTap: () => _push(context, const AccountProfilePage()),
-                ),
-                _navTile(
-                  context,
-                  icon: Icons.lock_outline_rounded,
-                  label: 'Cambio password',
-                  onTap: () => _push(context, const AccountChangePasswordPage()),
-                ),
-                const SizedBox(height: 14),
+                if (!isPreview) ...[
+                  _sectionLabel('IL TUO ACCOUNT'),
+                  _navTile(
+                    context,
+                    icon: Icons.person_rounded,
+                    label: 'Profilo',
+                    onTap: () => _push(context, const AccountProfilePage()),
+                  ),
+                  _navTile(
+                    context,
+                    icon: Icons.lock_outline_rounded,
+                    label: 'Cambio password',
+                    onTap: () =>
+                        _push(context, const AccountChangePasswordPage()),
+                  ),
+                  const SizedBox(height: 14),
+                ] else ...[
+                  _sectionLabel('IL TUO ACCOUNT'),
+                  _navTile(
+                    context,
+                    icon: Icons.person_rounded,
+                    label: 'Profilo',
+                    onTap: () => _push(context, const AccountProfilePage()),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 _sectionLabel('SCUOLA'),
                 _navTile(
                   context,
@@ -239,27 +296,27 @@ class StudentHomeSidebar extends StatelessWidget {
                             () => returnToAdministrativePanel(context, snap),
                           ),
                         ),
-                        _navTile(
-                          context,
-                          icon: Icons.admin_panel_settings_outlined,
-                          label: 'Accessi studio',
-                          onTap: () => _push(
+                        if (!isPreview) ...[
+                          _navTile(
                             context,
-                            const StaffAccessGate(
-                              gateTitle: 'Accessi studio',
-                              child: StudyAccessAdminPage(),
+                            icon: Icons.admin_panel_settings_outlined,
+                            label: 'Accessi studio',
+                            onTap: () => _push(
+                              context,
+                              const StaffAccessGate(
+                                gateTitle: 'Accessi studio',
+                                child: StudyAccessAdminPage(),
+                              ),
                             ),
                           ),
-                        ),
-                        _navTile(
-                          context,
-                          icon: Icons.groups_rounded,
-                          label: 'Allievi (backoffice)',
-                          onTap: () => _push(
+                          _navTile(
                             context,
-                            const BackofficeEntryPage(),
+                            icon: Icons.groups_rounded,
+                            label: 'Allievi (backoffice)',
+                            onTap: () =>
+                                _push(context, const BackofficeEntryPage()),
                           ),
-                        ),
+                        ],
                       ],
                     );
                   },
@@ -268,37 +325,37 @@ class StudentHomeSidebar extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          ValueListenableBuilder<StaffAccessSnapshot>(
-            valueListenable: staffAccessNotifier,
-            builder: (context, staffSnap, _) {
-              return ValueListenableBuilder<StudentSession?>(
-                valueListenable: studentSession,
-                builder: (context, sess, _) {
-                  final canLogout =
-                      staffSnap.hasAuthSession || sess != null;
-                  return _navTile(
-                    context,
-                    icon: Icons.logout_rounded,
-                    label: 'Esci',
-                    dense: true,
-                    onTap: () async {
-                      if (!canLogout) {
+          if (!isPreview)
+            ValueListenableBuilder<StaffAccessSnapshot>(
+              valueListenable: staffAccessNotifier,
+              builder: (context, staffSnap, _) {
+                return ValueListenableBuilder<StudentSession?>(
+                  valueListenable: studentSession,
+                  builder: (context, sess, _) {
+                    final canLogout = staffSnap.hasAuthSession || sess != null;
+                    return _navTile(
+                      context,
+                      icon: Icons.logout_rounded,
+                      label: 'Esci',
+                      dense: true,
+                      onTap: () async {
+                        if (!canLogout) {
+                          _maybePopDrawer(context);
+                          onOpenPlaceholder(
+                            'Esci',
+                            'Non risulti collegato con un account in questa sessione.',
+                            Icons.logout_rounded,
+                          );
+                          return;
+                        }
                         _maybePopDrawer(context);
-                        onOpenPlaceholder(
-                          'Esci',
-                          'Non risulti collegato con un account in questa sessione.',
-                          Icons.logout_rounded,
-                        );
-                        return;
-                      }
-                      _maybePopDrawer(context);
-                      await signOutAndReturnToWelcome();
-                    },
-                  );
-                },
-              );
-            },
-          ),
+                        await signOutAndReturnToWelcome();
+                      },
+                    );
+                  },
+                );
+              },
+            ),
         ],
       ),
     );
@@ -334,13 +391,9 @@ class StudentHomeSidebar extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return ListTile(
       dense: dense,
-      visualDensity:
-          dense ? VisualDensity.compact : VisualDensity.standard,
-      leading: leading ??
-          Icon(
-            icon,
-            color: _primaryColor.withValues(alpha: 0.92),
-          ),
+      visualDensity: dense ? VisualDensity.compact : VisualDensity.standard,
+      leading:
+          leading ?? Icon(icon, color: _primaryColor.withValues(alpha: 0.92)),
       title: Text(
         label,
         style: textTheme.titleSmall?.copyWith(

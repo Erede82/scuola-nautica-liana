@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../domain/exam_quiz_rules.dart';
+import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/license_models.dart';
 import '../repositories/study_access_repository.dart';
+import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/category_content_state.dart';
+import '../widgets/staff_preview_app_bar_badge.dart';
 import 'quiz_exam_player_page.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -106,6 +109,11 @@ class _QuizExamPageState extends State<QuizExamPage> {
       builder: (context, _) {
         final category = LicenseCatalog.byId(widget.categoryId);
         final examGate = studyAccessRepository.examQuiz(widget.categoryId);
+        final isPreview = StudentAreaContext.of(context).isStaffPreview;
+        final examLocked = !isExamQuizUiAccessible(
+          isStaffPreview: isPreview,
+          gateLocked: examGate.isLocked,
+        );
         final textTheme = Theme.of(context).textTheme;
 
         return Scaffold(
@@ -115,6 +123,7 @@ class _QuizExamPageState extends State<QuizExamPage> {
             foregroundColor: Colors.white,
             title: Text('Quiz esame — ${category.name}'),
             centerTitle: true,
+            actions: const [StaffPreviewAppBarBadge()],
           ),
           body: !category.isAvailable
               ? CategoryContentState(
@@ -127,7 +136,7 @@ class _QuizExamPageState extends State<QuizExamPage> {
                   unavailableMessage: null,
                   unavailableIcon: Icons.anchor_rounded,
                 )
-              : examGate.isLocked
+              : examLocked
               ? AppEmptyState(
                   title: 'Quiz esame',
                   message:
