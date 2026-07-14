@@ -2,12 +2,13 @@ import '../models/lesson_quiz_performance_snapshot.dart';
 import '../models/license_models.dart';
 import 'lesson_quiz_performance_mock.dart';
 
-/// Sorgente unica delle performance lezione-quiz per la UI studente.
+/// Sorgente sincrona legacy per Ripasso errori (pagina dedicata).
 ///
-/// Oggi non esiste ancora il flusso quiz reale (domande/tentativi salvati): per
-/// un allievo senza storico la sorgente ritorna una lista **vuota**, così
-/// Statistiche e Ripasso errori mostrano un empty state coerente invece di
-/// percentuali simulate.
+/// La pagina Statistiche (B2) usa [QuizStatisticsRepository] e non legge più
+/// questa sorgente. Resta per [ErrorReviewPage] finché C1 non collega i dati
+/// reali anche al ripasso per domanda.
+///
+/// Oggi, senza [useDemoData], ritorna lista **vuota** per empty state coerente.
 ///
 /// [LessonQuizPerformanceMock] resta disponibile solo dietro [useDemoData]
 /// (default `false`) per anteprime/debug interni: non è più collegato alla UI

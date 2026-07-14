@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/error_review_recommendation.dart';
 import '../models/license_models.dart';
-import '../pages/error_review_page.dart';
 import '../repositories/study_access_repository.dart';
-import '../services/error_review_provider.dart';
 import '../widgets/app_empty_state.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -13,9 +11,15 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
   const StatisticsRecommendedReviewSection({
     super.key,
     required this.categoryId,
+    required this.viewData,
   });
 
   final LicenseCategoryId categoryId;
+  final ErrorReviewViewData viewData;
+
+  /// Comunicazione finché Ripasso errori per domanda non è collegato (C1/C2).
+  static const String ripassoPerDomandaInArrivo =
+      'Ripasso errori per domanda in arrivo';
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _accentColor = Color(0xFF44BBCA);
@@ -33,86 +37,94 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
       listenable: studyAccessListenable,
       builder: (context, _) {
         final textTheme = Theme.of(context).textTheme;
-        final view = ErrorReviewProvider.buildViewData(categoryId);
 
         return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _neutralColor),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.auto_fix_high_rounded,
-                color: _primaryColor.withValues(alpha: 0.9),
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Argomenti da ripassare',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: _textPrimaryColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _neutralColor),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D000000),
+                blurRadius: 10,
+                offset: Offset(0, 3),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Suggerimenti di anteprima (fase successiva: statistiche reali dell’allievo). '
-            'Il materiale resta soggetto all’abilitazione della scuola.',
-            style: textTheme.bodySmall?.copyWith(
-              color: _textPrimaryColor.withValues(alpha: 0.78),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _buildBody(context, textTheme, view),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                Navigator.push<void>(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => ErrorReviewPage(initialCategoryId: categoryId),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_fix_high_rounded,
+                    color: _primaryColor.withValues(alpha: 0.9),
+                    size: 22,
                   ),
-                );
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: _primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Argomenti da ripassare',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: _textPrimaryColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Suggerimenti basati sulle tue schede completate. '
+                'Il materiale resta soggetto all’abilitazione della scuola.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: _textPrimaryColor.withValues(alpha: 0.78),
+                  height: 1.4,
                 ),
               ),
-              child: const Text(
-                'Apri Ripasso errori',
-                style: TextStyle(fontWeight: FontWeight.w800),
+              const SizedBox(height: 14),
+              _buildBody(context, textTheme, viewData),
+              const SizedBox(height: 12),
+              _buildRipassoComingSoonNotice(textTheme),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRipassoComingSoonNotice(TextTheme textTheme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _accentColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _neutralColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.upcoming_rounded,
+            color: _primaryColor.withValues(alpha: 0.85),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              ripassoPerDomandaInArrivo,
+              style: textTheme.bodySmall?.copyWith(
+                color: _textPrimaryColor.withValues(alpha: 0.86),
+                height: 1.4,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
         ],
       ),
-        );
-      },
     );
   }
 
@@ -128,16 +140,6 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             'Completa alcuni quiz per ricevere suggerimenti di ripasso collegati alle statistiche.',
         icon: Icons.query_stats_rounded,
         tagLabel: 'Suggerimenti',
-        primaryActionLabel: 'Vai a Ripasso errori',
-        primaryActionIcon: Icons.fact_check_rounded,
-        onPrimaryActionPressed: () {
-          Navigator.push<void>(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => ErrorReviewPage(initialCategoryId: categoryId),
-            ),
-          );
-        },
       );
     }
 
@@ -168,12 +170,16 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.lock_outline_rounded, color: _primaryColor, size: 22),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  color: _primaryColor,
+                  size: 22,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Ci sono argomenti consigliati, ma tutti sono ancora in attesa '
-                    'di abilitazione da parte della scuola. Apri Ripasso errori per i dettagli.',
+                    'di abilitazione da parte della scuola.',
                     style: textTheme.bodySmall?.copyWith(
                       color: _textPrimaryColor.withValues(alpha: 0.88),
                       height: 1.4,
@@ -190,7 +196,9 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
     }
 
     return Column(
-      children: top.map((r) => _compactRecommendationRow(textTheme, r)).toList(),
+      children: top
+          .map((r) => _compactRecommendationRow(textTheme, r))
+          .toList(),
     );
   }
 
@@ -275,12 +283,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
     );
   }
 
-  Widget _miniChip(
-    TextTheme textTheme,
-    String label,
-    Color bg,
-    Color fg,
-  ) {
+  Widget _miniChip(TextTheme textTheme, String label, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(

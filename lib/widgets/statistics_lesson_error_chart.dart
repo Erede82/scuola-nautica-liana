@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 
-import '../data/lesson_quiz_performance_source.dart';
 import '../models/lesson_quiz_performance_snapshot.dart';
-import '../models/license_models.dart';
 import '../theme/app_visual_tokens.dart';
+import 'statistics_summary_section.dart';
 
-/// Grafico a barre orizzontali: tutte le lezioni/topic con **evidenza** sulle 3 maggiori % errori.
+/// Grafico a barre orizzontali: tutte le lezioni/topic con evidenza sulle 3 maggiori %.
 class StatisticsLessonErrorChart extends StatelessWidget {
-  const StatisticsLessonErrorChart({super.key, required this.categoryId});
+  const StatisticsLessonErrorChart({
+    super.key,
+    required this.lessonSnapshots,
+    this.showLocalEmptyMessage = false,
+  });
 
-  final LicenseCategoryId categoryId;
+  final List<LessonQuizPerformanceSnapshot> lessonSnapshots;
+
+  /// Messaggio locale quando la pagina ha dati ma non snapshot per lezione.
+  final bool showLocalEmptyMessage;
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _accentColor = Color(0xFF44BBCA);
@@ -18,83 +24,29 @@ class StatisticsLessonErrorChart extends StatelessWidget {
   static const Color _topIssueColor = Color(0xFFC75D3A);
   static const Color _topIssueBg = Color(0xFFFFF4F0);
 
-  Widget _buildEmptyState(TextTheme textTheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.insights_rounded,
-              color: _primaryColor.withValues(alpha: 0.9),
-              size: 24,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Errori per lezione',
-                style: textTheme.titleMedium?.copyWith(
-                  color: _textPrimaryColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _accentColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _neutralColor),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.query_stats_rounded,
-                color: _primaryColor.withValues(alpha: 0.75),
-                size: 30,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Nessun dato disponibile',
-                textAlign: TextAlign.center,
-                style: textTheme.titleSmall?.copyWith(
-                  color: _textPrimaryColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Completa alcune schede quiz per vedere qui gli errori per lezione.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodySmall?.copyWith(
-                  color: _textPrimaryColor.withValues(alpha: 0.82),
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+  Widget _buildLocalEmpty(TextTheme textTheme) {
+    return Text(
+      'Nessun dato per lezione da mostrare nel grafico.',
+      style: textTheme.bodySmall?.copyWith(
+        color: _textPrimaryColor.withValues(alpha: 0.8),
+        height: 1.4,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final raw = LessonQuizPerformanceSource.snapshotsFor(categoryId);
-    if (raw.isEmpty) {
-      return _buildEmptyState(textTheme);
+
+    if (lessonSnapshots.isEmpty) {
+      if (!showLocalEmptyMessage) return const SizedBox.shrink();
+      return _buildLocalEmpty(textTheme);
     }
 
-    final byLesson = List<LessonQuizPerformanceSnapshot>.from(raw)
+    final byLesson = List<LessonQuizPerformanceSnapshot>.from(lessonSnapshots)
       ..sort((a, b) => a.lessonNumber.compareTo(b.lessonNumber));
 
-    final worstFirst = List<LessonQuizPerformanceSnapshot>.from(raw)
+    final worstFirst = List<LessonQuizPerformanceSnapshot>.from(lessonSnapshots)
       ..sort(
         (a, b) => b.averageErrorPercentage.compareTo(a.averageErrorPercentage),
       );
@@ -125,7 +77,7 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Errori per lezione',
+                    'Risposte non corrette per lezione',
                     style: textTheme.titleMedium?.copyWith(
                       color: _textPrimaryColor,
                       fontWeight: FontWeight.w800,
@@ -133,9 +85,9 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Confronto su tutte le lezioni del programma. '
-                    'Le tre barre evidenziate sono gli argomenti con il maggior tasso di errori — '
-                    'utili per priorità di ripasso (anche in sezione Quiz).',
+                    'Percentuale di risposte errate e non risposte sul totale domande '
+                    'per ogni lezione. Le tre barre evidenziate indicano gli argomenti '
+                    'con il maggior margine di miglioramento.',
                     style: textTheme.bodySmall?.copyWith(
                       color: _textPrimaryColor.withValues(alpha: 0.8),
                       height: 1.45,
@@ -210,7 +162,9 @@ class StatisticsLessonErrorChart extends StatelessWidget {
                       ],
                       const SizedBox(width: 8),
                       Text(
-                        '${s.averageErrorPercentage.round()}%',
+                        StatisticsSummarySection.formatPercent(
+                          s.averageErrorPercentage,
+                        ),
                         style: textTheme.titleSmall?.copyWith(
                           color: isTop ? _topIssueColor : _primaryColor,
                           fontWeight: FontWeight.w800,

@@ -31,7 +31,17 @@ abstract final class ErrorReviewProvider {
   }
 
   static ErrorReviewViewData buildViewData(LicenseCategoryId categoryId) {
-    final snapshots = LessonQuizPerformanceSource.snapshotsFor(categoryId);
+    return buildViewDataFromSnapshots(
+      categoryId: categoryId,
+      snapshots: LessonQuizPerformanceSource.snapshotsFor(categoryId),
+    );
+  }
+
+  /// Costruisce i suggerimenti da snapshot già caricati (es. Statistiche B2).
+  static ErrorReviewViewData buildViewDataFromSnapshots({
+    required LicenseCategoryId categoryId,
+    required List<LessonQuizPerformanceSnapshot> snapshots,
+  }) {
     final withActivity = snapshots
         .where((s) => s.totalAttempts > 0)
         .toList(growable: false);
