@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/supabase_config.dart';
 import 'dto/quiz_attempt_answer_row.dart';
 import 'dto/quiz_result_row.dart';
+import 'dto/quiz_wrong_answer_history_row.dart';
 
 /// Lettura read-only storico tentativi schede lezione (Supabase).
 abstract class QuizAttemptHistoryDataSource {
@@ -16,6 +17,11 @@ abstract class QuizAttemptHistoryDataSource {
   Future<Map<String, int>> fetchAnswerCountsByResultIds({
     required String userId,
     required List<String> quizResultIds,
+  });
+
+  Future<List<QuizWrongAnswerHistoryRow>> fetchWrongLessonAnswersForUser({
+    required String userId,
+    required String licenseCategoryDb,
   });
 }
 
@@ -40,6 +46,13 @@ class QuizAttemptHistoryDataSourceSupabase
       'unanswered_count, wrong_question_ids, started_at, completed_at, '
       'duration_seconds, created_at, '
       'quiz_sets!inner(kind, license_category, lesson_number, sheet_number)';
+
+  static const _wrongAnswerSelect =
+      'id, quiz_result_id, user_id, question_id, selected_option, '
+      'correct_option, is_correct, answered_at, '
+      'questions!inner(id, prompt, option_a, option_b, option_c, '
+      'correct_option, explanation, image_path, lesson_number, '
+      'license_category, exam_topic_code, source_topic_text)';
 
   @override
   Future<List<QuizResultRow>> fetchLessonResultsForCategory({
@@ -97,6 +110,52 @@ class QuizAttemptHistoryDataSourceSupabase
 
     return counts;
   }
+
+  @override
+  Future<List<QuizWrongAnswerHistoryRow>> fetchWrongLessonAnswersForUser({
+    required String userId,
+    required String licenseCategoryDb,
+  }) async {
+    final results = await fetchLessonResultsForCategory(
+      userId: userId,
+      licenseCategoryDb: licenseCategoryDb,
+    );
+    if (results.isEmpty) return const [];
+
+    final resultById = {for (final row in results) row.id: row};
+    final resultIds = results.map((row) => row.id).toList();
+    final rows = <QuizWrongAnswerHistoryRow>[];
+
+    for (
+      var offset = 0;
+      offset < resultIds.length;
+      offset += answerCountInChunkSize
+    ) {
+      final end = math.min(offset + answerCountInChunkSize, resultIds.length);
+      final chunk = resultIds.sublist(offset, end);
+
+      final res = await _client
+          .from('quiz_attempt_answers')
+          .select(_wrongAnswerSelect)
+          .eq('user_id', userId)
+          .eq('is_correct', false)
+          .not('selected_option', 'is', null)
+          .inFilter('quiz_result_id', chunk);
+
+      for (final item in res as List<dynamic>) {
+        if (item is! Map) continue;
+        final json = Map<String, dynamic>.from(item);
+        final resultId = json['quiz_result_id']?.toString() ?? '';
+        final result = resultById[resultId];
+        if (result == null) continue;
+        rows.add(
+          QuizWrongAnswerHistoryRow.fromAnswerJson(json, result: result),
+        );
+      }
+    }
+
+    return rows;
+  }
 }
 
 /// Data source in-memory per test e ambienti senza Supabase.
@@ -105,16 +164,23 @@ class QuizAttemptHistoryDataSourceInMemory
   QuizAttemptHistoryDataSourceInMemory({
     List<QuizResultRow> results = const [],
     Map<String, int> answerCountsByResultId = const {},
+    List<QuizWrongAnswerHistoryRow> wrongAnswers = const [],
     this.throwOnFetch = false,
+    this.throwOnWrongAnswersFetch = false,
   }) : _results = List<QuizResultRow>.from(results),
-       _answerCountsByResultId = Map<String, int>.from(answerCountsByResultId);
+       _answerCountsByResultId = Map<String, int>.from(answerCountsByResultId),
+       _wrongAnswers = List<QuizWrongAnswerHistoryRow>.from(wrongAnswers);
 
   final List<QuizResultRow> _results;
   final Map<String, int> _answerCountsByResultId;
+  final List<QuizWrongAnswerHistoryRow> _wrongAnswers;
   final bool throwOnFetch;
+  final bool throwOnWrongAnswersFetch;
 
   String? lastUserIdForResults;
   String? lastUserIdForAnswerCounts;
+  String? lastUserIdForWrongAnswers;
+  String? lastLicenseCategoryForWrongAnswers;
   List<String> lastAnswerCountResultIds = const [];
 
   @override
@@ -152,6 +218,30 @@ class QuizAttemptHistoryDataSourceInMemory
       if (count != null) counts[id] = count;
     }
     return counts;
+  }
+
+  @override
+  Future<List<QuizWrongAnswerHistoryRow>> fetchWrongLessonAnswersForUser({
+    required String userId,
+    required String licenseCategoryDb,
+  }) async {
+    lastUserIdForWrongAnswers = userId;
+    lastLicenseCategoryForWrongAnswers = licenseCategoryDb;
+    if (throwOnWrongAnswersFetch) {
+      throw StateError('fetchWrongLessonAnswersForUser failed');
+    }
+
+    return _wrongAnswers
+        .where(
+          (row) =>
+              row.userId == userId &&
+              row.kind == 'lesson' &&
+              row.licenseCategory == licenseCategoryDb &&
+              row.isCorrect == false &&
+              row.selectedOption != null &&
+              row.selectedOption!.trim().isNotEmpty,
+        )
+        .toList(growable: false);
   }
 }
 
