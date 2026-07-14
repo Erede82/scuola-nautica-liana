@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models/error_review_recommendation.dart';
 import '../models/license_models.dart';
+import '../pages/error_review_page.dart';
 import '../repositories/study_access_repository.dart';
+import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -16,10 +18,6 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
 
   final LicenseCategoryId categoryId;
   final ErrorReviewViewData viewData;
-
-  /// Comunicazione finché Ripasso errori per domanda non è collegato (C1/C2).
-  static const String ripassoPerDomandaInArrivo =
-      'Ripasso errori per domanda in arrivo';
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _accentColor = Color(0xFF44BBCA);
@@ -37,6 +35,7 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
       listenable: studyAccessListenable,
       builder: (context, _) {
         final textTheme = Theme.of(context).textTheme;
+        final isStaffPreview = StudentAreaContext.of(context).isStaffPreview;
 
         return Container(
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -86,45 +85,39 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               _buildBody(context, textTheme, viewData),
-              const SizedBox(height: 12),
-              _buildRipassoComingSoonNotice(textTheme),
+              if (!isStaffPreview) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              ErrorReviewPage(categoryId: categoryId),
+                        ),
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Apri Ripasso errori',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildRipassoComingSoonNotice(TextTheme textTheme) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _accentColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _neutralColor),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.upcoming_rounded,
-            color: _primaryColor.withValues(alpha: 0.85),
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              ripassoPerDomandaInArrivo,
-              style: textTheme.bodySmall?.copyWith(
-                color: _textPrimaryColor.withValues(alpha: 0.86),
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

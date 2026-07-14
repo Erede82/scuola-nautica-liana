@@ -6,20 +6,11 @@ import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_attempt_activity.dart';
 import 'package:scuola_nautica_liana/models/quiz_statistics_summary.dart';
 import 'package:scuola_nautica_liana/services/error_review_provider.dart';
+import 'package:scuola_nautica_liana/services/student_area_context.dart';
 import 'package:scuola_nautica_liana/widgets/statistics_lesson_error_chart.dart';
 import 'package:scuola_nautica_liana/widgets/statistics_recent_attempts_section.dart';
 import 'package:scuola_nautica_liana/widgets/statistics_recommended_review_section.dart';
 import 'package:scuola_nautica_liana/widgets/statistics_summary_section.dart';
-
-class _RecordingNavigatorObserver extends NavigatorObserver {
-  final List<Route<dynamic>> pushedRoutes = [];
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    pushedRoutes.add(route);
-    super.didPush(route, previousRoute);
-  }
-}
 
 List<LessonQuizPerformanceSnapshot> _lessonSnapshots() {
   return const [
@@ -187,17 +178,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Teoria dello scafo'), findsOneWidget);
-      expect(find.text('Apri Ripasso errori'), findsNothing);
-      expect(
-        find.text(StatisticsRecommendedReviewSection.ripassoPerDomandaInArrivo),
-        findsOneWidget,
-      );
+      expect(find.text('Apri Ripasso errori'), findsOneWidget);
     });
 
-    testWidgets('tap sul riquadro informativo non apre nuove route', (
-      tester,
-    ) async {
-      final observer = _RecordingNavigatorObserver();
+    testWidgets('CTA assente in preview staff', (tester) async {
       final viewData = ErrorReviewProvider.buildViewDataFromSnapshots(
         categoryId: LicenseCategoryId.motore,
         snapshots: _lessonSnapshots(),
@@ -205,24 +189,21 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          navigatorObservers: [observer],
-          home: Scaffold(
-            body: StatisticsRecommendedReviewSection(
-              categoryId: LicenseCategoryId.motore,
-              viewData: viewData,
+          home: StudentAreaContext(
+            mode: StudentAreaMode.staffPreview,
+            readOnly: true,
+            child: Scaffold(
+              body: StatisticsRecommendedReviewSection(
+                categoryId: LicenseCategoryId.motore,
+                viewData: viewData,
+              ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      observer.pushedRoutes.clear();
 
-      await tester.tap(
-        find.text(StatisticsRecommendedReviewSection.ripassoPerDomandaInArrivo),
-      );
-      await tester.pumpAndSettle();
-
-      expect(observer.pushedRoutes, isEmpty);
+      expect(find.text('Apri Ripasso errori'), findsNothing);
     });
   });
 
