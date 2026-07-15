@@ -4,6 +4,8 @@ import 'package:scuola_nautica_liana/data/supabase/mappers/quiz_statistics_mappe
 import 'package:scuola_nautica_liana/domain/quiz_license_category.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 
+import 'helpers/statistics_catalog_fixtures.dart';
+
 QuizResultRow _result({
   required String id,
   required int sheetNumber,
@@ -320,6 +322,7 @@ void main() {
       final stats = buildQuizCategoryStatistics(
         categoryId: LicenseCategoryId.motore,
         results: testUserLessonResults(),
+        catalog: testLessonSheetCatalog(licenseCategory: 'A12'),
         ignoredIncompleteAttempts: 0,
       );
 
@@ -335,6 +338,7 @@ void main() {
       final stats = buildQuizCategoryStatistics(
         categoryId: LicenseCategoryId.motore,
         results: const [],
+        catalog: testLessonSheetCatalog(licenseCategory: 'A12'),
         ignoredIncompleteAttempts: 3,
       );
 

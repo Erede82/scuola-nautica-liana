@@ -6,6 +6,8 @@ import 'package:scuola_nautica_liana/data/supabase/quiz_attempt_history_data_sou
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/repositories/quiz_statistics_repository.dart';
 
+import 'helpers/statistics_catalog_fixtures.dart';
+
 List<QuizResultRow> _testUserLessonResults() {
   QuizResultRow result({
     required String id,
@@ -18,7 +20,13 @@ List<QuizResultRow> _testUserLessonResults() {
   }) {
     return QuizResultRow(
       id: id,
-      quizSetId: quizSetId.isEmpty ? 'set-$sheetNumber' : quizSetId,
+      quizSetId: quizSetId.isEmpty
+          ? testCatalogQuizSetId(
+              licenseCategory: 'A12',
+              lessonNumber: lessonNumber,
+              sheetNumber: sheetNumber,
+            )
+          : quizSetId,
       totalQuestions: correct + wrong + unanswered,
       correctCount: correct,
       wrongCount: wrong,
@@ -50,6 +58,7 @@ void main() {
         answerCountsByResultId: {
           for (final row in results) row.id: row.totalQuestions,
         },
+        catalog: testLessonSheetCatalog(licenseCategory: 'A12'),
       );
 
       final repository = QuizStatisticsRepositoryImpl(
@@ -76,6 +85,7 @@ void main() {
         answerCountsByResultId: {
           for (final row in results) row.id: row.totalQuestions,
         },
+        catalog: testLessonSheetCatalog(licenseCategory: 'A12'),
       );
 
       final repository = QuizStatisticsRepositoryImpl(

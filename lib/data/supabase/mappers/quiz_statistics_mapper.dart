@@ -1,6 +1,8 @@
 import '../../license_catalog.dart';
 import '../../../domain/quiz_license_category.dart';
 import '../dto/quiz_result_row.dart';
+import '../dto/quiz_sheet_catalog_row.dart';
+import '../../../models/lesson_quiz_progress.dart';
 import '../../../models/lesson_quiz_performance_snapshot.dart';
 import '../../../models/license_models.dart';
 import '../../../models/quiz_attempt_activity.dart';
@@ -124,6 +126,162 @@ double averageWrongAnswersPerSheet({
 }) {
   if (completedSheetsCount <= 0) return 0;
   return wrongCount / completedSheetsCount;
+}
+
+double clampCompletionPercentage({
+  required int completed,
+  required int available,
+}) {
+  if (available <= 0) return 0;
+  return (completed / available * 100).clamp(0, 100).toDouble();
+}
+
+/// Schede uniche completate per lezione (distinct `quiz_set_id`).
+///
+/// Usato solo per diagnostica legacy; il progresso catalogo usa
+/// [completedUniqueQuizSetIdsByLessonFromCatalog].
+Map<int, Set<String>> completedUniqueQuizSetIdsByLesson(
+  Iterable<QuizResultRow> completeResults,
+) {
+  final byLesson = <int, Set<String>>{};
+  for (final row in completeResults) {
+    if (row.quizSetId.isEmpty) continue;
+    byLesson.putIfAbsent(row.lessonNumber, () => <String>{}).add(row.quizSetId);
+  }
+  return byLesson;
+}
+
+/// Deduplica il catalogo per `quiz_set_id`.
+///
+/// Se lo stesso id compare più volte con metadati discordanti, mantiene la
+/// prima riga valida in ordine deterministico (lessonNumber, sheetNumber):
+/// ogni id contribuisce una sola volta e a una sola lezione.
+Map<String, QuizSheetCatalogRow> deduplicatedCatalogByQuizSetId(
+  Iterable<QuizSheetCatalogRow> catalog,
+) {
+  final validRows =
+      catalog
+          .where(
+            (row) =>
+                row.kind == 'lesson' &&
+                row.id.isNotEmpty &&
+                row.lessonNumber > 0,
+          )
+          .toList(growable: false)
+        ..sort((a, b) {
+          final byLesson = a.lessonNumber.compareTo(b.lessonNumber);
+          if (byLesson != 0) return byLesson;
+          return a.sheetNumber.compareTo(b.sheetNumber);
+        });
+
+  final byId = <String, QuizSheetCatalogRow>{};
+  for (final row in validRows) {
+    byId.putIfAbsent(row.id, () => row);
+  }
+  return byId;
+}
+
+/// Conteggio schede disponibili per lezione dal catalogo deduplicato.
+Map<int, int> availableSheetsCountByLesson(
+  Iterable<QuizSheetCatalogRow> catalog,
+) {
+  final counts = <int, int>{};
+  for (final row in deduplicatedCatalogByQuizSetId(catalog).values) {
+    counts[row.lessonNumber] = (counts[row.lessonNumber] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/// Completamenti unici intersecati col catalogo, raggruppati per lezione catalogo.
+Map<int, Set<String>> completedUniqueQuizSetIdsByLessonFromCatalog({
+  required Iterable<QuizResultRow> completeResults,
+  required Map<String, QuizSheetCatalogRow> catalogById,
+}) {
+  final completedInCatalog = <String>{};
+  for (final row in completeResults) {
+    final quizSetId = row.quizSetId;
+    if (quizSetId.isEmpty || !catalogById.containsKey(quizSetId)) continue;
+    completedInCatalog.add(quizSetId);
+  }
+
+  final byLesson = <int, Set<String>>{};
+  for (final quizSetId in completedInCatalog) {
+    final catalogRow = catalogById[quizSetId]!;
+    byLesson
+        .putIfAbsent(catalogRow.lessonNumber, () => <String>{})
+        .add(quizSetId);
+  }
+  return byLesson;
+}
+
+CategoryQuizProgress buildCategoryQuizProgress({
+  required LicenseCategoryId categoryId,
+  required List<QuizSheetCatalogRow> catalog,
+  required List<QuizResultRow> completeResults,
+}) {
+  final category = LicenseCatalog.byId(categoryId);
+  final catalogById = deduplicatedCatalogByQuizSetId(catalog);
+  final availableByLesson = availableSheetsCountByLesson(catalog);
+  final completedByLesson = completedUniqueQuizSetIdsByLessonFromCatalog(
+    completeResults: completeResults,
+    catalogById: catalogById,
+  );
+
+  final lessonProgress = <LessonQuizProgress>[];
+  var totalAvailable = 0;
+  var totalCompletedUnique = 0;
+  var completedLessons = 0;
+  var availableLessons = 0;
+  var inProgressLessons = 0;
+
+  for (final lesson in category.lessons) {
+    final available = availableByLesson[lesson.number] ?? 0;
+    final completedUnique = completedByLesson[lesson.number]?.length ?? 0;
+    final isAvailable = available > 0;
+    final percentage = clampCompletionPercentage(
+      completed: completedUnique,
+      available: available,
+    );
+    final isComplete = isAvailable && completedUnique >= available;
+
+    if (isAvailable) {
+      availableLessons++;
+      totalAvailable += available;
+      totalCompletedUnique += completedUnique;
+      if (isComplete) {
+        completedLessons++;
+      } else if (completedUnique > 0) {
+        inProgressLessons++;
+      }
+    }
+
+    lessonProgress.add(
+      LessonQuizProgress(
+        lessonNumber: lesson.number,
+        lessonTitle: lesson.title,
+        availableSheetsCount: available,
+        completedUniqueSheetsCount: completedUnique,
+        completionPercentage: percentage,
+        isAvailable: isAvailable,
+        isComplete: isComplete,
+      ),
+    );
+  }
+
+  lessonProgress.sort((a, b) => a.lessonNumber.compareTo(b.lessonNumber));
+
+  return CategoryQuizProgress(
+    totalAvailableSheets: totalAvailable,
+    totalCompletedUniqueSheets: totalCompletedUnique,
+    overallCompletionPercentage: clampCompletionPercentage(
+      completed: totalCompletedUnique,
+      available: totalAvailable,
+    ),
+    lessonProgress: lessonProgress,
+    completedLessonsCount: completedLessons,
+    availableLessonsCount: availableLessons,
+    inProgressLessonsCount: inProgressLessons,
+  );
 }
 
 QuizStatisticsSummary buildQuizStatisticsSummary({
@@ -287,17 +445,25 @@ List<QuizAttemptActivity> buildRecentAttemptActivities({
 QuizCategoryStatistics buildQuizCategoryStatistics({
   required LicenseCategoryId categoryId,
   required List<QuizResultRow> results,
+  required List<QuizSheetCatalogRow> catalog,
   required int ignoredIncompleteAttempts,
   int recentAttemptsLimit = 10,
 }) {
+  final progress = buildCategoryQuizProgress(
+    categoryId: categoryId,
+    catalog: catalog,
+    completeResults: results,
+  );
+
   if (results.isEmpty) {
     if (ignoredIncompleteAttempts > 0) {
       return QuizCategoryStatistics.ignoredOnly(
         categoryId: categoryId,
         ignoredIncompleteAttempts: ignoredIncompleteAttempts,
+        progress: progress,
       );
     }
-    return QuizCategoryStatistics.empty(categoryId);
+    return QuizCategoryStatistics.empty(categoryId, progress: progress);
   }
 
   final lessonSnapshots = buildLessonPerformanceSnapshots(
@@ -320,5 +486,6 @@ QuizCategoryStatistics buildQuizCategoryStatistics({
     summary: summary,
     lessonSnapshots: lessonSnapshots,
     recentAttempts: recentAttempts,
+    progress: progress,
   );
 }

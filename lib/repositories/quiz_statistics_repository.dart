@@ -51,13 +51,22 @@ class QuizStatisticsRepositoryImpl implements QuizStatisticsRepository {
       throw const QuizStatisticsUnauthenticatedException();
     }
 
+    final catalog = await _dataSource.fetchLessonSheetCatalog(
+      licenseCategoryDb: dbCategory,
+    );
+
     final rawResults = await _dataSource.fetchLessonResultsForCategory(
       userId: userId,
       licenseCategoryDb: dbCategory,
     );
 
     if (rawResults.isEmpty) {
-      return QuizCategoryStatistics.empty(categoryId);
+      return buildQuizCategoryStatistics(
+        categoryId: categoryId,
+        results: const [],
+        catalog: catalog,
+        ignoredIncompleteAttempts: 0,
+      );
     }
 
     final answerCounts = await _dataSource.fetchAnswerCountsByResultIds(
@@ -73,6 +82,7 @@ class QuizStatisticsRepositoryImpl implements QuizStatisticsRepository {
     return buildQuizCategoryStatistics(
       categoryId: categoryId,
       results: partition.validResults,
+      catalog: catalog,
       ignoredIncompleteAttempts: partition.ignoredIncompleteAttempts,
     );
   }

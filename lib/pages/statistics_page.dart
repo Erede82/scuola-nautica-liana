@@ -14,6 +14,7 @@ import '../widgets/statistics_lesson_error_chart.dart';
 import '../widgets/statistics_recent_attempts_section.dart';
 import '../widgets/statistics_recommended_review_section.dart';
 import '../widgets/statistics_summary_section.dart';
+import '../widgets/statistics_topic_progress_section.dart';
 import '../theme/app_visual_tokens.dart';
 
 class StatisticsPage extends StatefulWidget {
@@ -230,7 +231,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       );
     }
 
-    if (!stats.hasData) {
+    if (!stats.showDashboard) {
       return _messageCard(
         textTheme,
         title: 'Nessuna scheda completata',
@@ -255,40 +256,51 @@ class _StatisticsPageState extends State<StatisticsPage> {
         ),
         padding: const EdgeInsets.only(bottom: 28),
         children: [
-          StatisticsSummarySection(summary: stats.summary),
+          StatisticsSummarySection(
+            summary: stats.summary,
+            progress: stats.progress,
+            recentAttempts: stats.recentAttempts,
+          ),
+          if (stats.progress.lessonProgress.isNotEmpty)
+            StatisticsTopicProgressSection(
+              lessonProgress: stats.progress.lessonProgress,
+            ),
           if (stats.summary.ignoredIncompleteAttempts > 0)
             _ignoredAttemptsNote(
               textTheme,
               stats.summary.ignoredIncompleteAttempts,
             ),
-          StatisticsRecommendedReviewSection(
-            categoryId: widget.categoryId,
-            viewData: reviewData,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: _cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _neutralColor),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0D000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: StatisticsLessonErrorChart(
-                lessonSnapshots: stats.lessonSnapshots,
-                showLocalEmptyMessage: stats.lessonSnapshots.isEmpty,
+          if (stats.hasData)
+            StatisticsRecommendedReviewSection(
+              categoryId: widget.categoryId,
+              viewData: reviewData,
+            ),
+          if (stats.hasData)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _neutralColor),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0D000000),
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: StatisticsLessonErrorChart(
+                  lessonSnapshots: stats.lessonSnapshots,
+                  showLocalEmptyMessage: stats.lessonSnapshots.isEmpty,
+                ),
               ),
             ),
-          ),
-          StatisticsRecentAttemptsSection(attempts: stats.recentAttempts),
+          if (stats.hasData)
+            StatisticsRecentAttemptsSection(attempts: stats.recentAttempts),
         ],
       ),
     );
