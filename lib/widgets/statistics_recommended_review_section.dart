@@ -5,6 +5,7 @@ import '../models/license_models.dart';
 import '../pages/error_review_page.dart';
 import '../repositories/study_access_repository.dart';
 import '../services/student_area_context.dart';
+import '../services/student_content_navigation.dart';
 import '../widgets/app_empty_state.dart';
 import '../theme/app_visual_tokens.dart';
 
@@ -91,11 +92,13 @@ class StatisticsRecommendedReviewSection extends StatelessWidget {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () {
+                      final resolved =
+                          StudentContentNavigation.directErrorReviewCategoryForCurrentUser() ??
+                          categoryId;
                       Navigator.push<void>(
                         context,
                         MaterialPageRoute<void>(
-                          builder: (_) =>
-                              ErrorReviewPage(categoryId: categoryId),
+                          builder: (_) => ErrorReviewPage(categoryId: resolved),
                         ),
                       );
                     },

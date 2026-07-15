@@ -38,6 +38,12 @@ abstract final class StudentContentNavigation {
   static LicenseCategoryId? directExamCategoryForCurrentUser() =>
       _directCategoryForStudentEnrollment();
 
+  /// Categoria Ripasso errori del percorso iscrizione attivo (nessuna scelta libera).
+  ///
+  /// Restituisce `null` per staff (scelta manuale) o categoria non disponibile.
+  static LicenseCategoryId? directErrorReviewCategoryForCurrentUser() =>
+      _directCategoryForStudentEnrollment();
+
   static LicenseCategoryId? _directCategoryForStudentEnrollment() {
     if (_staffManualCategorySelectionRequired) return null;
 

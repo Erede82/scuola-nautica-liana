@@ -11,6 +11,7 @@ import '../pages/statistics_page.dart';
 import '../repositories/quiz_error_review_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../services/student_area_context.dart';
+import '../services/student_content_navigation.dart';
 import '../widgets/quiz_error_review_filters.dart';
 import '../widgets/quiz_error_review_summary.dart';
 import '../widgets/quiz_wrong_answer_card.dart';
@@ -18,6 +19,9 @@ import '../widgets/staff_preview_app_bar_badge.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Ripasso errori reale: domande sbagliate su schede lezione (read-only).
+///
+/// La categoria è sempre il percorso reale dell’allievo (A12/D1), senza
+/// selettore libero. Un [categoryId] di route errato viene normalizzato.
 class ErrorReviewPage extends StatefulWidget {
   const ErrorReviewPage({
     super.key,
@@ -60,11 +64,19 @@ class _ErrorReviewPageState extends State<ErrorReviewPage> {
 
   bool get _isStaffPreview => StudentAreaContext.of(context).isStaffPreview;
 
+  /// Percorso reale se noto; altrimenti categoria di route (staff / fallback).
+  static LicenseCategoryId _resolveCategoryId(
+    LicenseCategoryId routeCategoryId,
+  ) {
+    return StudentContentNavigation.directErrorReviewCategoryForCurrentUser() ??
+        routeCategoryId;
+  }
+
   @override
   void initState() {
     super.initState();
     _repository = widget.repository ?? quizErrorReviewRepository;
-    _categoryId = widget.categoryId;
+    _categoryId = _resolveCategoryId(widget.categoryId);
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoad());
   }
 
@@ -118,20 +130,6 @@ class _ErrorReviewPageState extends State<ErrorReviewPage> {
         _refreshing = false;
       });
     }
-  }
-
-  void _onCategoryChanged(LicenseCategoryId? id) {
-    if (id == null || id == _categoryId) return;
-    setState(() {
-      _categoryId = id;
-      _lessonFilter = null;
-      _data = null;
-      _loadError = null;
-      _refreshing = false;
-      _unauthenticated = false;
-      _loading = true;
-    });
-    _load();
   }
 
   List<QuizWrongAnswerEntry> _visibleEntries(QuizErrorReviewData data) {
@@ -269,10 +267,6 @@ class _ErrorReviewPageState extends State<ErrorReviewPage> {
         ),
         padding: const EdgeInsets.only(bottom: 28),
         children: [
-          _CategorySelectorBar(
-            value: _categoryId,
-            onChanged: _onCategoryChanged,
-          ),
           if (_loadError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -515,57 +509,6 @@ class _ErrorReviewPageState extends State<ErrorReviewPage> {
                 TextButton(onPressed: onSecondary, child: Text(secondaryLabel)),
               ],
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategorySelectorBar extends StatelessWidget {
-  const _CategorySelectorBar({required this.value, required this.onChanged});
-
-  final LicenseCategoryId value;
-  final void Function(LicenseCategoryId?) onChanged;
-
-  static const Color _cardColor = Color(0xFFFFFFFF);
-  static const Color _neutralColor = AppVisual.chipFill;
-  static const Color _textPrimaryColor = AppVisual.ink;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: _cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _neutralColor),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<LicenseCategoryId>(
-            isExpanded: true,
-            value: value,
-            borderRadius: BorderRadius.circular(12),
-            items: LicenseCatalog.all
-                .where((c) => c.isAvailable)
-                .map(
-                  (c) => DropdownMenuItem<LicenseCategoryId>(
-                    value: c.id,
-                    child: Text(
-                      c.name,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: _textPrimaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: onChanged,
           ),
         ),
       ),

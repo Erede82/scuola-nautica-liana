@@ -143,7 +143,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         onTap: () {
           qfLog('QuizDashboard: tap Ripasso errori');
           final categoryId =
-              StudentContentNavigation.directLessonsCategoryForCurrentUser();
+              StudentContentNavigation.directErrorReviewCategoryForCurrentUser();
           if (categoryId != null) {
             Navigator.push(
               context,

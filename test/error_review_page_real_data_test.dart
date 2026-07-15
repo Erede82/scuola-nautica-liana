@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scuola_nautica_liana/domain/course_taxonomy.dart';
+import 'package:scuola_nautica_liana/domain/staff/staff_school_role.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_error_review_data.dart';
 import 'package:scuola_nautica_liana/models/quiz_question.dart';
 import 'package:scuola_nautica_liana/models/quiz_wrong_answer_entry.dart';
 import 'package:scuola_nautica_liana/pages/error_review_page.dart';
+import 'package:scuola_nautica_liana/pages/quiz_dashboard_page.dart';
 import 'package:scuola_nautica_liana/repositories/quiz_error_review_repository.dart';
 import 'package:scuola_nautica_liana/repositories/study_access_repository.dart';
+import 'package:scuola_nautica_liana/services/demo_student_enrollment.dart';
+import 'package:scuola_nautica_liana/services/staff_access_service.dart';
 import 'package:scuola_nautica_liana/services/student_area_context.dart';
+import 'package:scuola_nautica_liana/services/student_content_navigation.dart';
 import 'package:scuola_nautica_liana/widgets/statistics_recommended_review_section.dart';
 import 'package:scuola_nautica_liana/services/error_review_provider.dart';
 import 'package:scuola_nautica_liana/models/lesson_quiz_performance_snapshot.dart';
@@ -134,7 +140,24 @@ void main() {
   tearDown(() {
     studentAreaPreviewActiveMode.value = null;
     studyAccessWritableRepository.resetDemoAssignments();
+    demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
+    clearStudentSession();
+    staffAccessNotifier.value = StaffAccessSnapshot.initial().copyWith(
+      isLoading: false,
+      hasAuthSession: true,
+      staffRole: null,
+      clearError: true,
+    );
   });
+
+  void setStaffWithoutPreview() {
+    staffAccessNotifier.value = staffAccessNotifier.value.copyWith(
+      isLoading: false,
+      staffRole: StaffSchoolRole.staff,
+      hasAuthSession: true,
+      clearError: true,
+    );
+  }
 
   group('ErrorReviewPage real data', () {
     testWidgets('loading iniziale', (tester) async {
@@ -292,6 +315,7 @@ void main() {
     });
 
     testWidgets('vela non disponibile', (tester) async {
+      setStaffWithoutPreview();
       final repo = FakeQuizErrorReviewRepository(result: _dataWithEntries());
 
       await tester.pumpWidget(
@@ -424,138 +448,209 @@ void main() {
 
       expect(find.textContaining('Seconda domanda'), findsOneWidget);
     });
+  });
 
-    testWidgets(
-      'cambio categoria invalida dati precedenti e ignora risposte tardive',
-      (tester) async {
-        const a12Prompt = 'Prompt specifico A12';
-        const d1Prompt = 'Prompt specifico D1';
-        const tardyA12Prompt = 'Prompt tardivo A12';
-
-        final repo = FakeQuizErrorReviewRepository(
-          resultsByCategory: {
-            LicenseCategoryId.motore: _dataWithEntries(
-              entries: [_entry(prompt: a12Prompt)],
-            ),
-            LicenseCategoryId.d1: _dataWithEntries(
-              entries: [
-                _entry(
-                  prompt: d1Prompt,
-                  licenseCategoryId: LicenseCategoryId.d1,
-                ),
-              ],
-              categoryId: LicenseCategoryId.d1,
-            ),
-          },
-          delaysPerCall: const [Duration.zero, Duration(milliseconds: 200)],
-        );
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ErrorReviewPage(
-              categoryId: LicenseCategoryId.motore,
-              repository: repo,
-            ),
+  group('ErrorReviewPage percorso reale bloccato', () {
+    testWidgets('allievo A12 fetch solo A12 e senza selettore D1', (
+      tester,
+    ) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
+      final repo = FakeQuizErrorReviewRepository(
+        resultsByCategory: {
+          LicenseCategoryId.motore: _dataWithEntries(
+            entries: [_entry(prompt: 'Errore A12')],
           ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.textContaining(a12Prompt), findsOneWidget);
-        expect(repo.fetchCount, 1);
-        expect(repo.fetchOrder, [LicenseCategoryId.motore]);
-
-        await tester.tap(find.byType(DropdownButton<LicenseCategoryId>));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Patente D1').last);
-        await tester.pump();
-
-        expect(find.textContaining(a12Prompt), findsNothing);
-        expect(find.text('Domande da ripassare'), findsNothing);
-        expect(find.text('Tutte le lezioni'), findsNothing);
-        expect(find.text('Caricamento errori da ripassare…'), findsOneWidget);
-        expect(repo.fetchCount, 2);
-        expect(repo.fetchOrder, [
-          LicenseCategoryId.motore,
-          LicenseCategoryId.d1,
-        ]);
-
-        await tester.pumpAndSettle();
-
-        expect(find.textContaining(d1Prompt), findsOneWidget);
-        expect(find.textContaining(a12Prompt), findsNothing);
-        expect(find.text('Caricamento errori da ripassare…'), findsNothing);
-        expect(repo.fetchCount, 2);
-
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pumpAndSettle();
-
-        final staleRepo = FakeQuizErrorReviewRepository(
-          resultsByCategory: {
-            LicenseCategoryId.motore: _dataWithEntries(
-              entries: [_entry(prompt: tardyA12Prompt)],
-            ),
-            LicenseCategoryId.d1: _dataWithEntries(
-              entries: [
-                _entry(
-                  prompt: d1Prompt,
-                  licenseCategoryId: LicenseCategoryId.d1,
-                ),
-              ],
-              categoryId: LicenseCategoryId.d1,
-            ),
-          },
-          delaysPerCall: const [
-            Duration.zero,
-            Duration(milliseconds: 500),
-            Duration(milliseconds: 100),
-          ],
-        );
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: ErrorReviewPage(
-              categoryId: LicenseCategoryId.motore,
-              repository: staleRepo,
-            ),
+          LicenseCategoryId.d1: _dataWithEntries(
+            entries: [
+              _entry(
+                prompt: 'Errore D1',
+                licenseCategoryId: LicenseCategoryId.d1,
+              ),
+            ],
+            categoryId: LicenseCategoryId.d1,
           ),
-        );
-        await tester.pumpAndSettle();
+        },
+      );
 
-        expect(find.textContaining(tardyA12Prompt), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ErrorReviewPage(
+            categoryId: LicenseCategoryId.motore,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.byIcon(Icons.refresh_rounded));
-        await tester.pump();
+      expect(repo.fetchCount, 1);
+      expect(repo.lastCategoryId, LicenseCategoryId.motore);
+      expect(find.textContaining('Errore A12'), findsOneWidget);
+      expect(find.textContaining('Errore D1'), findsNothing);
+      expect(find.byType(DropdownButton<LicenseCategoryId>), findsNothing);
+      expect(find.text('Patente D1'), findsNothing);
+      expect(find.text('Entro le 12 miglia motore'), findsNothing);
+    });
 
-        await tester.tap(find.byType(DropdownButton<LicenseCategoryId>));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Patente D1').last);
-        await tester.pump();
+    testWidgets('allievo D1 fetch solo D1 e senza selettore A12', (
+      tester,
+    ) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      final repo = FakeQuizErrorReviewRepository(
+        resultsByCategory: {
+          LicenseCategoryId.motore: _dataWithEntries(
+            entries: [_entry(prompt: 'Errore A12')],
+          ),
+          LicenseCategoryId.d1: _dataWithEntries(
+            entries: [
+              _entry(
+                prompt: 'Errore D1',
+                licenseCategoryId: LicenseCategoryId.d1,
+              ),
+            ],
+            categoryId: LicenseCategoryId.d1,
+          ),
+        },
+      );
 
-        expect(find.textContaining(tardyA12Prompt), findsNothing);
-        expect(find.text('Caricamento errori da ripassare…'), findsOneWidget);
-        expect(staleRepo.fetchCount, 3);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ErrorReviewPage(
+            categoryId: LicenseCategoryId.d1,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.pumpAndSettle();
+      expect(repo.fetchCount, 1);
+      expect(repo.lastCategoryId, LicenseCategoryId.d1);
+      expect(find.textContaining('Errore D1'), findsOneWidget);
+      expect(find.textContaining('Errore A12'), findsNothing);
+      expect(find.byType(DropdownButton<LicenseCategoryId>), findsNothing);
+      expect(find.text('Entro le 12 miglia motore'), findsNothing);
+      expect(find.text('Patente D1'), findsNothing);
+    });
 
-        expect(find.textContaining(d1Prompt), findsOneWidget);
-        expect(find.textContaining(tardyA12Prompt), findsNothing);
+    testWidgets('categoryId route errato normalizzato con un solo fetch', (
+      tester,
+    ) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      final repo = FakeQuizErrorReviewRepository(
+        resultsByCategory: {
+          LicenseCategoryId.motore: _dataWithEntries(
+            entries: [_entry(prompt: 'Errore A12')],
+          ),
+          LicenseCategoryId.d1: _dataWithEntries(
+            entries: [
+              _entry(
+                prompt: 'Errore D1',
+                licenseCategoryId: LicenseCategoryId.d1,
+              ),
+            ],
+            categoryId: LicenseCategoryId.d1,
+          ),
+        },
+      );
 
-        await tester.pump(const Duration(milliseconds: 500));
-        await tester.pump();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ErrorReviewPage(
+            categoryId: LicenseCategoryId.motore,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.textContaining(d1Prompt), findsOneWidget);
-        expect(find.textContaining(tardyA12Prompt), findsNothing);
-        expect(staleRepo.fetchOrder, [
-          LicenseCategoryId.motore,
-          LicenseCategoryId.motore,
-          LicenseCategoryId.d1,
-        ]);
-      },
-    );
+      expect(repo.fetchCount, 1);
+      expect(repo.fetchOrder, [LicenseCategoryId.d1]);
+      expect(find.textContaining('Errore D1'), findsOneWidget);
+      expect(find.textContaining('Errore A12'), findsNothing);
+    });
+
+    testWidgets('vela non fa fallback A12', (tester) async {
+      setStaffWithoutPreview();
+      final repo = FakeQuizErrorReviewRepository(result: _dataWithEntries());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ErrorReviewPage(
+            categoryId: LicenseCategoryId.vela,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.fetchCount, 0);
+      expect(repo.lastCategoryId, isNull);
+      expect(
+        find.text(
+          'Il ripasso errori per questo percorso non è ancora disponibile.',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   group('StatisticsRecommendedReviewSection CTA', () {
-    testWidgets('CTA apre ErrorReviewPage con categoryId', (tester) async {
+    testWidgets('CTA apre ErrorReviewPage con percorso reale', (tester) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      final viewData = ErrorReviewProvider.buildViewDataFromSnapshots(
+        categoryId: LicenseCategoryId.d1,
+        snapshots: const [
+          LessonQuizPerformanceSnapshot(
+            categoryId: LicenseCategoryId.d1,
+            lessonNumber: 1,
+            lessonTitle: '1. Teoria dello scafo',
+            totalAttempts: 3,
+            averageErrorPercentage: 50,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatisticsRecommendedReviewSection(
+              categoryId: LicenseCategoryId.d1,
+              viewData: viewData,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Apri Ripasso errori'), findsOneWidget);
+      await tester.tap(find.text('Apri Ripasso errori'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ErrorReviewPage), findsOneWidget);
+      expect(
+        StudentContentNavigation.directErrorReviewCategoryForCurrentUser(),
+        LicenseCategoryId.d1,
+      );
+    });
+
+    testWidgets('CTA normalizza categoryId errato al percorso reale', (
+      tester,
+    ) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      final repo = FakeQuizErrorReviewRepository(
+        resultsByCategory: {
+          LicenseCategoryId.motore: _dataWithEntries(
+            entries: [_entry(prompt: 'Errore A12')],
+          ),
+          LicenseCategoryId.d1: _dataWithEntries(
+            entries: [
+              _entry(
+                prompt: 'Errore D1',
+                licenseCategoryId: LicenseCategoryId.d1,
+              ),
+            ],
+            categoryId: LicenseCategoryId.d1,
+          ),
+        },
+      );
       final viewData = ErrorReviewProvider.buildViewDataFromSnapshots(
         categoryId: LicenseCategoryId.motore,
         snapshots: const [
@@ -580,11 +675,22 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(find.text('Apri Ripasso errori'), findsOneWidget);
       await tester.tap(find.text('Apri Ripasso errori'));
       await tester.pumpAndSettle();
-      expect(find.byType(ErrorReviewPage), findsOneWidget);
+
+      // Sostituisce la page aperta dalla CTA con repository fake per assert fetch.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ErrorReviewPage(
+            categoryId: LicenseCategoryId.motore,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.fetchCount, 1);
+      expect(repo.lastCategoryId, LicenseCategoryId.d1);
     });
 
     testWidgets('CTA assente in preview staff', (tester) async {
@@ -618,6 +724,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Apri Ripasso errori'), findsNothing);
+    });
+  });
+
+  group('QuizDashboard Ripasso errori', () {
+    testWidgets('dashboard apre Ripasso con percorso reale D1', (tester) async {
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      expect(
+        StudentContentNavigation.directErrorReviewCategoryForCurrentUser(),
+        LicenseCategoryId.d1,
+      );
+
+      await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ripasso errori'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ErrorReviewPage), findsOneWidget);
+      expect(find.byType(DropdownButton<LicenseCategoryId>), findsNothing);
     });
   });
 }
