@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../config/supabase_config.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../theme/app_visual_tokens.dart';
@@ -108,6 +109,7 @@ class _Student360DirectPageState extends State<Student360DirectPage> {
               repository: backofficeRepository,
               onRefreshDetail: _refreshDetail,
               initialTabIndex: widget.initialTabIndex,
+              isStaffPreview: !SupabaseConfig.isConfigured,
             ),
     );
   }

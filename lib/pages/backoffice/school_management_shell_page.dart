@@ -806,6 +806,8 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
       view: view,
       repository: backofficeRepository,
       onRefreshDetail: _refreshCurrentStudentSheet,
+      // Stesso segnale del mock backoffice (`!_useRemoteReads`).
+      isStaffPreview: !_useRemoteReads,
     );
   }
 

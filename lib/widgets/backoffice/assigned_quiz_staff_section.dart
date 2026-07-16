@@ -37,24 +37,40 @@ class AssignedQuizStaffSection extends StatefulWidget {
 
 @visibleForTesting
 class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
-  late final AssignedQuizRepository _repository;
+  late AssignedQuizRepository _repository;
 
   bool _loading = true;
   String? _error;
   List<AssignedQuizSummary> _items = const [];
   final Set<String> _busyAssignmentIds = {};
   final Map<String, _AttemptsPanelState> _attemptsByAssignment = {};
+  int _loadGeneration = 0;
 
   bool get generationSupported =>
       dbLicenseCategoryFor(widget.licenseCategoryId) != null;
 
+  AssignedQuizRepository _resolveRepository() {
+    if (widget.isStaffPreview) {
+      return widget.repository ?? const AssignedQuizRepositoryEmpty();
+    }
+    return widget.repository ?? assignedQuizRepository;
+  }
+
+  void _enterPreviewState() {
+    _loadGeneration += 1;
+    _attemptsByAssignment.clear();
+    _busyAssignmentIds.clear();
+    _loading = false;
+    _error = null;
+    _items = _previewDemoItems(widget.studentId);
+  }
+
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? assignedQuizRepository;
+    _repository = _resolveRepository();
     if (widget.isStaffPreview) {
-      _loading = false;
-      _items = _previewDemoItems(widget.studentId);
+      _enterPreviewState();
     } else {
       _reload();
     }
@@ -63,36 +79,49 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
   @override
   void didUpdateWidget(covariant AssignedQuizStaffSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.studentId != widget.studentId ||
-        oldWidget.isStaffPreview != widget.isStaffPreview) {
-      _attemptsByAssignment.clear();
-      if (widget.isStaffPreview) {
-        setState(() {
-          _loading = false;
-          _error = null;
-          _items = _previewDemoItems(widget.studentId);
-        });
-      } else {
-        _reload();
-      }
+    _repository = _resolveRepository();
+    final modeChanged = oldWidget.isStaffPreview != widget.isStaffPreview;
+    final studentChanged = oldWidget.studentId != widget.studentId;
+    if (!modeChanged && !studentChanged) return;
+
+    if (widget.isStaffPreview) {
+      setState(_enterPreviewState);
+      return;
     }
+
+    // Reale: invalida fetch precedenti e ricarica per il studentId corrente.
+    _attemptsByAssignment.clear();
+    _busyAssignmentIds.clear();
+    _reload();
   }
 
   Future<void> _reload() async {
     if (widget.isStaffPreview) return;
+    final generation = ++_loadGeneration;
+    final studentId = widget.studentId;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final items = await _repository.loadForStudent(widget.studentId);
-      if (!mounted) return;
+      final items = await _repository.loadForStudent(studentId);
+      if (!mounted ||
+          generation != _loadGeneration ||
+          widget.isStaffPreview ||
+          widget.studentId != studentId) {
+        return;
+      }
       setState(() {
         _items = items;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _loadGeneration ||
+          widget.isStaffPreview ||
+          widget.studentId != studentId) {
+        return;
+      }
       final mapped = assignedQuizExceptionFrom(error);
       setState(() {
         _error = mapped.message;
@@ -108,10 +137,7 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
   }
 
   Future<void> _openGenerate() async {
-    if (widget.isStaffPreview) {
-      _snack('Anteprima staff: generazione non disponibile.');
-      return;
-    }
+    if (widget.isStaffPreview) return;
     final result = await showAssignedQuizGenerateDialog(
       context,
       studentId: widget.studentId,
@@ -175,22 +201,12 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
   }
 
   Future<void> _toggleAttempts(AssignedQuizSummary item) async {
+    if (widget.isStaffPreview) return;
+
     final current = _attemptsByAssignment[item.id];
     if (current != null && current.expanded) {
       setState(() {
         _attemptsByAssignment[item.id] = current.copyWith(expanded: false);
-      });
-      return;
-    }
-
-    if (widget.isStaffPreview) {
-      setState(() {
-        _attemptsByAssignment[item.id] = _AttemptsPanelState(
-          expanded: true,
-          loading: false,
-          items: const [],
-          error: 'Anteprima staff: tentativi dimostrativi non caricati.',
-        );
       });
       return;
     }
@@ -284,11 +300,13 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
                 style: FilledButton.styleFrom(
                   foregroundColor: BackofficeUiTokens.primary,
                 ),
-                onPressed: _loading ? null : _openGenerate,
+                onPressed: (_loading || widget.isStaffPreview)
+                    ? null
+                    : _openGenerate,
                 icon: const Icon(Icons.auto_awesome_outlined),
                 label: const Text('Genera quiz dagli errori'),
               ),
-              if (!generationSupported)
+              if (!generationSupported && !widget.isStaffPreview)
                 Text(
                   'Funzione non disponibile per questo percorso',
                   style: textTheme.bodySmall?.copyWith(
@@ -301,7 +319,8 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
           if (widget.isStaffPreview) ...[
             const SizedBox(height: 12),
             Text(
-              'Anteprima staff: contenuti dimostrativi, nessuna operazione reale.',
+              'Anteprima dimostrativa Backoffice: nessun dato reale, '
+              'nessuna operazione disponibile.',
               style: textTheme.bodySmall?.copyWith(
                 color: BackofficeUiTokens.textMuted,
                 fontStyle: FontStyle.italic,
@@ -342,7 +361,9 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
-                  onPressed: generationSupported ? _openGenerate : null,
+                  onPressed: (!widget.isStaffPreview && generationSupported)
+                      ? _openGenerate
+                      : null,
                   child: const Text('Genera il primo quiz'),
                 ),
               ],
@@ -525,19 +546,20 @@ class _AssignedQuizCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              TextButton.icon(
-                onPressed: busy ? null : onToggleAttempts,
-                icon: Icon(
-                  attempts?.expanded == true
-                      ? Icons.expand_less
-                      : Icons.expand_more,
+              if (!readOnly)
+                TextButton.icon(
+                  onPressed: busy ? null : onToggleAttempts,
+                  icon: Icon(
+                    attempts?.expanded == true
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                  ),
+                  label: Text(
+                    attempts?.expanded == true
+                        ? 'Nascondi tentativi'
+                        : 'Vedi tentativi',
+                  ),
                 ),
-                label: Text(
-                  attempts?.expanded == true
-                      ? 'Nascondi tentativi'
-                      : 'Vedi tentativi',
-                ),
-              ),
               if (!readOnly && item.status != AssignedQuizStatus.archived)
                 TextButton(
                   onPressed: busy ? null : onEdit,
@@ -662,13 +684,13 @@ List<AssignedQuizSummary> _previewDemoItems(String studentId) {
   final now = DateTime.now().toUtc();
   return [
     AssignedQuizSummary(
-      id: 'preview-assigned-1',
-      publicCode: 'AQZ-DEMO-00001',
+      id: 'preview-demo-only',
+      publicCode: 'DEMO-NON-REALE',
       studentId: studentId,
       studentUserId: 'preview-user',
       licenseCategory: 'A12',
-      title: 'Quiz dimostrativo dagli errori',
-      staffNote: 'Solo anteprima staff',
+      title: 'Esempio dimostrativo (non reale)',
+      staffNote: 'Contenuto di anteprima Backoffice',
       status: AssignedQuizStatus.assigned,
       questionCount: 20,
       repeatPolicy: AssignedQuizRepeatPolicy.unlimited,

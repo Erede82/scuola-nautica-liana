@@ -335,7 +335,7 @@ void main() {
       expect(find.textContaining('90%'), findsOneWidget);
     });
 
-    testWidgets('preview staff senza fetch', (tester) async {
+    testWidgets('preview staff senza fetch né azioni', (tester) async {
       _prepareSurface(tester);
       final repo = AssignedQuizRepositoryFake(
         summaries: [_summary(id: 'real', status: AssignedQuizStatus.assigned)],
@@ -343,8 +343,52 @@ void main() {
       await tester.pumpWidget(_harness(repository: repo, isStaffPreview: true));
       await tester.pumpAndSettle();
       expect(repo.loadForStudentCalls, 0);
-      expect(find.textContaining('Anteprima staff'), findsWidgets);
-      expect(find.textContaining('dimostrativo'), findsOneWidget);
+      expect(find.textContaining('Anteprima dimostrativa'), findsOneWidget);
+      expect(find.textContaining('non reale'), findsOneWidget);
+      expect(find.text('DEMO-NON-REALE'), findsOneWidget);
+      expect(find.text('Vedi tentativi'), findsNothing);
+      expect(find.text('Modifica'), findsNothing);
+      final generateBtn = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Genera quiz dagli errori'),
+      );
+      expect(generateBtn.onPressed, isNull);
+    });
+
+    testWidgets('cambio modalità preview → reale e reale → preview', (
+      tester,
+    ) async {
+      _prepareSurface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        loadDelay: const Duration(milliseconds: 40),
+        summaries: [
+          _summary(
+            id: 'real-1',
+            status: AssignedQuizStatus.assigned,
+            title: 'Quiz reale caricato',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(_harness(repository: repo, isStaffPreview: true));
+      await tester.pumpAndSettle();
+      expect(repo.loadForStudentCalls, 0);
+      expect(find.textContaining('Esempio dimostrativo'), findsOneWidget);
+
+      await tester.pumpWidget(
+        _harness(repository: repo, isStaffPreview: false),
+      );
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(repo.loadForStudentCalls, 1);
+      expect(find.text('Quiz reale caricato'), findsOneWidget);
+      expect(find.textContaining('Esempio dimostrativo'), findsNothing);
+
+      await tester.pumpWidget(_harness(repository: repo, isStaffPreview: true));
+      await tester.pumpAndSettle();
+      expect(repo.loadForStudentCalls, 1);
+      expect(find.textContaining('Esempio dimostrativo'), findsOneWidget);
+      expect(find.text('Quiz reale caricato'), findsNothing);
     });
   });
 }

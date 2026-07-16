@@ -22,6 +22,8 @@ class Student360DetailView extends StatelessWidget {
     required this.repository,
     required this.onRefreshDetail,
     this.initialTabIndex = tabIndexScheda,
+    this.isStaffPreview = false,
+    this.assignedQuizzes,
   });
 
   final StudentAdmin360View view;
@@ -30,6 +32,14 @@ class Student360DetailView extends StatelessWidget {
 
   /// Indice tab iniziale (`DefaultTabController`).
   final int initialTabIndex;
+
+  /// Demo/mock Backoffice: nessun fetch Supabase per i quiz assegnati.
+  ///
+  /// Autorevole quando il shell usa il repository mock (`!SupabaseConfig.isConfigured`).
+  final bool isStaffPreview;
+
+  /// Override test / DI; in preview il default è [AssignedQuizRepositoryEmpty].
+  final AssignedQuizRepository? assignedQuizzes;
 
   static const int tabIndexScheda = 0;
   static const int tabIndexDocumenti = 1;
@@ -164,6 +174,8 @@ class Student360DetailView extends StatelessWidget {
                     view: view,
                     repository: repository,
                     onRefreshDetail: onRefreshDetail,
+                    isStaffPreview: isStaffPreview,
+                    assignedQuizzes: assignedQuizzes,
                   ),
                   _SectionGuide(
                     view: view,
@@ -490,6 +502,8 @@ class _SectionStudio extends StatelessWidget {
     required this.view,
     required this.repository,
     required this.onRefreshDetail,
+    required this.isStaffPreview,
+    this.assignedQuizzes,
   });
 
   static const Color _muted = AppVisual.ink;
@@ -497,6 +511,8 @@ class _SectionStudio extends StatelessWidget {
   final StudentAdmin360View view;
   final BackofficeRepository repository;
   final BackofficeDetailRefresh onRefreshDetail;
+  final bool isStaffPreview;
+  final AssignedQuizRepository? assignedQuizzes;
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +685,10 @@ class _SectionStudio extends StatelessWidget {
               studentId: view.profile.id,
               studentDisplayName: view.profile.displayName,
               licenseCategoryId: view.profile.enrolledLicenseCategory,
-              repository: assignedQuizRepository,
+              isStaffPreview: isStaffPreview,
+              repository: isStaffPreview
+                  ? (assignedQuizzes ?? const AssignedQuizRepositoryEmpty())
+                  : (assignedQuizzes ?? assignedQuizRepository),
             ),
           ],
         ),
