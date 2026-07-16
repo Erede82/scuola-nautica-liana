@@ -99,6 +99,9 @@ class AssignedQuizGenerationRequest {
     if (studentId.trim().isEmpty) {
       return 'Lo studente è obbligatorio.';
     }
+    if (trimmedTitle.length > 120) {
+      return 'Il titolo può contenere al massimo 120 caratteri.';
+    }
     if (questionCount < 1 || questionCount > 50) {
       return 'Il numero di domande deve essere compreso tra 1 e 50.';
     }
@@ -269,6 +272,117 @@ class AssignedQuizReviewItem {
   final bool? isCorrect;
   final String? explanation;
   final int lessonNumber;
+}
+
+/// Operazione su un singolo campo metadata (omit / set / clear).
+enum AssignedQuizFieldPatchOp { omit, set, clear }
+
+/// Patch esplicito per un campo nullable o aggiornabile.
+class AssignedQuizFieldPatch<T> {
+  const AssignedQuizFieldPatch._(this.op, this.value);
+
+  const AssignedQuizFieldPatch.omit()
+    : this._(AssignedQuizFieldPatchOp.omit, null);
+
+  const AssignedQuizFieldPatch.set(T value)
+    : this._(AssignedQuizFieldPatchOp.set, value);
+
+  const AssignedQuizFieldPatch.clear()
+    : this._(AssignedQuizFieldPatchOp.clear, null);
+
+  final AssignedQuizFieldPatchOp op;
+  final T? value;
+
+  bool get isOmit => op == AssignedQuizFieldPatchOp.omit;
+  bool get isSet => op == AssignedQuizFieldPatchOp.set;
+  bool get isClear => op == AssignedQuizFieldPatchOp.clear;
+}
+
+/// Patch metadata assegnazione (title / staffNote / expiresAt).
+///
+/// - omit → non modificare
+/// - set → aggiornare
+/// - clear → cancellare (solo campi nullable: staffNote, expiresAt)
+class AssignedQuizMetadataPatch {
+  const AssignedQuizMetadataPatch({
+    this.title = const AssignedQuizFieldPatch.omit(),
+    this.staffNote = const AssignedQuizFieldPatch.omit(),
+    this.expiresAt = const AssignedQuizFieldPatch.omit(),
+  });
+
+  final AssignedQuizFieldPatch<String> title;
+  final AssignedQuizFieldPatch<String> staffNote;
+  final AssignedQuizFieldPatch<DateTime> expiresAt;
+
+  bool get hasChanges =>
+      !title.isOmit || !staffNote.isOmit || !expiresAt.isOmit;
+
+  /// Payload snake_case per `update` su `assigned_quizzes`.
+  ///
+  /// Lancia [AssignedQuizException] se la patch è vuota o invalida.
+  Map<String, dynamic> toUpdatePayload() {
+    if (!hasChanges) {
+      throw const AssignedQuizException(
+        code: AssignedQuizErrorCode.validationFailed,
+        message: 'Nessuna modifica da applicare.',
+      );
+    }
+
+    final payload = <String, dynamic>{};
+
+    switch (title.op) {
+      case AssignedQuizFieldPatchOp.omit:
+        break;
+      case AssignedQuizFieldPatchOp.clear:
+        throw const AssignedQuizException(
+          code: AssignedQuizErrorCode.validationFailed,
+          message: 'Il titolo non può essere cancellato.',
+        );
+      case AssignedQuizFieldPatchOp.set:
+        final trimmed = title.value?.trim() ?? '';
+        if (trimmed.isEmpty) {
+          throw const AssignedQuizException(
+            code: AssignedQuizErrorCode.titleRequired,
+            message: 'Il titolo è obbligatorio.',
+          );
+        }
+        if (trimmed.length > 120) {
+          throw const AssignedQuizException(
+            code: AssignedQuizErrorCode.validationFailed,
+            message: 'Il titolo può contenere al massimo 120 caratteri.',
+          );
+        }
+        payload['title'] = trimmed;
+    }
+
+    switch (staffNote.op) {
+      case AssignedQuizFieldPatchOp.omit:
+        break;
+      case AssignedQuizFieldPatchOp.clear:
+        payload['staff_note'] = null;
+      case AssignedQuizFieldPatchOp.set:
+        final raw = staffNote.value?.trim() ?? '';
+        payload['staff_note'] = raw.isEmpty ? null : raw;
+    }
+
+    switch (expiresAt.op) {
+      case AssignedQuizFieldPatchOp.omit:
+        break;
+      case AssignedQuizFieldPatchOp.clear:
+        payload['expires_at'] = null;
+      case AssignedQuizFieldPatchOp.set:
+        final value = expiresAt.value;
+        if (value == null || !value.toUtc().isAfter(DateTime.now().toUtc())) {
+          throw const AssignedQuizException(
+            code: AssignedQuizErrorCode.validationFailed,
+            message: 'La scadenza deve essere nel futuro.',
+          );
+        }
+        payload['expires_at'] = value.toUtc().toIso8601String();
+    }
+
+    return payload;
+  }
 }
 
 /// Riepilogo tentativo.

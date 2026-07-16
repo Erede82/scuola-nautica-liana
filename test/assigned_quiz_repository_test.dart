@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scuola_nautica_liana/models/assigned_quiz_models.dart';
 import 'package:scuola_nautica_liana/repositories/assigned_quiz_repository.dart';
 
 void main() {
@@ -70,6 +71,78 @@ void main() {
       const repo = AssignedQuizRepositoryEmpty();
       expect(await repo.loadMine(), isEmpty);
       expect(await repo.loadForStudent('st-1'), isEmpty);
+    });
+
+    test('scritture falliscono con AssignedQuizException', () async {
+      const repo = AssignedQuizRepositoryEmpty();
+      await expectLater(
+        repo.archiveAssignment('a1'),
+        throwsA(isA<AssignedQuizException>()),
+      );
+      await expectLater(
+        repo.deleteDraft('a1'),
+        throwsA(isA<AssignedQuizException>()),
+      );
+      await expectLater(
+        repo.updateAssignmentMetadata(
+          'a1',
+          const AssignedQuizMetadataPatch(
+            title: AssignedQuizFieldPatch.set('X'),
+          ),
+        ),
+        throwsA(isA<AssignedQuizException>()),
+      );
+      await expectLater(
+        repo.saveAnswer(
+          attemptId: 'att',
+          assignmentItemId: 'item',
+          selectedOption: 'A',
+        ),
+        throwsA(isA<AssignedQuizException>()),
+      );
+      await expectLater(
+        repo.abandonAttempt('att'),
+        throwsA(isA<AssignedQuizException>()),
+      );
+    });
+  });
+
+  group('AssignedQuizRepositoryFake metadata patch', () {
+    test('applica set e clear', () async {
+      final created = DateTime.utc(2026, 7, 1);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          AssignedQuizSummary(
+            id: 'aq-1',
+            publicCode: 'AQZ-1',
+            studentId: 'st-1',
+            studentUserId: 'u-1',
+            licenseCategory: 'A12',
+            title: 'Vecchio',
+            staffNote: 'Nota',
+            status: AssignedQuizStatus.draft,
+            questionCount: 10,
+            repeatPolicy: AssignedQuizRepeatPolicy.unlimited,
+            createdAt: created,
+            expiresAt: DateTime.utc(2026, 8, 1),
+          ),
+        ],
+      );
+
+      await repo.updateAssignmentMetadata(
+        'aq-1',
+        const AssignedQuizMetadataPatch(
+          title: AssignedQuizFieldPatch.set('Nuovo'),
+          staffNote: AssignedQuizFieldPatch.clear(),
+          expiresAt: AssignedQuizFieldPatch.clear(),
+        ),
+      );
+
+      final updated = repo.summaries.single;
+      expect(updated.title, 'Nuovo');
+      expect(updated.staffNote, isNull);
+      expect(updated.expiresAt, isNull);
+      expect(repo.lastMetadataPatch, isNotNull);
     });
   });
 }

@@ -19,11 +19,9 @@ abstract class AssignedQuizRepository {
   Future<void> archiveAssignment(String assignmentId);
 
   Future<void> updateAssignmentMetadata(
-    String assignmentId, {
-    String? title,
-    String? staffNote,
-    DateTime? expiresAt,
-  });
+    String assignmentId,
+    AssignedQuizMetadataPatch patch,
+  );
 
   Future<void> deleteDraft(String assignmentId);
 
@@ -147,43 +145,17 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
 
   @override
   Future<void> updateAssignmentMetadata(
-    String assignmentId, {
-    String? title,
-    String? staffNote,
-    DateTime? expiresAt,
-  }) async {
-    final payload = <String, dynamic>{};
-    if (title != null) {
-      final trimmed = title.trim();
-      if (trimmed.isEmpty) {
-        throw const AssignedQuizException(
-          code: AssignedQuizErrorCode.validationFailed,
-          message: 'Il titolo è obbligatorio.',
-        );
-      }
-      payload['title'] = trimmed;
-    }
-    if (staffNote != null) {
-      payload['staff_note'] = staffNote.trim().isEmpty
-          ? null
-          : staffNote.trim();
-    }
-    if (expiresAt != null) {
-      if (!expiresAt.toUtc().isAfter(DateTime.now().toUtc())) {
-        throw const AssignedQuizException(
-          code: AssignedQuizErrorCode.validationFailed,
-          message: 'La scadenza deve essere nel futuro.',
-        );
-      }
-      payload['expires_at'] = expiresAt.toUtc().toIso8601String();
-    }
-    if (payload.isEmpty) return;
-
+    String assignmentId,
+    AssignedQuizMetadataPatch patch,
+  ) async {
+    final payload = patch.toUpdatePayload();
     try {
       await _client
           .from('assigned_quizzes')
           .update(payload)
           .eq('id', assignmentId);
+    } on AssignedQuizException {
+      rethrow;
     } catch (error) {
       _rethrowMapped(error);
     }
@@ -272,7 +244,7 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
   Future<void> abandonAttempt(String attemptId) async {
     await _rpcJsonb('abandon_assigned_quiz_attempt', {
       'p_attempt_id': attemptId,
-    }, requireAssignedQuizMap);
+    }, requireAssignedQuizSingleJsonb);
   }
 
   @override
@@ -307,18 +279,24 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
 }
 
 /// Stub senza rete (Supabase non configurato).
+///
+/// Le letture restano vuote; le scritture falliscono esplicitamente.
 class AssignedQuizRepositoryEmpty implements AssignedQuizRepository {
   const AssignedQuizRepositoryEmpty();
+
+  static const _unconfigured = AssignedQuizException(
+    code: AssignedQuizErrorCode.notAuthenticated,
+    message: 'Supabase non configurato.',
+  );
+
+  Never _rejectWrite() => throw _unconfigured;
 
   @override
   Future<AssignedQuizGenerationResult> generateFromErrors(
     AssignedQuizGenerationRequest request,
   ) async {
     request.ensureValid();
-    throw const AssignedQuizException(
-      code: AssignedQuizErrorCode.notAuthenticated,
-      message: 'Supabase non configurato.',
-    );
+    _rejectWrite();
   }
 
   @override
@@ -326,18 +304,19 @@ class AssignedQuizRepositoryEmpty implements AssignedQuizRepository {
       const [];
 
   @override
-  Future<void> archiveAssignment(String assignmentId) async {}
+  Future<void> archiveAssignment(String assignmentId) async => _rejectWrite();
 
   @override
   Future<void> updateAssignmentMetadata(
-    String assignmentId, {
-    String? title,
-    String? staffNote,
-    DateTime? expiresAt,
-  }) async {}
+    String assignmentId,
+    AssignedQuizMetadataPatch patch,
+  ) async {
+    patch.toUpdatePayload();
+    _rejectWrite();
+  }
 
   @override
-  Future<void> deleteDraft(String assignmentId) async {}
+  Future<void> deleteDraft(String assignmentId) async => _rejectWrite();
 
   @override
   Future<List<AssignedQuizSummary>> loadMine() async => const [];
@@ -345,12 +324,7 @@ class AssignedQuizRepositoryEmpty implements AssignedQuizRepository {
   @override
   Future<AssignedQuizAttemptStartResult> startOrResume(
     String assignmentId,
-  ) async {
-    throw const AssignedQuizException(
-      code: AssignedQuizErrorCode.notAuthenticated,
-      message: 'Supabase non configurato.',
-    );
-  }
+  ) async => _rejectWrite();
 
   @override
   Future<List<AssignedQuizQuestion>> loadAttemptQuestions(
@@ -362,24 +336,14 @@ class AssignedQuizRepositoryEmpty implements AssignedQuizRepository {
     required String attemptId,
     required String assignmentItemId,
     required String? selectedOption,
-  }) async {
-    return AssignedQuizAnswerSaveResult(
-      assignmentItemId: assignmentItemId,
-      selectedOption: selectedOption,
-      answeredAt: selectedOption == null ? null : DateTime.now().toUtc(),
-    );
-  }
+  }) async => _rejectWrite();
 
   @override
-  Future<AssignedQuizSubmitResult> submitAttempt(String attemptId) async {
-    throw const AssignedQuizException(
-      code: AssignedQuizErrorCode.notAuthenticated,
-      message: 'Supabase non configurato.',
-    );
-  }
+  Future<AssignedQuizSubmitResult> submitAttempt(String attemptId) async =>
+      _rejectWrite();
 
   @override
-  Future<void> abandonAttempt(String attemptId) async {}
+  Future<void> abandonAttempt(String attemptId) async => _rejectWrite();
 
   @override
   Future<List<AssignedQuizReviewItem>> loadAttemptReview(
@@ -402,6 +366,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     this.reviewItems = const [],
     this.attempts = const [],
     this.throwOnGenerate,
+    this.loadDelay = Duration.zero,
   });
 
   AssignedQuizGenerationResult? generationResult;
@@ -411,11 +376,15 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   List<AssignedQuizReviewItem> reviewItems;
   List<AssignedQuizAttemptSummary> attempts;
   Object? throwOnGenerate;
+  Duration loadDelay;
 
   final List<String> rpcCalls = [];
   Map<String, dynamic>? lastGenerateParams;
   Map<String, dynamic>? lastSubmitParams;
   String? lastSavedOption;
+  AssignedQuizMetadataPatch? lastMetadataPatch;
+  int loadForStudentCalls = 0;
+  final List<String> loadAttemptsCalls = [];
 
   @override
   Future<AssignedQuizGenerationResult> generateFromErrors(
@@ -424,20 +393,47 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     lastGenerateParams = assignedQuizGenerateRpcParams(request);
     rpcCalls.add('generate_assigned_quiz_from_errors');
     if (throwOnGenerate != null) throw throwOnGenerate!;
-    return generationResult ??
+    final result =
+        generationResult ??
         AssignedQuizGenerationResult(
-          assignmentId: 'assignment-1',
-          publicCode: 'AQZ-2026-00001',
+          assignmentId: 'assignment-${summaries.length + 1}',
+          publicCode:
+              'AQZ-2026-${(summaries.length + 1).toString().padLeft(5, '0')}',
           itemCount: request.questionCount,
           status: request.assignImmediately
               ? AssignedQuizStatus.assigned
               : AssignedQuizStatus.draft,
           licenseCategory: 'A12',
         );
+    final now = DateTime.now().toUtc();
+    summaries = [
+      AssignedQuizSummary(
+        id: result.assignmentId,
+        publicCode: result.publicCode,
+        studentId: request.studentId,
+        studentUserId: 'user-1',
+        licenseCategory: result.licenseCategory,
+        title: request.title.trim(),
+        staffNote: request.staffNote,
+        status: result.status,
+        questionCount: result.itemCount,
+        repeatPolicy: request.repeatPolicy,
+        maxAttempts: request.maxAttempts,
+        createdAt: now,
+        assignedAt: result.status == AssignedQuizStatus.assigned ? now : null,
+        expiresAt: request.expiresAt,
+      ),
+      ...summaries,
+    ];
+    return result;
   }
 
   @override
   Future<List<AssignedQuizSummary>> loadForStudent(String studentId) async {
+    loadForStudentCalls += 1;
+    if (loadDelay > Duration.zero) {
+      await Future<void>.delayed(loadDelay);
+    }
     return summaries
         .where((s) => s.studentId == studentId)
         .toList(growable: false);
@@ -445,6 +441,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
 
   @override
   Future<void> archiveAssignment(String assignmentId) async {
+    rpcCalls.add('archive');
     summaries = summaries
         .map(
           (s) => s.id == assignmentId
@@ -472,20 +469,66 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
 
   @override
   Future<void> updateAssignmentMetadata(
-    String assignmentId, {
-    String? title,
-    String? staffNote,
-    DateTime? expiresAt,
-  }) async {}
+    String assignmentId,
+    AssignedQuizMetadataPatch patch,
+  ) async {
+    lastMetadataPatch = patch;
+    final payload = patch.toUpdatePayload();
+    rpcCalls.add('update_metadata');
+    summaries = summaries
+        .map((s) {
+          if (s.id != assignmentId) return s;
+          return AssignedQuizSummary(
+            id: s.id,
+            publicCode: s.publicCode,
+            studentId: s.studentId,
+            studentUserId: s.studentUserId,
+            licenseCategory: s.licenseCategory,
+            title: payload.containsKey('title')
+                ? payload['title'] as String
+                : s.title,
+            staffNote: payload.containsKey('staff_note')
+                ? payload['staff_note'] as String?
+                : s.staffNote,
+            status: s.status,
+            questionCount: s.questionCount,
+            repeatPolicy: s.repeatPolicy,
+            maxAttempts: s.maxAttempts,
+            createdAt: s.createdAt,
+            assignedAt: s.assignedAt,
+            expiresAt: payload.containsKey('expires_at')
+                ? parseAssignedQuizDateTime(payload['expires_at'])
+                : s.expiresAt,
+            archivedAt: s.archivedAt,
+            attemptsCount: s.attemptsCount,
+            submittedAttemptsCount: s.submittedAttemptsCount,
+            latestAttemptAt: s.latestAttemptAt,
+            bestScorePercentage: s.bestScorePercentage,
+            averageScorePercentage: s.averageScorePercentage,
+            hasInProgressAttempt: s.hasInProgressAttempt,
+          );
+        })
+        .toList(growable: false);
+  }
 
   @override
   Future<void> deleteDraft(String assignmentId) async {
+    rpcCalls.add('delete_draft');
+    final before = summaries.length;
     summaries = summaries
         .where(
           (s) =>
               !(s.id == assignmentId && s.status == AssignedQuizStatus.draft),
         )
         .toList(growable: false);
+    if (summaries.length == before) {
+      throw AssignedQuizException(
+        code: AssignedQuizErrorCode.assignedQuizDeleteNotAllowed,
+        message: assignedQuizErrorMessageIt(
+          AssignedQuizErrorCode.assignedQuizDeleteNotAllowed,
+        ),
+      );
+    }
   }
 
   @override
@@ -565,6 +608,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   Future<List<AssignedQuizAttemptSummary>> loadAttempts(
     String assignmentId,
   ) async {
+    loadAttemptsCalls.add(assignmentId);
     return attempts
         .where((a) => a.assignmentId == assignmentId)
         .toList(growable: false);

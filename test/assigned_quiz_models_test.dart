@@ -352,6 +352,165 @@ void main() {
         contains('massimo'),
       );
     });
+
+    test('messaggi IT staff principali', () {
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.noErrorQuestions),
+        contains('errori utilizzabili'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(
+          AssignedQuizErrorCode.insufficientErrorQuestions,
+        ),
+        contains('abbastanza domande sbagliate'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(
+          AssignedQuizErrorCode.unsupportedLicensePath,
+        ),
+        contains('percorso attuale'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.idempotencyConflict),
+        contains('Riapri il dialog'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(
+          AssignedQuizErrorCode.assignedQuizPublicCodeExhausted,
+        ),
+        contains('assistenza'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.notAuthorized),
+        contains('permessi'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.studentNotFound),
+        contains('non trovato'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.assignmentExpired),
+        contains('scaduto'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.titleRequired),
+        contains('titolo'),
+      );
+      expect(
+        assignedQuizErrorMessageIt(AssignedQuizErrorCode.invalidParameters),
+        contains('parametri'),
+      );
+    });
+  });
+
+  group('AssignedQuizMetadataPatch', () {
+    test('campo non modificato → omit non compare nel payload', () {
+      final payload = const AssignedQuizMetadataPatch(
+        title: AssignedQuizFieldPatch.set('Nuovo titolo'),
+      ).toUpdatePayload();
+      expect(payload.keys, ['title']);
+      expect(payload['title'], 'Nuovo titolo');
+    });
+
+    test('valore aggiornato title/staffNote/expiresAt', () {
+      final future = DateTime.now().toUtc().add(const Duration(days: 3));
+      final payload = AssignedQuizMetadataPatch(
+        title: const AssignedQuizFieldPatch.set('Titolo'),
+        staffNote: const AssignedQuizFieldPatch.set('Nota'),
+        expiresAt: AssignedQuizFieldPatch.set(future),
+      ).toUpdatePayload();
+      expect(payload['title'], 'Titolo');
+      expect(payload['staff_note'], 'Nota');
+      expect(payload['expires_at'], future.toIso8601String());
+    });
+
+    test('staffNote cancellata', () {
+      final payload = const AssignedQuizMetadataPatch(
+        staffNote: AssignedQuizFieldPatch.clear(),
+      ).toUpdatePayload();
+      expect(payload.containsKey('staff_note'), isTrue);
+      expect(payload['staff_note'], isNull);
+    });
+
+    test('expiresAt cancellata', () {
+      final payload = const AssignedQuizMetadataPatch(
+        expiresAt: AssignedQuizFieldPatch.clear(),
+      ).toUpdatePayload();
+      expect(payload.containsKey('expires_at'), isTrue);
+      expect(payload['expires_at'], isNull);
+    });
+
+    test('patch vuota rifiutata', () {
+      expect(
+        () => const AssignedQuizMetadataPatch().toUpdatePayload(),
+        throwsA(isA<AssignedQuizException>()),
+      );
+    });
+  });
+
+  group('JSONB singolo', () {
+    test('accetta Map', () {
+      final result = parseAssignedQuizGenerationResult({
+        'assignment_id': 'a1',
+        'public_code': 'AQZ-1',
+        'item_count': 10,
+        'status': 'draft',
+        'license_category': 'A12',
+      });
+      expect(result.assignmentId, 'a1');
+    });
+
+    test('accetta List con un elemento Map', () {
+      final result = parseAssignedQuizSubmitResult([
+        {
+          'attempt_id': 'att-1',
+          'attempt_number': 1,
+          'correct_count': 1,
+          'wrong_count': 0,
+          'unanswered_count': 0,
+          'score_percentage': 100,
+        },
+      ]);
+      expect(result.attemptId, 'att-1');
+    });
+
+    test('rifiuta null, lista vuota e multipla', () {
+      expect(
+        () => requireAssignedQuizSingleJsonb(null),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => requireAssignedQuizSingleJsonb(<dynamic>[]),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => requireAssignedQuizSingleJsonb([
+          {'a': 1},
+          {'b': 2},
+        ]),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => requireAssignedQuizSingleJsonb('nope'),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
+  group('normalizzazione lezioni', () {
+    test('dedup e sort', () {
+      expect(normalizeAssignedQuizLessonNumbers(const [3, 1, 3, 2]), [1, 2, 3]);
+      final params = assignedQuizGenerateRpcParams(
+        const AssignedQuizGenerationRequest(
+          studentId: 'st-1',
+          title: 'T',
+          questionCount: 5,
+          lessonFilterMode: AssignedQuizLessonFilterMode.selectedLessons,
+          lessonNumbers: [5, 2, 5],
+        ),
+      );
+      expect(params['p_lesson_numbers'], [2, 5]);
+    });
   });
 
   group('AssignedQuizRepositoryFake', () {

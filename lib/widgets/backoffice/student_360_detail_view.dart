@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/backoffice_mock/school_backoffice_demo_data.dart';
 import '../../domain/backoffice/backoffice.dart';
+import '../../repositories/assigned_quiz_repository.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import 'assigned_quiz_staff_section.dart';
 import 'lesson_study_access_ui.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
@@ -383,10 +385,7 @@ class _SectionScroll extends StatelessWidget {
           color: _bg,
           child: SingleChildScrollView(
             padding: EdgeInsets.all(pad),
-            child: SizedBox(
-              width: constraints.maxWidth,
-              child: child,
-            ),
+            child: SizedBox(width: constraints.maxWidth, child: child),
           ),
         );
       },
@@ -486,7 +485,6 @@ Widget _kvRow(String k, String v, TextTheme textTheme) {
   );
 }
 
-
 class _SectionStudio extends StatelessWidget {
   const _SectionStudio({
     required this.view,
@@ -513,162 +511,167 @@ class _SectionStudio extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        foregroundColor: BackofficeUiTokens.primary,
-                      ),
-                      onPressed: () => showManageLessonSheetsDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
-                      icon: const Icon(Icons.grid_view_rounded),
-                      label: const Text('Gestisci schede'),
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      foregroundColor: BackofficeUiTokens.primary,
                     ),
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        foregroundColor: BackofficeUiTokens.primary,
-                      ),
-                      onPressed: () => showExamAccessManageDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
-                      icon: const Icon(Icons.verified_user_outlined),
-                      label: const Text('Abilita quiz esame'),
+                    onPressed: () => showManageLessonSheetsDialog(
+                      context,
+                      initialView: view,
+                      repository: repository,
+                      onRefreshDetail: onRefreshDetail,
                     ),
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        foregroundColor: BackofficeUiTokens.primary,
-                      ),
-                      onPressed: () => showErrorReviewAssignDialog(
-                        context,
-                        initialView: view,
-                        repository: repository,
-                        onRefreshDetail: onRefreshDetail,
-                      ),
-                      icon: const Icon(Icons.error_outline_rounded),
-                      label: const Text('Assegna ripasso'),
+                    icon: const Icon(Icons.grid_view_rounded),
+                    label: const Text('Gestisci schede'),
+                  ),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      foregroundColor: BackofficeUiTokens.primary,
                     ),
-                  ],
-                ),
+                    onPressed: () => showExamAccessManageDialog(
+                      context,
+                      initialView: view,
+                      repository: repository,
+                      onRefreshDetail: onRefreshDetail,
+                    ),
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('Abilita quiz esame'),
+                  ),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      foregroundColor: BackofficeUiTokens.primary,
+                    ),
+                    onPressed: () => showErrorReviewAssignDialog(
+                      context,
+                      initialView: view,
+                      repository: repository,
+                      onRefreshDetail: onRefreshDetail,
+                    ),
+                    icon: const Icon(Icons.error_outline_rounded),
+                    label: const Text('Assegna ripasso'),
+                  ),
+                ],
               ),
-              if (view.profile.id ==
-                  SchoolBackofficeDemoData.demoStudentLucia) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'Allineamento app: per questa scheda demo, le modifiche a schede / esame / ripasso '
-                    'aggiornano anche il repository accessi studio condiviso con l’app allievo.',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: _SectionStudio._muted.withValues(alpha: 0.68),
-                      height: 1.35,
-                    ),
+            ),
+            if (view.profile.id ==
+                SchoolBackofficeDemoData.demoStudentLucia) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Allineamento app: per questa scheda demo, le modifiche a schede / esame / ripasso '
+                  'aggiornano anche il repository accessi studio condiviso con l’app allievo.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: _SectionStudio._muted.withValues(alpha: 0.68),
+                    height: 1.35,
                   ),
                 ),
-              ],
-              if (sp.globalProgressNotes != null &&
-                  sp.globalProgressNotes!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _InfoCard(
-                    title: 'Note percorso',
-                    child: SelectableText(
-                      sp.globalProgressNotes!,
-                      style: textTheme.bodyMedium,
-                    ),
-                  ),
-                ),
-              _InfoCard(
-                title: 'Lezioni assegnate',
-                child: sp.assignedLessons.isEmpty
-                    ? Text(
-                        'Nessuna lezione assegnata',
-                        style: textTheme.bodySmall,
-                      )
-                    : Column(
-                        children: sp.assignedLessons.map((l) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            title: Text(
-                              'Lezione ${l.lessonNumber} · '
-                              '${BackofficeFormatters.categoryName(l.categoryId)}',
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: Text(
-                              BackofficeFormatters.lessonAssignmentStatus(
-                                l.status,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-              ),
-              const SizedBox(height: 16),
-              _InfoCard(
-                title: 'Accesso lezioni quiz',
-                child: LessonStudyAccessSummaryList(
-                  sheetUnlocks: sp.sheetUnlocks,
-                  categoryId: view.profile.enrolledLicenseCategory,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _InfoCard(
-                title: 'Accesso quiz esame',
-                child: Column(
-                  children: sp.examAccessByCategory.map((e) {
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: Text(
-                        BackofficeFormatters.categoryName(e.categoryId),
-                      ),
-                      trailing: Icon(
-                        e.examUnlocked
-                            ? Icons.check_circle
-                            : Icons.lock_outline,
-                        color: e.examUnlocked
-                            ? const Color(0xFF2E9E5B)
-                            : AppVisual.ink.withValues(alpha: 0.45),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _InfoCard(
-                title: 'Ripasso errori (argomenti)',
-                child: sp.errorReviewAssignments.isEmpty
-                    ? Text('Nessun argomento', style: textTheme.bodySmall)
-                    : Column(
-                        children: sp.errorReviewAssignments.map((r) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            title: Text(
-                              'Lezione ${r.lessonNumber}',
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: Text(
-                              r.topicUnlocked
-                                  ? 'Sbloccato'
-                                  : 'Non ancora abilitato',
-                            ),
-                          );
-                        }).toList(),
-                      ),
               ),
             ],
+            if (sp.globalProgressNotes != null &&
+                sp.globalProgressNotes!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _InfoCard(
+                  title: 'Note percorso',
+                  child: SelectableText(
+                    sp.globalProgressNotes!,
+                    style: textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+            _InfoCard(
+              title: 'Lezioni assegnate',
+              child: sp.assignedLessons.isEmpty
+                  ? Text(
+                      'Nessuna lezione assegnata',
+                      style: textTheme.bodySmall,
+                    )
+                  : Column(
+                      children: sp.assignedLessons.map((l) {
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: Text(
+                            'Lezione ${l.lessonNumber} · '
+                            '${BackofficeFormatters.categoryName(l.categoryId)}',
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            BackofficeFormatters.lessonAssignmentStatus(
+                              l.status,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Accesso lezioni quiz',
+              child: LessonStudyAccessSummaryList(
+                sheetUnlocks: sp.sheetUnlocks,
+                categoryId: view.profile.enrolledLicenseCategory,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Accesso quiz esame',
+              child: Column(
+                children: sp.examAccessByCategory.map((e) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(
+                      BackofficeFormatters.categoryName(e.categoryId),
+                    ),
+                    trailing: Icon(
+                      e.examUnlocked ? Icons.check_circle : Icons.lock_outline,
+                      color: e.examUnlocked
+                          ? const Color(0xFF2E9E5B)
+                          : AppVisual.ink.withValues(alpha: 0.45),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Ripasso errori (argomenti)',
+              child: sp.errorReviewAssignments.isEmpty
+                  ? Text('Nessun argomento', style: textTheme.bodySmall)
+                  : Column(
+                      children: sp.errorReviewAssignments.map((r) {
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: Text(
+                            'Lezione ${r.lessonNumber}',
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            r.topicUnlocked
+                                ? 'Sbloccato'
+                                : 'Non ancora abilitato',
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            AssignedQuizStaffSection(
+              studentId: view.profile.id,
+              studentDisplayName: view.profile.displayName,
+              licenseCategoryId: view.profile.enrolledLicenseCategory,
+              repository: assignedQuizRepository,
+            ),
+          ],
         ),
       ),
     );
@@ -1158,73 +1161,69 @@ class _SectionContabilita extends StatelessWidget {
             const SizedBox(height: 12),
             _InfoCard(
               title: 'Riepilogo',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _kvRow(
-                      'Quota pratica',
-                      BackofficeFormatters.moneyEur(f.registrationFeeCents),
-                      textTheme,
-                    ),
-                    if (quotaUnset) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Imposta la quota pratica per calcolare correttamente '
-                        'il saldo residuo.',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: BackofficeUiTokens.text.withValues(alpha: 0.68),
-                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _kvRow(
+                    'Quota pratica',
+                    BackofficeFormatters.moneyEur(f.registrationFeeCents),
+                    textTheme,
+                  ),
+                  if (quotaUnset) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Imposta la quota pratica per calcolare correttamente '
+                      'il saldo residuo.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: BackofficeUiTokens.text.withValues(alpha: 0.68),
                       ),
-                      const SizedBox(height: 6),
-                    ],
-                    _kvRow(
-                      'Incassato',
-                      BackofficeFormatters.moneyEur(f.totalPaidCents),
-                      textTheme,
                     ),
-                    _kvRow(
-                      'Residuo',
-                      BackofficeFormatters.moneyEur(f.remainingBalanceCents),
-                      textTheme,
-                    ),
-                    _kvRow(
-                      'Stato pagamenti',
-                      _paymentStatusLabel(f),
-                      textTheme,
-                    ),
-                    if (f.accountingNotes != null &&
-                        f.accountingNotes!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text('Note contabili', style: textTheme.labelLarge),
-                      SelectableText(
-                        f.accountingNotes!,
-                        style: textTheme.bodySmall,
-                      ),
-                    ],
+                    const SizedBox(height: 6),
                   ],
-                ),
+                  _kvRow(
+                    'Incassato',
+                    BackofficeFormatters.moneyEur(f.totalPaidCents),
+                    textTheme,
+                  ),
+                  _kvRow(
+                    'Residuo',
+                    BackofficeFormatters.moneyEur(f.remainingBalanceCents),
+                    textTheme,
+                  ),
+                  _kvRow('Stato pagamenti', _paymentStatusLabel(f), textTheme),
+                  if (f.accountingNotes != null &&
+                      f.accountingNotes!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('Note contabili', style: textTheme.labelLarge),
+                    SelectableText(
+                      f.accountingNotes!,
+                      style: textTheme.bodySmall,
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 16),
-              _InfoCard(
-                title: 'Movimenti (${view.payments.length})',
-                child: view.payments.isEmpty
-                    ? Text(
-                        'Nessun pagamento registrato',
-                        style: textTheme.bodySmall,
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: view.payments
-                            .map(
-                              (pay) => _PaymentHistoryRow(
-                                payment: pay,
-                                textTheme: textTheme,
-                              ),
-                            )
-                            .toList(),
-                      ),
-              ),
-            ],
+            ),
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Movimenti (${view.payments.length})',
+              child: view.payments.isEmpty
+                  ? Text(
+                      'Nessun pagamento registrato',
+                      style: textTheme.bodySmall,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: view.payments
+                          .map(
+                            (pay) => _PaymentHistoryRow(
+                              payment: pay,
+                              textTheme: textTheme,
+                            ),
+                          )
+                          .toList(),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -1232,10 +1231,7 @@ class _SectionContabilita extends StatelessWidget {
 }
 
 class _PaymentHistoryRow extends StatelessWidget {
-  const _PaymentHistoryRow({
-    required this.payment,
-    required this.textTheme,
-  });
+  const _PaymentHistoryRow({required this.payment, required this.textTheme});
 
   final PaymentReceived payment;
   final TextTheme textTheme;

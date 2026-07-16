@@ -66,6 +66,30 @@ Map<String, dynamic> requireAssignedQuizMap(Object? raw) {
   throw FormatException('Payload JSON non valido: $raw');
 }
 
+/// Parsing prudente di RPC JSONB a oggetto singolo.
+///
+/// Accetta `Map` oppure `List` con esattamente un elemento Map.
+/// Rifiuta null, lista vuota, lista multipla, tipi sconosciuti.
+Map<String, dynamic> requireAssignedQuizSingleJsonb(Object? raw) {
+  if (raw == null) {
+    throw const FormatException('Payload JSONB assente.');
+  }
+  if (raw is Map<String, dynamic>) return raw;
+  if (raw is Map) return Map<String, dynamic>.from(raw);
+  if (raw is List) {
+    if (raw.isEmpty) {
+      throw const FormatException('Payload JSONB lista vuota.');
+    }
+    if (raw.length != 1) {
+      throw FormatException(
+        'Payload JSONB lista con ${raw.length} elementi (atteso 1).',
+      );
+    }
+    return requireAssignedQuizMap(raw.first);
+  }
+  throw FormatException('Payload JSONB di tipo sconosciuto: $raw');
+}
+
 /// Normalizza opzione DB A/B/C (o null). Rifiuta valori non ammessi.
 String? normalizeAssignedQuizSelectedOption(String? raw) {
   if (raw == null) return null;
@@ -142,7 +166,7 @@ AssignedQuizSummary parseAssignedQuizSummary(Map<String, dynamic> json) {
 }
 
 AssignedQuizGenerationResult parseAssignedQuizGenerationResult(Object? raw) {
-  final json = requireAssignedQuizMap(raw);
+  final json = requireAssignedQuizSingleJsonb(raw);
   final status = AssignedQuizStatus.tryParse(json['status']?.toString());
   if (status == null) {
     throw FormatException('Status generazione non valido: $json');
@@ -160,7 +184,7 @@ AssignedQuizGenerationResult parseAssignedQuizGenerationResult(Object? raw) {
 AssignedQuizAttemptStartResult parseAssignedQuizAttemptStartResult(
   Object? raw,
 ) {
-  final json = requireAssignedQuizMap(raw);
+  final json = requireAssignedQuizSingleJsonb(raw);
   return AssignedQuizAttemptStartResult(
     attemptId: json['attempt_id']?.toString() ?? '',
     attemptNumber: parseAssignedQuizInt(json['attempt_number']) ?? 0,
@@ -204,7 +228,7 @@ AssignedQuizQuestion parseAssignedQuizQuestion(Map<String, dynamic> json) {
 }
 
 AssignedQuizAnswerSaveResult parseAssignedQuizAnswerSaveResult(Object? raw) {
-  final json = requireAssignedQuizMap(raw);
+  final json = requireAssignedQuizSingleJsonb(raw);
   return AssignedQuizAnswerSaveResult(
     assignmentItemId: json['assignment_item_id']?.toString() ?? '',
     selectedOption: json['selected_option']?.toString(),
@@ -213,7 +237,7 @@ AssignedQuizAnswerSaveResult parseAssignedQuizAnswerSaveResult(Object? raw) {
 }
 
 AssignedQuizSubmitResult parseAssignedQuizSubmitResult(Object? raw) {
-  final json = requireAssignedQuizMap(raw);
+  final json = requireAssignedQuizSingleJsonb(raw);
   return AssignedQuizSubmitResult(
     attemptId: json['attempt_id']?.toString() ?? '',
     attemptNumber: parseAssignedQuizInt(json['attempt_number']) ?? 0,
@@ -268,6 +292,12 @@ AssignedQuizAttemptSummary parseAssignedQuizAttemptSummary(
   );
 }
 
+/// Dedup + sort crescente delle lezioni selezionate.
+List<int> normalizeAssignedQuizLessonNumbers(Iterable<int> raw) {
+  final unique = raw.toSet().toList()..sort();
+  return List<int>.unmodifiable(unique);
+}
+
 /// Parametri RPC `generate_assigned_quiz_from_errors` (senza license_category).
 Map<String, dynamic> assignedQuizGenerateRpcParams(
   AssignedQuizGenerationRequest request,
@@ -283,7 +313,7 @@ Map<String, dynamic> assignedQuizGenerateRpcParams(
     'p_lesson_filter_mode': request.lessonFilterMode.dbValue,
     'p_lesson_numbers':
         request.lessonFilterMode == AssignedQuizLessonFilterMode.selectedLessons
-        ? List<int>.from(request.lessonNumbers)
+        ? normalizeAssignedQuizLessonNumbers(request.lessonNumbers)
         : null,
     'p_sort_mode': request.sortMode.dbValue,
     'p_repeat_policy': request.repeatPolicy.dbValue,
