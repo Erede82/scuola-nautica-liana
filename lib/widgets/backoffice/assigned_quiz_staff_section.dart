@@ -160,6 +160,26 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
     if (ok && mounted) await _reload();
   }
 
+  Future<void> _publishDraft(AssignedQuizSummary item) async {
+    if (widget.isStaffPreview) return;
+    final confirmed = await confirmAssignedQuizPublish(context);
+    if (!confirmed || !mounted) return;
+    setState(() => _busyAssignmentIds.add(item.id));
+    try {
+      await _repository.publishDraft(item.id);
+      if (!mounted) return;
+      _snack('Quiz assegnato all’allievo.');
+      await _reload();
+    } catch (error) {
+      if (!mounted) return;
+      _snack(assignedQuizExceptionFrom(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _busyAssignmentIds.remove(item.id));
+      }
+    }
+  }
+
   Future<void> _archive(AssignedQuizSummary item) async {
     if (widget.isStaffPreview) return;
     final confirmed = await confirmAssignedQuizArchive(context);
@@ -378,6 +398,7 @@ class AssignedQuizStaffSectionState extends State<AssignedQuizStaffSection> {
                     attempts: _attemptsByAssignment[item.id],
                     readOnly: widget.isStaffPreview,
                     onEdit: () => _edit(item),
+                    onPublish: () => _publishDraft(item),
                     onArchive: () => _archive(item),
                     onDeleteDraft: () => _deleteDraft(item),
                     onToggleAttempts: () => _toggleAttempts(item),
@@ -427,6 +448,7 @@ class _AssignedQuizCard extends StatelessWidget {
     required this.attempts,
     required this.readOnly,
     required this.onEdit,
+    required this.onPublish,
     required this.onArchive,
     required this.onDeleteDraft,
     required this.onToggleAttempts,
@@ -437,6 +459,7 @@ class _AssignedQuizCard extends StatelessWidget {
   final _AttemptsPanelState? attempts;
   final bool readOnly;
   final VoidCallback onEdit;
+  final VoidCallback onPublish;
   final VoidCallback onArchive;
   final VoidCallback onDeleteDraft;
   final VoidCallback onToggleAttempts;
@@ -564,6 +587,11 @@ class _AssignedQuizCard extends StatelessWidget {
                 TextButton(
                   onPressed: busy ? null : onEdit,
                   child: const Text('Modifica'),
+                ),
+              if (!readOnly && item.status == AssignedQuizStatus.draft)
+                FilledButton(
+                  onPressed: busy ? null : onPublish,
+                  child: const Text('Assegna'),
                 ),
               if (!readOnly && canArchive)
                 TextButton(

@@ -16,6 +16,8 @@ abstract class AssignedQuizRepository {
 
   Future<List<AssignedQuizSummary>> loadForStudent(String studentId);
 
+  Future<void> publishDraft(String assignmentId);
+
   Future<void> archiveAssignment(String assignmentId);
 
   Future<void> updateAssignmentMetadata(
@@ -123,6 +125,21 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
       return (res as List<dynamic>)
           .map((row) => parseAssignedQuizSummary(requireAssignedQuizMap(row)))
           .toList(growable: false);
+    } catch (error) {
+      _rethrowMapped(error);
+    }
+  }
+
+  @override
+  Future<void> publishDraft(String assignmentId) async {
+    try {
+      await _client
+          .from('assigned_quizzes')
+          .update(<String, dynamic>{
+            'status': AssignedQuizStatus.assigned.dbValue,
+          })
+          .eq('id', assignmentId)
+          .eq('status', AssignedQuizStatus.draft.dbValue);
     } catch (error) {
       _rethrowMapped(error);
     }
@@ -304,6 +321,9 @@ class AssignedQuizRepositoryEmpty implements AssignedQuizRepository {
       const [];
 
   @override
+  Future<void> publishDraft(String assignmentId) async => _rejectWrite();
+
+  @override
   Future<void> archiveAssignment(String assignmentId) async => _rejectWrite();
 
   @override
@@ -459,6 +479,52 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     return summaries
         .where((s) => s.studentId == studentId)
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> publishDraft(String assignmentId) async {
+    rpcCalls.add('publish_draft');
+    final now = DateTime.now().toUtc();
+    var published = false;
+    summaries = summaries
+        .map((s) {
+          if (s.id != assignmentId ||
+              s.status != AssignedQuizStatus.draft) {
+            return s;
+          }
+          published = true;
+          return AssignedQuizSummary(
+            id: s.id,
+            publicCode: s.publicCode,
+            studentId: s.studentId,
+            studentUserId: s.studentUserId,
+            licenseCategory: s.licenseCategory,
+            title: s.title,
+            staffNote: s.staffNote,
+            status: AssignedQuizStatus.assigned,
+            questionCount: s.questionCount,
+            repeatPolicy: s.repeatPolicy,
+            maxAttempts: s.maxAttempts,
+            createdAt: s.createdAt,
+            assignedAt: now,
+            expiresAt: s.expiresAt,
+            attemptsCount: s.attemptsCount,
+            submittedAttemptsCount: s.submittedAttemptsCount,
+            latestAttemptAt: s.latestAttemptAt,
+            bestScorePercentage: s.bestScorePercentage,
+            averageScorePercentage: s.averageScorePercentage,
+            hasInProgressAttempt: s.hasInProgressAttempt,
+          );
+        })
+        .toList(growable: false);
+    if (!published) {
+      throw AssignedQuizException(
+        code: AssignedQuizErrorCode.invalidAssignedQuizStatusTransition,
+        message: assignedQuizErrorMessageIt(
+          AssignedQuizErrorCode.invalidAssignedQuizStatusTransition,
+        ),
+      );
+    }
   }
 
   @override

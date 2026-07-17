@@ -818,6 +818,30 @@ class _AssignedQuizEditMetadataDialogState
   }
 }
 
+Future<bool> confirmAssignedQuizPublish(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Assegna quiz'),
+      content: const Text(
+        'Il quiz diventerà visibile all’allievo e non potrà più tornare '
+        'in bozza.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Annulla'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Assegna'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 Future<bool> confirmAssignedQuizArchive(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
