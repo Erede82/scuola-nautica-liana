@@ -366,7 +366,15 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     this.reviewItems = const [],
     this.attempts = const [],
     this.throwOnGenerate,
+    this.throwOnStart,
+    this.throwOnSave,
+    this.throwOnSubmit,
+    this.throwOnAbandon,
+    this.throwOnReview,
+    this.throwOnLoadMine,
     this.loadDelay = Duration.zero,
+    this.saveDelay = Duration.zero,
+    this.submitResult,
   });
 
   AssignedQuizGenerationResult? generationResult;
@@ -376,7 +384,15 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   List<AssignedQuizReviewItem> reviewItems;
   List<AssignedQuizAttemptSummary> attempts;
   Object? throwOnGenerate;
+  Object? throwOnStart;
+  Object? throwOnSave;
+  Object? throwOnSubmit;
+  Object? throwOnAbandon;
+  Object? throwOnReview;
+  Object? throwOnLoadMine;
   Duration loadDelay;
+  Duration saveDelay;
+  AssignedQuizSubmitResult? submitResult;
 
   final List<String> rpcCalls = [];
   Map<String, dynamic>? lastGenerateParams;
@@ -384,7 +400,13 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   String? lastSavedOption;
   AssignedQuizMetadataPatch? lastMetadataPatch;
   int loadForStudentCalls = 0;
+  int loadMineCalls = 0;
+  int startOrResumeCalls = 0;
+  int submitCalls = 0;
+  int abandonCalls = 0;
   final List<String> loadAttemptsCalls = [];
+  final List<Map<String, dynamic>> saveCalls = [];
+  String? lastStartAssignmentId;
 
   @override
   Future<AssignedQuizGenerationResult> generateFromErrors(
@@ -533,6 +555,11 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
 
   @override
   Future<List<AssignedQuizSummary>> loadMine() async {
+    loadMineCalls += 1;
+    if (loadDelay > Duration.zero) {
+      await Future<void>.delayed(loadDelay);
+    }
+    if (throwOnLoadMine != null) throw throwOnLoadMine!;
     return summaries
         .where((s) => s.status == AssignedQuizStatus.assigned)
         .toList(growable: false);
@@ -542,7 +569,10 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   Future<AssignedQuizAttemptStartResult> startOrResume(
     String assignmentId,
   ) async {
+    startOrResumeCalls += 1;
+    lastStartAssignmentId = assignmentId;
     rpcCalls.add('start_assigned_quiz_attempt');
+    if (throwOnStart != null) throw throwOnStart!;
     return startResult ??
         AssignedQuizAttemptStartResult(
           attemptId: 'attempt-1',
@@ -568,7 +598,33 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     required String? selectedOption,
   }) async {
     rpcCalls.add('save_assigned_quiz_attempt_answer');
+    if (saveDelay > Duration.zero) {
+      await Future<void>.delayed(saveDelay);
+    }
+    if (throwOnSave != null) throw throwOnSave!;
     lastSavedOption = normalizeAssignedQuizSelectedOption(selectedOption);
+    saveCalls.add({
+      'attemptId': attemptId,
+      'assignmentItemId': assignmentItemId,
+      'selectedOption': lastSavedOption,
+    });
+    questions = questions
+        .map(
+          (q) => q.assignmentItemId == assignmentItemId
+              ? AssignedQuizQuestion(
+                  assignmentItemId: q.assignmentItemId,
+                  position: q.position,
+                  prompt: q.prompt,
+                  optionA: q.optionA,
+                  optionB: q.optionB,
+                  optionC: q.optionC,
+                  imagePath: q.imagePath,
+                  lessonNumber: q.lessonNumber,
+                  selectedOption: lastSavedOption,
+                )
+              : q,
+        )
+        .toList(growable: false);
     return AssignedQuizAnswerSaveResult(
       assignmentItemId: assignmentItemId,
       selectedOption: lastSavedOption,
@@ -578,22 +634,27 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
 
   @override
   Future<AssignedQuizSubmitResult> submitAttempt(String attemptId) async {
+    submitCalls += 1;
     rpcCalls.add('submit_assigned_quiz_attempt');
     lastSubmitParams = {'p_attempt_id': attemptId};
-    return AssignedQuizSubmitResult(
-      attemptId: attemptId,
-      attemptNumber: 1,
-      correctCount: 1,
-      wrongCount: 0,
-      unansweredCount: 0,
-      scorePercentage: 100,
-      submittedAt: DateTime.now().toUtc(),
-    );
+    if (throwOnSubmit != null) throw throwOnSubmit!;
+    return submitResult ??
+        AssignedQuizSubmitResult(
+          attemptId: attemptId,
+          attemptNumber: startResult?.attemptNumber ?? 1,
+          correctCount: 1,
+          wrongCount: 0,
+          unansweredCount: 0,
+          scorePercentage: 100,
+          submittedAt: DateTime.now().toUtc(),
+        );
   }
 
   @override
   Future<void> abandonAttempt(String attemptId) async {
+    abandonCalls += 1;
     rpcCalls.add('abandon_assigned_quiz_attempt');
+    if (throwOnAbandon != null) throw throwOnAbandon!;
   }
 
   @override
@@ -601,6 +662,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     String attemptId,
   ) async {
     rpcCalls.add('get_assigned_quiz_attempt_review');
+    if (throwOnReview != null) throw throwOnReview!;
     return reviewItems;
   }
 

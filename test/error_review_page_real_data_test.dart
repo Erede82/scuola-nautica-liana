@@ -738,6 +738,8 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
+      // Con 5 tile la griglia scrolla: Ripasso può essere fuori viewport (800×600).
+      await tester.ensureVisible(find.text('Ripasso errori'));
       await tester.tap(find.text('Ripasso errori'));
       await tester.pumpAndSettle();
 

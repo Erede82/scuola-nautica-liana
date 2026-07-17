@@ -103,7 +103,7 @@ String assignedQuizErrorMessageIt(String code) {
     case AssignedQuizErrorCode.notAuthenticated:
       return 'Sessione non disponibile. Accedi nuovamente.';
     case AssignedQuizErrorCode.notAuthorized:
-      return 'Non hai i permessi per eseguire questa operazione.';
+      return 'Non hai i permessi per accedere a questo quiz.';
     case AssignedQuizErrorCode.studentNotFound:
       return 'Allievo non trovato.';
     case AssignedQuizErrorCode.unsupportedLicensePath:

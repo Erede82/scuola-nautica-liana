@@ -69,6 +69,8 @@ class DashboardActionCard extends StatefulWidget {
     this.dense = false,
     this.backgroundTint,
     this.useStudentBrandStyle = false,
+    this.titleMaxLines,
+    this.compactContent = false,
   });
 
   final String title;
@@ -88,6 +90,14 @@ class DashboardActionCard extends StatefulWidget {
 
   /// Stile allievo: stessa identità premium (avorio + blu logo); leggermente più enfasi colore.
   final bool useStudentBrandStyle;
+
+  /// Se valorizzato, limita le righe del titolo (es. titoli lunghi in griglia).
+  /// Default `null` = comportamento storico (nessun limite esplicito).
+  final int? titleMaxLines;
+
+  /// Padding/gap ridotti solo dove serve (es. tile con titolo lungo).
+  /// Default `false` = metriche storiche invariate.
+  final bool compactContent;
 
   static const Color _successColor = Color(0xFF2E9E5B);
 
@@ -115,16 +125,20 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
     final showUnread = unread != null && unread > 0;
     final showMarketingBadge = badgeLabel != null && !showUnread;
     final d = widget.dense;
+    final compact = widget.compactContent;
     final isBrand = widget.useStudentBrandStyle;
     final cardColor = widget.backgroundTint ?? AppVisual.ivory;
 
-    final iconBox = d ? 44.0 : 48.0;
-    final iconSize = d ? 26.0 : 28.0;
+    final iconBox = d ? (compact ? 36.0 : 44.0) : 48.0;
+    final iconSize = d ? (compact ? 22.0 : 26.0) : 28.0;
     final pad = d
-        ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
+        ? EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 16,
+            vertical: compact ? 12 : 20,
+          )
         : const EdgeInsets.symmetric(horizontal: 20, vertical: 22);
-    final gapAfterIcon = d ? 12.0 : 14.0;
-    final gapTitleToSubtitle = d ? 10.0 : 16.0;
+    final gapAfterIcon = d ? (compact ? 8.0 : 12.0) : 14.0;
+    final gapTitleToSubtitle = d ? (compact ? 6.0 : 10.0) : 16.0;
     final subtitleMaxLines = d ? 2 : 3;
 
     return AnimatedScale(
@@ -143,9 +157,7 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
           ),
           boxShadow: [
             BoxShadow(
-              color: AppVisual.ink.withValues(
-                alpha: _pressed ? 0.05 : 0.09,
-              ),
+              color: AppVisual.ink.withValues(alpha: _pressed ? 0.05 : 0.09),
               blurRadius: _pressed ? 6 : 14,
               offset: Offset(0, _pressed ? 2 : 5),
             ),
@@ -162,10 +174,12 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
               clipBehavior: Clip.none,
               children: [
                 InkWell(
-                  splashColor:
-                      AppVisual.logoBlue.withValues(alpha: isBrand ? 0.12 : 0.08),
-                  highlightColor:
-                      AppVisual.logoBlue.withValues(alpha: isBrand ? 0.06 : 0.04),
+                  splashColor: AppVisual.logoBlue.withValues(
+                    alpha: isBrand ? 0.12 : 0.08,
+                  ),
+                  highlightColor: AppVisual.logoBlue.withValues(
+                    alpha: isBrand ? 0.06 : 0.04,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   onTapDown: (_) => _setPressed(true),
                   onTapCancel: () => _setPressed(false),
@@ -189,12 +203,16 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                                 decoration: BoxDecoration(
                                   color: isBrand
                                       ? AppVisual.logoBlue
-                                      : AppVisual.logoBlue.withValues(alpha: 0.12),
+                                      : AppVisual.logoBlue.withValues(
+                                          alpha: 0.12,
+                                        ),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isBrand
                                         ? Colors.white.withValues(alpha: 0.2)
-                                        : AppVisual.logoBlue.withValues(alpha: 0.15),
+                                        : AppVisual.logoBlue.withValues(
+                                            alpha: 0.15,
+                                          ),
                                   ),
                                 ),
                                 child: Icon(
@@ -209,13 +227,18 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                               Text(
                                 widget.title,
                                 textAlign: TextAlign.center,
-                                style: (d
-                                        ? textTheme.titleSmall
-                                        : textTheme.titleMedium)
-                                    ?.copyWith(
-                                  color: AppVisual.ink,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                                maxLines: widget.titleMaxLines,
+                                overflow: widget.titleMaxLines != null
+                                    ? TextOverflow.ellipsis
+                                    : TextOverflow.visible,
+                                style:
+                                    (d
+                                            ? textTheme.titleSmall
+                                            : textTheme.titleMedium)
+                                        ?.copyWith(
+                                          color: AppVisual.ink,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                               ),
                               SizedBox(height: gapTitleToSubtitle),
                               Text(
@@ -312,9 +335,7 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                             vertical: d ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
-                            color: isBrand
-                                ? Colors.white
-                                : AppVisual.logoBlue,
+                            color: isBrand ? Colors.white : AppVisual.logoBlue,
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
                               color: isBrand

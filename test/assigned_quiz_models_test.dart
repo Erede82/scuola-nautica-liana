@@ -382,7 +382,7 @@ void main() {
       );
       expect(
         assignedQuizErrorMessageIt(AssignedQuizErrorCode.notAuthorized),
-        contains('permessi'),
+        'Non hai i permessi per accedere a questo quiz.',
       );
       expect(
         assignedQuizErrorMessageIt(AssignedQuizErrorCode.studentNotFound),

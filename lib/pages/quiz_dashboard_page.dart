@@ -7,6 +7,7 @@ import '../widgets/branded_app_bar_title.dart';
 import '../widgets/dashboard_action_card.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
 import '../services/student_content_navigation.dart';
+import 'assigned_quiz_list_page.dart';
 import 'category_selection_page.dart';
 import 'error_review_page.dart';
 import 'lesson_list_page.dart';
@@ -35,7 +36,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
   static const Color _textPrimaryColor = AppVisual.ink;
   static const Color _primaryColor = AppVisual.logoBlue;
 
-  /// Soglia (larghezza) per layout che riempie l’altezza utile: niente scroll iniziale per le 4 card.
+  /// Soglia (larghezza) per layout viewport-fit: solo con al più 4 card.
   static const double _kDesktopNoScrollWidth = 800;
 
   List<Widget> _quizCardChildren() {
@@ -159,6 +160,25 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
           );
         },
       ),
+      DashboardActionCard(
+        dense: true,
+        title: 'Quiz assegnati dalla scuola',
+        subtitle:
+            'Esercitazioni personalizzate preparate dalla scuola in base ai tuoi errori.',
+        icon: Icons.assignment_turned_in_outlined,
+        useStudentBrandStyle: true,
+        titleMaxLines: 2,
+        compactContent: true,
+        onTap: () {
+          qfLog('QuizDashboard: tap Quiz assegnati dalla scuola');
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AssignedQuizListPage(),
+            ),
+          );
+        },
+      ),
     ];
   }
 
@@ -166,7 +186,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
     final wideDesktop = maxWidth >= 900;
     return Center(
       child: Text(
-        'Percorso di studio, esame, statistiche e ripasso errori in un’unica area.',
+        'Percorso di studio, esame, quiz assegnati, statistiche e ripasso errori.',
         textAlign: TextAlign.center,
         style: base?.copyWith(
           color: _textPrimaryColor.withValues(alpha: 0.9),
@@ -193,7 +213,10 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
       ),
       body: LayoutBuilder(
         builder: (context, c) {
-          final useViewportFit = c.maxWidth >= _kDesktopNoScrollWidth;
+          final cards = _quizCardChildren();
+          // Viewport-fit solo con 4 card; con 5+ si usa griglia scrollabile.
+          final useViewportFit =
+              c.maxWidth >= _kDesktopNoScrollWidth && cards.length <= 4;
 
           if (useViewportFit) {
             const mainGap = 6.0;
@@ -229,7 +252,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
                                     crossAxisSpacing: crossGap,
                                     childAspectRatio: aspect,
                                   ),
-                              children: _quizCardChildren(),
+                              children: cards,
                             );
                           },
                         ),
@@ -241,18 +264,21 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
             );
           }
 
-          // Mobile / stretto: griglia a contenuto e scroll.
+          // Mobile / stretto / 5+ card: griglia a contenuto e scroll.
+          // Con 5 tile le celle devono essere più alte (aspect più basso)
+          // per evitare overflow senza FittedBox globale.
           final wideDesktop = c.maxWidth >= 900;
           final laptop = c.maxWidth >= 700;
+          final fivePlus = cards.length >= 5;
           final double aspect;
           if (wideDesktop) {
-            aspect = 1.72;
+            aspect = fivePlus ? 1.45 : 1.72;
           } else if (c.maxWidth >= 600) {
-            aspect = 1.28;
+            aspect = fivePlus ? 1.05 : 1.28;
           } else if (c.maxWidth >= 500) {
-            aspect = 1.05;
+            aspect = fivePlus ? 0.88 : 1.05;
           } else {
-            aspect = 0.88;
+            aspect = fivePlus ? 0.68 : 0.88;
           }
           final contentMaxW = laptop
               ? math.min(660.0, c.maxWidth - 32)
@@ -281,7 +307,7 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
                         crossAxisSpacing: laptop ? 8 : 10,
                         childAspectRatio: aspect,
                       ),
-                      children: _quizCardChildren(),
+                      children: cards,
                     ),
                   ],
                 ),
