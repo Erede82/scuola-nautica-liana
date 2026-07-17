@@ -69,6 +69,7 @@ class _AssignedQuizGenerateDialogState
   final _noteController = TextEditingController();
   final _customCountController = TextEditingController();
   final _maxAttemptsController = TextEditingController(text: '1');
+  final _errorKey = GlobalKey();
 
   late String _idempotencyKey;
   bool _submitting = false;
@@ -77,6 +78,7 @@ class _AssignedQuizGenerateDialogState
   String? _attemptsError;
   String? _expiryError;
   String? _countError;
+  String? _submissionError;
 
   int _questionCount = 20;
   bool _useCustomCount = false;
@@ -192,7 +194,10 @@ class _AssignedQuizGenerateDialogState
     final request = _buildRequest(assignImmediately: assignImmediately);
     if (request == null) return;
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _submissionError = null;
+    });
     try {
       final result = await widget.repository.generateFromErrors(request);
       if (!mounted) return;
@@ -200,8 +205,21 @@ class _AssignedQuizGenerateDialogState
     } catch (error) {
       if (!mounted) return;
       final mapped = assignedQuizExceptionFrom(error);
-      _assignedQuizSnack(context, mapped.message);
-      setState(() => _submitting = false);
+      setState(() {
+        _submitting = false;
+        _submissionError = mapped.message;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _errorKey.currentContext;
+        if (target != null) {
+          Scrollable.ensureVisible(
+            target,
+            duration: const Duration(milliseconds: 220),
+            alignment: 0.1,
+            curve: Curves.easeOut,
+          );
+        }
+      });
     }
   }
 
@@ -315,6 +333,7 @@ class _AssignedQuizGenerateDialogState
                               _useCustomCount = false;
                               _questionCount = n;
                               _countError = null;
+                              _submissionError = null;
                             })
                           : null,
                     ),
@@ -325,6 +344,7 @@ class _AssignedQuizGenerateDialogState
                         ? (v) => setState(() {
                             _useCustomCount = v;
                             _countError = null;
+                            _submissionError = null;
                           })
                         : null,
                   ),
@@ -533,13 +553,53 @@ class _AssignedQuizGenerateDialogState
                 ),
                 value: _allowPartial,
                 onChanged: (!_submitting && widget.generationSupported)
-                    ? (v) => setState(() => _allowPartial = v)
+                    ? (v) => setState(() {
+                        _allowPartial = v;
+                        _submissionError = null;
+                      })
                     : null,
               ),
+              if (_submissionError != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  key: _errorKey,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: BackofficeUiTokens.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: BackofficeUiTokens.error.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: BackofficeUiTokens.error,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _submissionError!,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: BackofficeUiTokens.error,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_submitting) ...[
                 const SizedBox(height: 12),
                 const LinearProgressIndicator(),
               ],
+              // Spazio sotto l’errore così resta sopra la riga azioni su mobile.
+              const SizedBox(height: 8),
             ],
           ),
         ),

@@ -116,8 +116,9 @@ String assignedQuizErrorMessageIt(String code) {
     case AssignedQuizErrorCode.noErrorQuestions:
       return 'L’allievo non ha ancora errori utilizzabili per generare un quiz.';
     case AssignedQuizErrorCode.insufficientErrorQuestions:
-      return 'Non ci sono abbastanza domande sbagliate per il numero richiesto. '
-          'Riduci il numero oppure abilita l’opzione per usare quelle disponibili.';
+      return 'Non ci sono abbastanza domande sbagliate per creare un quiz '
+          'con il numero richiesto. Riduci il numero di domande oppure '
+          'attiva la generazione parziale.';
     case AssignedQuizErrorCode.idempotencyConflict:
       return 'La richiesta è già stata utilizzata con parametri differenti. '
           'Riapri il dialog e riprova.';

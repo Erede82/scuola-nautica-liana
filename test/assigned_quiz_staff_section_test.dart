@@ -58,8 +58,11 @@ Widget _harness({
   );
 }
 
-void _prepareSurface(WidgetTester tester) {
-  tester.view.physicalSize = const Size(1280, 1800);
+void _prepareSurface(
+  WidgetTester tester, {
+  Size size = const Size(1280, 1800),
+}) {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -216,8 +219,139 @@ void main() {
       expect(find.textContaining('assegnato con'), findsOneWidget);
     });
 
-    testWidgets('errore insufficient_error_questions', (tester) async {
+    testWidgets(
+      'errore insufficient_error_questions su Assegna ora resta nel dialog',
+      (tester) async {
+        _prepareSurface(tester);
+        final repo = AssignedQuizRepositoryFake(
+          throwOnGenerate: AssignedQuizException(
+            code: AssignedQuizErrorCode.insufficientErrorQuestions,
+            message: assignedQuizErrorMessageIt(
+              AssignedQuizErrorCode.insufficientErrorQuestions,
+            ),
+          ),
+        );
+        await tester.pumpWidget(_harness(repository: repo));
+        await tester.pumpAndSettle();
+        final loadsAfterOpen = repo.loadForStudentCalls;
+
+        await _tapVisible(tester, find.text('Genera quiz dagli errori'));
+        await _tapVisible(tester, find.text('Assegna ora'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.textContaining('abbastanza domande sbagliate'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
+        expect(find.text('Genera quiz dagli errori'), findsWidgets);
+        expect(find.text('Assegna ora'), findsOneWidget);
+
+        final assignBtn = tester.widget<FilledButton>(
+          find.widgetWithText(FilledButton, 'Assegna ora'),
+        );
+        expect(assignBtn.onPressed, isNotNull);
+        final draftBtn = tester.widget<OutlinedButton>(
+          find.widgetWithText(OutlinedButton, 'Salva come bozza'),
+        );
+        expect(draftBtn.onPressed, isNotNull);
+
+        expect(
+          repo.rpcCalls
+              .where((c) => c == 'generate_assigned_quiz_from_errors')
+              .length,
+          1,
+        );
+        expect(repo.loadForStudentCalls, loadsAfterOpen);
+      },
+    );
+
+    testWidgets('errore insufficient_error_questions su Salva come bozza', (
+      tester,
+    ) async {
       _prepareSurface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        throwOnGenerate: AssignedQuizException(
+          code: AssignedQuizErrorCode.insufficientErrorQuestions,
+          message: assignedQuizErrorMessageIt(
+            AssignedQuizErrorCode.insufficientErrorQuestions,
+          ),
+        ),
+      );
+      await tester.pumpWidget(_harness(repository: repo));
+      await tester.pumpAndSettle();
+      final loads = repo.loadForStudentCalls;
+
+      await _tapVisible(tester, find.text('Genera quiz dagli errori'));
+      await _tapVisible(tester, find.text('Salva come bozza'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('generazione parziale'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Salva come bozza'), findsOneWidget);
+      expect(repo.loadForStudentCalls, loads);
+      expect(find.textContaining('AQZ-'), findsNothing);
+    });
+
+    testWidgets('retry dopo errore con allowPartial chiude e aggiorna lista', (
+      tester,
+    ) async {
+      _prepareSurface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        throwOnGenerate: AssignedQuizException(
+          code: AssignedQuizErrorCode.insufficientErrorQuestions,
+          message: assignedQuizErrorMessageIt(
+            AssignedQuizErrorCode.insufficientErrorQuestions,
+          ),
+        ),
+      );
+      await tester.pumpWidget(_harness(repository: repo));
+      await tester.pumpAndSettle();
+
+      await _tapVisible(tester, find.text('Genera quiz dagli errori'));
+      await _tapVisible(tester, find.text('Assegna ora'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('abbastanza domande sbagliate'),
+        findsOneWidget,
+      );
+
+      repo.throwOnGenerate = null;
+      await _tapVisible(
+        tester,
+        find.textContaining('Accetta un numero inferiore'),
+      );
+      expect(find.textContaining('abbastanza domande sbagliate'), findsNothing);
+
+      await _tapVisible(tester, find.text('Assegna ora'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        repo.rpcCalls
+            .where((c) => c == 'generate_assigned_quiz_from_errors')
+            .length,
+        2,
+      );
+      expect(repo.loadForStudentCalls, greaterThan(1));
+      expect(find.textContaining('AQZ-'), findsWidgets);
+      expect(find.textContaining('assegnato con'), findsOneWidget);
+    });
+
+    testWidgets('errore generazione responsive 320 senza overflow', (
+      tester,
+    ) async {
+      _prepareSurface(tester, size: const Size(320, 640));
       final repo = AssignedQuizRepositoryFake(
         throwOnGenerate: AssignedQuizException(
           code: AssignedQuizErrorCode.insufficientErrorQuestions,
@@ -230,11 +364,17 @@ void main() {
       await tester.pumpAndSettle();
       await _tapVisible(tester, find.text('Genera quiz dagli errori'));
       await _tapVisible(tester, find.text('Assegna ora'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
       expect(
         find.textContaining('abbastanza domande sbagliate'),
         findsOneWidget,
       );
-      expect(find.text('Genera quiz dagli errori'), findsWidgets);
+      await tester.ensureVisible(
+        find.textContaining('abbastanza domande sbagliate'),
+      );
+      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('archivia e elimina bozza', (tester) async {
