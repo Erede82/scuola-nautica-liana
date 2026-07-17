@@ -57,6 +57,18 @@ void main() {
       expect(repoSource, isNot(contains(".from('quiz_attempt_answers')")));
     });
 
+    test('pubblicazione bozza usa la transizione draft → assigned', () {
+      expect(repoSource, contains('Future<void> publishDraft'));
+      expect(
+        repoSource,
+        contains("'status': AssignedQuizStatus.assigned.dbValue"),
+      );
+      expect(
+        repoSource,
+        contains(".eq('status', AssignedQuizStatus.draft.dbValue)"),
+      );
+    });
+
     test('submit non invia risposte o punteggi', () {
       expect(repoSource, contains("'submit_assigned_quiz_attempt'"));
       expect(repoSource, contains("'p_attempt_id': attemptId"));
@@ -75,6 +87,10 @@ void main() {
 
     test('scritture falliscono con AssignedQuizException', () async {
       const repo = AssignedQuizRepositoryEmpty();
+      await expectLater(
+        repo.publishDraft('a1'),
+        throwsA(isA<AssignedQuizException>()),
+      );
       await expectLater(
         repo.archiveAssignment('a1'),
         throwsA(isA<AssignedQuizException>()),
@@ -108,6 +124,31 @@ void main() {
   });
 
   group('AssignedQuizRepositoryFake metadata patch', () {
+    test('pubblica una bozza rendendola assegnata', () async {
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          AssignedQuizSummary(
+            id: 'aq-draft',
+            publicCode: 'AQZ-DRAFT',
+            studentId: 'st-1',
+            studentUserId: 'u-1',
+            licenseCategory: 'A12',
+            title: 'Bozza',
+            status: AssignedQuizStatus.draft,
+            questionCount: 10,
+            repeatPolicy: AssignedQuizRepeatPolicy.unlimited,
+            createdAt: DateTime.utc(2026, 7, 1),
+          ),
+        ],
+      );
+
+      await repo.publishDraft('aq-draft');
+
+      expect(repo.rpcCalls, contains('publish_draft'));
+      expect(repo.summaries.single.status, AssignedQuizStatus.assigned);
+      expect(repo.summaries.single.assignedAt, isNotNull);
+    });
+
     test('applica set e clear', () async {
       final created = DateTime.utc(2026, 7, 1);
       final repo = AssignedQuizRepositoryFake(

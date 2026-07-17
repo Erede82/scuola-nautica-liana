@@ -130,7 +130,44 @@ void main() {
       expect(find.text('Archiviato'), findsOneWidget);
       expect(find.textContaining('Tentativi: 0'), findsNothing);
       expect(find.textContaining('Miglior punteggio'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Assegna'), findsOneWidget);
       expect(find.text('Elimina bozza'), findsOneWidget);
+    });
+
+    testWidgets('pubblica una bozza e la rende assegnata', (tester) async {
+      _prepareSurface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          _summary(
+            id: 'd1',
+            status: AssignedQuizStatus.draft,
+            title: 'Bozza da assegnare',
+          ),
+        ],
+      );
+      await tester.pumpWidget(_harness(repository: repo));
+      await tester.pumpAndSettle();
+
+      await _tapVisible(
+        tester,
+        find.widgetWithText(FilledButton, 'Assegna'),
+      );
+      expect(
+        find.textContaining('diventerà visibile all’allievo'),
+        findsOneWidget,
+      );
+      await _tapVisible(
+        tester,
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Assegna'),
+        ),
+      );
+
+      expect(repo.rpcCalls, contains('publish_draft'));
+      expect(repo.summaries.single.status, AssignedQuizStatus.assigned);
+      expect(find.text('Assegnato'), findsOneWidget);
+      expect(find.text('Elimina bozza'), findsNothing);
     });
 
     testWidgets('apertura dialog e validazione titolo', (tester) async {
