@@ -158,7 +158,10 @@ void main() {
       );
       await _tapVisible(
         tester,
-        find.widgetWithText(FilledButton, 'Assegna'),
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Assegna'),
+        ),
       );
 
       expect(repo.rpcCalls, contains('publish_draft'));
