@@ -80,14 +80,20 @@ class AssignedQuizListPageState extends State<AssignedQuizListPage> {
   }
 
   String _primaryCtaLabel(AssignedQuizSummary item) {
+    if (item.hasInProgressAttempt == true) return 'Riprendi quiz';
     if (_isExpired(item)) return 'Scaduto';
     if (_limitReached(item)) return 'Tentativi terminati';
-    if (item.hasInProgressAttempt == true) return 'Riprendi quiz';
     return 'Inizia quiz';
   }
 
   bool _canStart(AssignedQuizSummary item) {
-    if (_isExpired(item) || _limitReached(item)) return false;
+    final canResume = item.hasInProgressAttempt == true;
+    if (!canResume &&
+        (_isExpired(item) ||
+            _limitReached(item) ||
+            item.status != AssignedQuizStatus.assigned)) {
+      return false;
+    }
     if (StudentAreaContext.blocksWrites(context)) return false;
     // Con repository di produzione non configurato: nessuna azione reale.
     if (!SupabaseConfig.isConfigured && widget.repository == null) return false;
@@ -389,6 +395,8 @@ class _AssignmentCard extends StatelessWidget {
                   foreground: AppVisual.error,
                   background: Color(0xFFFDECEC),
                 ),
+              if (item.status == AssignedQuizStatus.archived)
+                const _Chip(label: 'Archiviato'),
             ],
           ),
           const SizedBox(height: 6),
@@ -431,7 +439,19 @@ class _AssignmentCard extends StatelessWidget {
           if (expired) ...[
             const SizedBox(height: 8),
             Text(
-              'Questo quiz è scaduto. Puoi consultare i tentativi già conclusi.',
+              item.hasInProgressAttempt == true
+                  ? 'Questo quiz è scaduto, ma puoi completare il tentativo '
+                        'già iniziato.'
+                  : 'Questo quiz è scaduto. Puoi consultare i tentativi già '
+                        'conclusi.',
+              style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
+            ),
+          ],
+          if (item.status == AssignedQuizStatus.archived) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Non puoi iniziare nuovi tentativi, ma puoi completare quello '
+              'già iniziato.',
               style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
             ),
           ],
