@@ -20,6 +20,7 @@ AssignedQuizSummary _summary({
   bool? hasInProgressAttempt,
   int? attemptsCount,
   double? bestScorePercentage,
+  AssignedQuizStatus status = AssignedQuizStatus.assigned,
 }) {
   return AssignedQuizSummary(
     id: id,
@@ -29,7 +30,7 @@ AssignedQuizSummary _summary({
     licenseCategory: 'A12',
     title: title,
     staffNote: staffNote,
-    status: AssignedQuizStatus.assigned,
+    status: status,
     questionCount: 3,
     repeatPolicy: repeat,
     maxAttempts: maxAttempts,
@@ -185,6 +186,72 @@ void main() {
       await tester.tap(find.text('Riprendi quiz'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Riprendiamo il tentativo'), findsOneWidget);
+    });
+
+    testWidgets('tentativo in corso resta riprendibile dopo la scadenza', (
+      tester,
+    ) async {
+      _surface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          _summary(
+            id: 'expired-progress',
+            expiresAt: DateTime.utc(2020, 1, 1),
+            hasInProgressAttempt: true,
+          ),
+        ],
+        questions: _questions(),
+        startResult: const AssignedQuizAttemptStartResult(
+          attemptId: 'att-expired',
+          attemptNumber: 1,
+          resumed: true,
+          questionCount: 3,
+          attemptsUsed: 1,
+        ),
+      );
+
+      await tester.pumpWidget(_list(repo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Riprendi quiz'), findsOneWidget);
+      expect(find.textContaining('puoi completare il tentativo'), findsOneWidget);
+      await tester.tap(find.text('Riprendi quiz'));
+      await tester.pumpAndSettle();
+      expect(repo.startOrResumeCalls, 1);
+      expect(find.byType(AssignedQuizPlayerPage), findsOneWidget);
+    });
+
+    testWidgets('tentativo in corso resta visibile dopo archiviazione', (
+      tester,
+    ) async {
+      _surface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          _summary(
+            id: 'archived-progress',
+            status: AssignedQuizStatus.archived,
+            hasInProgressAttempt: true,
+          ),
+        ],
+        questions: _questions(),
+        startResult: const AssignedQuizAttemptStartResult(
+          attemptId: 'att-archived',
+          attemptNumber: 1,
+          resumed: true,
+          questionCount: 3,
+          attemptsUsed: 1,
+        ),
+      );
+
+      await tester.pumpWidget(_list(repo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Archiviato'), findsOneWidget);
+      expect(find.text('Riprendi quiz'), findsOneWidget);
+      await tester.tap(find.text('Riprendi quiz'));
+      await tester.pumpAndSettle();
+      expect(repo.startOrResumeCalls, 1);
+      expect(find.byType(AssignedQuizPlayerPage), findsOneWidget);
     });
 
     testWidgets('lazy storico tentativi', (tester) async {
