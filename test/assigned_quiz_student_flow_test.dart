@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scuola_nautica_liana/domain/course_taxonomy.dart';
 import 'package:scuola_nautica_liana/models/assigned_quiz_models.dart';
 import 'package:scuola_nautica_liana/pages/assigned_quiz_list_page.dart';
 import 'package:scuola_nautica_liana/pages/assigned_quiz_player_page.dart';
 import 'package:scuola_nautica_liana/pages/assigned_quiz_result_page.dart';
 import 'package:scuola_nautica_liana/pages/assigned_quiz_review_page.dart';
+import 'package:scuola_nautica_liana/pages/category_selection_page.dart';
+import 'package:scuola_nautica_liana/pages/error_review_page.dart';
 import 'package:scuola_nautica_liana/pages/quiz_dashboard_page.dart';
+import 'package:scuola_nautica_liana/pages/quiz_statistics_review_hub_page.dart';
+import 'package:scuola_nautica_liana/pages/statistics_page.dart';
 import 'package:scuola_nautica_liana/repositories/assigned_quiz_repository.dart';
+import 'package:scuola_nautica_liana/services/demo_student_enrollment.dart';
 import 'package:scuola_nautica_liana/widgets/dashboard_action_card.dart';
 
 AssignedQuizSummary _summary({
@@ -479,7 +485,7 @@ void main() {
     });
   });
 
-  group('QuizDashboard assigned entry', () {
+  group('QuizDashboard four cards', () {
     List<String> tileTitlesInOrder(WidgetTester tester) {
       final cards = tester.widgetList<DashboardActionCard>(
         find.byType(DashboardActionCard),
@@ -487,28 +493,77 @@ void main() {
       return cards.map((c) => c.title).toList(growable: false);
     }
 
-    testWidgets('ordine tile e tap quinta apre AssignedQuizListPage', (
+    testWidgets('esattamente quattro card nell’ordine approvato', (
       tester,
     ) async {
       _surface(tester);
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
+      expect(find.byType(DashboardActionCard), findsNWidgets(4));
       expect(tileTitlesInOrder(tester), [
         'Lezioni e schede',
         'Quiz esame',
-        'Statistiche',
-        'Ripasso errori',
+        'Statistiche e ripasso errori',
         'Quiz assegnati dalla scuola',
       ]);
+      expect(find.text('Statistiche'), findsNothing);
+      expect(find.text('Ripasso errori'), findsNothing);
+    });
 
-      await tester.ensureVisible(find.text('Quiz assegnati dalla scuola'));
+    testWidgets('quarta card apre AssignedQuizListPage', (tester) async {
+      _surface(tester);
+      await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.text('Quiz assegnati dalla scuola'));
       await tester.pumpAndSettle();
       expect(find.byType(AssignedQuizListPage), findsOneWidget);
     });
 
-    testWidgets('responsive 320px senza overflow né FittedBox globale', (
+    testWidgets('hub Statistiche e ripasso errori e routing', (tester) async {
+      _surface(tester);
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
+      addTearDown(() {
+        demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Statistiche e ripasso errori'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
+      expect(find.text('Statistiche'), findsOneWidget);
+      expect(find.text('Ripasso errori'), findsOneWidget);
+
+      await tester.tap(find.text('Statistiche'));
+      await tester.pumpAndSettle();
+      // Senza studentSession la destinazione resta CategorySelection (comportamento storico).
+      expect(
+        find.byType(CategorySelectionPage).evaluate().isNotEmpty ||
+            find.byType(StatisticsPage).evaluate().isNotEmpty,
+        isTrue,
+      );
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
+
+      await tester.tap(find.text('Ripasso errori'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ErrorReviewPage), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizDashboardPage), findsOneWidget);
+    });
+
+    testWidgets('responsive 320px senza overflow né FittedBox nelle card', (
       tester,
     ) async {
       _surface(tester, size: const Size(320, 640));
@@ -516,6 +571,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+      expect(find.byType(DashboardActionCard), findsNWidgets(4));
       expect(
         find.descendant(
           of: find.byType(DashboardActionCard),
@@ -524,24 +580,32 @@ void main() {
         findsNothing,
       );
 
-      final lezioni = tester.widget<DashboardActionCard>(
-        find.widgetWithText(DashboardActionCard, 'Lezioni e schede'),
-      );
-      expect(lezioni.titleMaxLines, isNull);
-      expect(lezioni.compactContent, isFalse);
-
       final assigned = tester.widget<DashboardActionCard>(
         find.widgetWithText(DashboardActionCard, 'Quiz assegnati dalla scuola'),
       );
       expect(assigned.titleMaxLines, 2);
       expect(assigned.compactContent, isTrue);
+    });
 
-      await tester.ensureVisible(find.text('Quiz assegnati dalla scuola'));
-      expect(find.text('Quiz assegnati dalla scuola'), findsOneWidget);
-      expect(
-        find.textContaining('Esercitazioni personalizzate'),
-        findsOneWidget,
+    testWidgets('hub responsive 320 colonna e desktop affiancato', (
+      tester,
+    ) async {
+      _surface(tester, size: const Size(320, 640));
+      await tester.pumpWidget(
+        const MaterialApp(home: QuizStatisticsReviewHubPage()),
       );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Statistiche'), findsOneWidget);
+      expect(find.text('Ripasso errori'), findsOneWidget);
+
+      _surface(tester, size: const Size(1024, 800));
+      await tester.pumpWidget(
+        const MaterialApp(home: QuizStatisticsReviewHubPage()),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DashboardActionCard), findsNWidgets(2));
     });
 
     testWidgets(

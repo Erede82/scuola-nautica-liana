@@ -8,6 +8,7 @@ import 'package:scuola_nautica_liana/models/quiz_question.dart';
 import 'package:scuola_nautica_liana/models/quiz_wrong_answer_entry.dart';
 import 'package:scuola_nautica_liana/pages/error_review_page.dart';
 import 'package:scuola_nautica_liana/pages/quiz_dashboard_page.dart';
+import 'package:scuola_nautica_liana/pages/quiz_statistics_review_hub_page.dart';
 import 'package:scuola_nautica_liana/repositories/quiz_error_review_repository.dart';
 import 'package:scuola_nautica_liana/repositories/study_access_repository.dart';
 import 'package:scuola_nautica_liana/services/demo_student_enrollment.dart';
@@ -728,7 +729,9 @@ void main() {
   });
 
   group('QuizDashboard Ripasso errori', () {
-    testWidgets('dashboard apre Ripasso con percorso reale D1', (tester) async {
+    testWidgets('dashboard apre Ripasso via hub con percorso reale D1', (
+      tester,
+    ) async {
       demoStudentEnrollmentPath.value = EnrollmentCoursePath.d1;
       expect(
         StudentContentNavigation.directErrorReviewCategoryForCurrentUser(),
@@ -738,8 +741,10 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
-      // Con 5 tile la griglia scrolla: Ripasso può essere fuori viewport (800×600).
-      await tester.ensureVisible(find.text('Ripasso errori'));
+      await tester.tap(find.text('Statistiche e ripasso errori'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
+
       await tester.tap(find.text('Ripasso errori'));
       await tester.pumpAndSettle();
 
