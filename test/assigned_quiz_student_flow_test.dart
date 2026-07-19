@@ -422,6 +422,103 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Successiva'), findsOneWidget);
     });
+
+    testWidgets('layout desktop ampio come scheda (non colonna 720)', (
+      tester,
+    ) async {
+      Future<void> assertWide(
+        Size size, {
+        required double minContentWidth,
+      }) async {
+        _surface(tester, size: size);
+        final repo = AssignedQuizRepositoryFake(
+          questions: _questions(count: 3),
+        );
+        await tester.pumpWidget(MaterialApp(home: playerOf(repo)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final optionSize = tester.getSize(
+          find.byKey(const Key('assigned_quiz_player_option_A')),
+        );
+        final navSize = tester.getSize(
+          find.byKey(const Key('assigned_quiz_player_nav')),
+        );
+        final promptSize = tester.getSize(
+          find.byKey(const Key('assigned_quiz_player_prompt')),
+        );
+
+        // Prima del fix il contenuto era limitato a maxWidth 720 (≈696 utili).
+        expect(optionSize.width, greaterThan(minContentWidth));
+        expect(promptSize.width, greaterThan(minContentWidth));
+        expect(navSize.width, greaterThan(minContentWidth));
+        expect(find.textContaining('AQZ-'), findsWidgets);
+        expect(find.text('1'), findsWidgets);
+      }
+
+      await assertWide(const Size(1440, 900), minContentWidth: 900);
+      await assertWide(const Size(1280, 720), minContentWidth: 900);
+      await assertWide(const Size(1024, 768), minContentWidth: 800);
+      await assertWide(const Size(800, 600), minContentWidth: 700);
+    });
+
+    testWidgets('layout mobile senza overflow su 390/375/320', (tester) async {
+      for (final size in const [
+        Size(390, 844),
+        Size(375, 667),
+        Size(320, 640),
+      ]) {
+        _surface(tester, size: size);
+        final repo = AssignedQuizRepositoryFake(
+          questions: _questions(count: 6),
+        );
+        await tester.pumpWidget(MaterialApp(home: playerOf(repo)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('1'), findsWidgets);
+        expect(find.text('2'), findsWidgets);
+        expect(find.text('3'), findsWidgets);
+        expect(find.text('Successiva'), findsOneWidget);
+        expect(find.textContaining('AQZ-'), findsWidgets);
+        final optionW = tester
+            .getSize(find.byKey(const Key('assigned_quiz_player_option_A')))
+            .width;
+        expect(optionW, greaterThan(size.width * 0.7));
+      }
+    });
+
+    testWidgets('uscita senza risposte non submitta né abbandona', (
+      tester,
+    ) async {
+      _surface(tester);
+      final repo = AssignedQuizRepositoryFake(questions: _questions(count: 3));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => playerOf(repo)),
+                  );
+                },
+                child: const Text('Apri player'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Apri player'));
+      await tester.pumpAndSettle();
+      expect(repo.saveCalls, isEmpty);
+      await tester.tap(find.byTooltip('Esci dal quiz'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Esci e riprendi più tardi'));
+      await tester.pumpAndSettle();
+      expect(repo.abandonCalls, 0);
+      expect(repo.submitCalls, 0);
+      expect(find.byType(AssignedQuizPlayerPage), findsNothing);
+    });
   });
 
   group('AssignedQuizReviewPage', () {

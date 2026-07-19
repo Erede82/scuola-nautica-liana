@@ -372,135 +372,158 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
           title: SectionAppBarTitle(widget.assignment.title, logoHeight: 26),
           actions: const [StaffPreviewAppBarBadge()],
         ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
+        // Layout allineato al player schede lezione (`quiz_sheet_detail_page`):
+        // larghezza piena della viewport, padding orizzontale 16/12, senza maxWidth.
+        body: Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, viewport) {
+                  final compact =
+                      viewport.maxWidth < 600 ||
+                      MediaQuery.sizeOf(context).height < 640;
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          key: const Key('assigned_quiz_player_meta'),
+                          '${widget.assignment.publicCode} · Tentativo '
+                          '${widget.start.attemptNumber} · '
+                          'Domanda ${_index + 1}/$total · $_saveBanner',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppVisual.inkMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (_globalError != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            _globalError!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppVisual.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        _ProgressWrap(
+                          currentIndex: _index,
+                          total: total,
+                          isAnswered: (i) =>
+                              _answers[_questions[i].assignmentItemId] != null,
+                          onTap: (i) => setState(() => _index = i),
+                        ),
+                        const SizedBox(height: 10),
+                        KeyedSubtree(
+                          key: const Key('assigned_quiz_player_prompt'),
+                          child: QuizQuestionPromptPanel(
+                            questionNumber: _index + 1,
+                            prompt: _current.prompt,
+                            imagePath: _current.imagePath,
+                            compact: compact,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        for (final option in QuizAnswerOption.values)
+                          Padding(
+                            padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+                            child: KeyedSubtree(
+                              key: Key(
+                                'assigned_quiz_player_option_${option.letter}',
+                              ),
+                              child: _OptionTile(
+                                number: assignedQuizOptionToMarkerNumber(
+                                  option,
+                                ),
+                                text: switch (option) {
+                                  QuizAnswerOption.a => _current.optionA,
+                                  QuizAnswerOption.b => _current.optionB,
+                                  QuizAnswerOption.c => _current.optionC,
+                                },
+                                selected: selected == option,
+                                enabled: !_submitting && !_abandoning,
+                                compact: compact,
+                                onTap: () => _selectOption(option),
+                              ),
+                            ),
+                          ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            onPressed:
+                                selected == null || _submitting || _abandoning
+                                ? null
+                                : _clearAnswer,
+                            child: const Text('Cancella risposta'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '${widget.assignment.publicCode} · Tentativo '
-                      '${widget.start.attemptNumber} · '
-                      'Domanda ${_index + 1}/$total · $_saveBanner',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppVisual.inkMuted,
-                        fontWeight: FontWeight.w600,
+                key: const Key('assigned_quiz_player_nav'),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final narrow = c.maxWidth < 420;
+                    final prev = OutlinedButton(
+                      onPressed: _index == 0 || _submitting
+                          ? null
+                          : () => setState(() => _index -= 1),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                    ),
-                    if (_globalError != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _globalError!,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppVisual.error,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    _ProgressWrap(
-                      currentIndex: _index,
-                      total: total,
-                      isAnswered: (i) =>
-                          _answers[_questions[i].assignmentItemId] != null,
-                      onTap: (i) => setState(() => _index = i),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            QuizQuestionPromptPanel(
-                              questionNumber: _index + 1,
-                              prompt: _current.prompt,
-                              imagePath: _current.imagePath,
+                      child: const Text('Precedente'),
+                    );
+                    final nextOrSubmit = _index >= total - 1
+                        ? FilledButton(
+                            onPressed: _submitting || _abandoning
+                                ? null
+                                : _submit,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            const SizedBox(height: 12),
-                            for (final option in QuizAnswerOption.values)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _OptionTile(
-                                  number: assignedQuizOptionToMarkerNumber(
-                                    option,
-                                  ),
-                                  text: switch (option) {
-                                    QuizAnswerOption.a => _current.optionA,
-                                    QuizAnswerOption.b => _current.optionB,
-                                    QuizAnswerOption.c => _current.optionC,
-                                  },
-                                  selected: selected == option,
-                                  enabled: !_submitting && !_abandoning,
-                                  onTap: () => _selectOption(option),
-                                ),
-                              ),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed:
-                                    selected == null ||
-                                        _submitting ||
-                                        _abandoning
-                                    ? null
-                                    : _clearAnswer,
-                                child: const Text('Cancella risposta'),
-                              ),
+                            child: Text(
+                              _submitting ? 'Consegna…' : 'Concludi quiz',
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    LayoutBuilder(
-                      builder: (context, c) {
-                        final narrow = c.maxWidth < 420;
-                        final prev = OutlinedButton(
-                          onPressed: _index == 0 || _submitting
-                              ? null
-                              : () => setState(() => _index -= 1),
-                          child: const Text('Precedente'),
-                        );
-                        final nextOrSubmit = _index >= total - 1
-                            ? FilledButton(
-                                onPressed: _submitting || _abandoning
-                                    ? null
-                                    : _submit,
-                                child: Text(
-                                  _submitting ? 'Consegna…' : 'Concludi quiz',
-                                ),
-                              )
-                            : FilledButton(
-                                onPressed: _submitting
-                                    ? null
-                                    : () => setState(() => _index += 1),
-                                child: const Text('Successiva'),
-                              );
-                        if (narrow) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              prev,
-                              const SizedBox(height: 8),
-                              nextOrSubmit,
-                            ],
+                          )
+                        : FilledButton(
+                            onPressed: _submitting
+                                ? null
+                                : () => setState(() => _index += 1),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('Successiva'),
                           );
-                        }
-                        return Row(
-                          children: [
-                            Expanded(child: prev),
-                            const SizedBox(width: 10),
-                            Expanded(child: nextOrSubmit),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
+                    if (narrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          prev,
+                          const SizedBox(height: 8),
+                          nextOrSubmit,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: prev),
+                        const SizedBox(width: 10),
+                        Expanded(child: nextOrSubmit),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -572,6 +595,7 @@ class _OptionTile extends StatelessWidget {
     required this.selected,
     required this.enabled,
     required this.onTap,
+    this.compact = false,
   });
 
   final int number;
@@ -579,6 +603,7 @@ class _OptionTile extends StatelessWidget {
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -593,8 +618,11 @@ class _OptionTile extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 52),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            constraints: BoxConstraints(minHeight: compact ? 52 : 56),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 14,
+              vertical: compact ? 10 : 12,
+            ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
