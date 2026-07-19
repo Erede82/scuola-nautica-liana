@@ -9,6 +9,7 @@ void main() {
     late String repoSource;
     late String mapperSource;
     late String resumeMigrationSource;
+    late String secureHeadersMigrationSource;
 
     setUpAll(() {
       repoSource = File(
@@ -20,6 +21,10 @@ void main() {
       resumeMigrationSource = File(
         'supabase/migrations/'
         '20260718110100_resume_in_progress_assigned_quizzes.sql',
+      ).readAsStringSync();
+      secureHeadersMigrationSource = File(
+        'supabase/migrations/'
+        '20260719110000_secure_assigned_quiz_student_headers.sql',
       ).readAsStringSync();
     });
 
@@ -94,7 +99,7 @@ void main() {
     });
 
     test('lista studente include archiviati solo per resume', () {
-      expect(repoSource, contains(".inFilter('status'"));
+      expect(repoSource, contains(".rpc('list_my_assigned_quizzes')"));
       expect(
         repoSource,
         contains("AssignedQuizAttemptStatus.inProgress.dbValue"),
@@ -102,6 +107,30 @@ void main() {
       expect(
         repoSource,
         contains('inProgressAssignmentIds.contains(summary.id)'),
+      );
+    });
+
+    test('lista studente non espone note interne staff', () {
+      expect(
+        secureHeadersMigrationSource,
+        contains(
+          'DROP POLICY IF EXISTS assigned_quizzes_student_select',
+        ),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        contains('public.list_my_assigned_quizzes()'),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        isNot(contains('aq.staff_note')),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        contains(
+          'GRANT EXECUTE ON FUNCTION '
+          'public.list_my_assigned_quizzes() TO authenticated',
+        ),
       );
     });
   });

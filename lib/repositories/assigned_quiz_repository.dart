@@ -213,15 +213,9 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
           message: 'Sessione non disponibile. Accedi nuovamente.',
         );
       }
-      final res = await _client
-          .from('assigned_quizzes')
-          .select(_assignmentSelect)
-          .eq('student_user_id', uid)
-          .inFilter('status', [
-            AssignedQuizStatus.assigned.dbValue,
-            AssignedQuizStatus.archived.dbValue,
-          ])
-          .order('assigned_at', ascending: false);
+      // Student headers come from a server-side safe projection: direct table
+      // reads would also expose staff_note because RLS cannot hide columns.
+      final res = await _client.rpc('list_my_assigned_quizzes');
 
       final inProgressRes = await _client
           .from('assigned_quiz_attempts')
