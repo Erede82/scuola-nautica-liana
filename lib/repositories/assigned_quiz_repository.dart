@@ -65,6 +65,35 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
       'abandoned_at, correct_count, wrong_count, unanswered_count, '
       'score_percentage, duration_seconds';
 
+  AssignedQuizSummary _withInProgressState(
+    AssignedQuizSummary summary, {
+    required bool hasInProgressAttempt,
+  }) {
+    return AssignedQuizSummary(
+      id: summary.id,
+      publicCode: summary.publicCode,
+      studentId: summary.studentId,
+      studentUserId: summary.studentUserId,
+      licenseCategory: summary.licenseCategory,
+      title: summary.title,
+      staffNote: summary.staffNote,
+      status: summary.status,
+      questionCount: summary.questionCount,
+      repeatPolicy: summary.repeatPolicy,
+      maxAttempts: summary.maxAttempts,
+      createdAt: summary.createdAt,
+      assignedAt: summary.assignedAt,
+      expiresAt: summary.expiresAt,
+      archivedAt: summary.archivedAt,
+      attemptsCount: summary.attemptsCount,
+      submittedAttemptsCount: summary.submittedAttemptsCount,
+      latestAttemptAt: summary.latestAttemptAt,
+      bestScorePercentage: summary.bestScorePercentage,
+      averageScorePercentage: summary.averageScorePercentage,
+      hasInProgressAttempt: hasInProgressAttempt,
+    );
+  }
+
   T _mapRpc<T>(T Function() parse) {
     try {
       return parse();
@@ -184,14 +213,38 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
           message: 'Sessione non disponibile. Accedi nuovamente.',
         );
       }
-      final res = await _client
-          .from('assigned_quizzes')
-          .select(_assignmentSelect)
-          .eq('student_user_id', uid)
-          .eq('status', AssignedQuizStatus.assigned.dbValue)
-          .order('assigned_at', ascending: false);
+      // Student headers come from a server-side safe projection: direct table
+      // reads would also expose staff_note because RLS cannot hide columns.
+      final res = await _client.rpc('list_my_assigned_quizzes');
+
+      final inProgressRes = await _client
+          .from('assigned_quiz_attempts')
+          .select('assignment_id')
+          .eq('user_id', uid)
+          .eq('status', AssignedQuizAttemptStatus.inProgress.dbValue);
+      final inProgressAssignmentIds = (inProgressRes as List<dynamic>)
+          .map(
+            (row) =>
+                requireAssignedQuizMap(row)['assignment_id']?.toString() ?? '',
+          )
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
       return (res as List<dynamic>)
           .map((row) => parseAssignedQuizSummary(requireAssignedQuizMap(row)))
+          .where(
+            (summary) =>
+                summary.status == AssignedQuizStatus.assigned ||
+                inProgressAssignmentIds.contains(summary.id),
+          )
+          .map(
+            (summary) => _withInProgressState(
+              summary,
+              hasInProgressAttempt: inProgressAssignmentIds.contains(
+                summary.id,
+              ),
+            ),
+          )
           .toList(growable: false);
     } on AssignedQuizException {
       rethrow;
@@ -374,6 +427,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     this.throwOnLoadMine,
     this.loadDelay = Duration.zero,
     this.saveDelay = Duration.zero,
+    this.saveDelays = const [],
     this.submitResult,
   });
 
@@ -392,7 +446,9 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   Object? throwOnLoadMine;
   Duration loadDelay;
   Duration saveDelay;
+  List<Duration> saveDelays;
   AssignedQuizSubmitResult? submitResult;
+  int _saveInvocationCount = 0;
 
   final List<String> rpcCalls = [];
   Map<String, dynamic>? lastGenerateParams;
@@ -561,7 +617,12 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     }
     if (throwOnLoadMine != null) throw throwOnLoadMine!;
     return summaries
-        .where((s) => s.status == AssignedQuizStatus.assigned)
+        .where(
+          (s) =>
+              s.status == AssignedQuizStatus.assigned ||
+              (s.status == AssignedQuizStatus.archived &&
+                  s.hasInProgressAttempt == true),
+        )
         .toList(growable: false);
   }
 
@@ -598,8 +659,12 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     required String? selectedOption,
   }) async {
     rpcCalls.add('save_assigned_quiz_attempt_answer');
-    if (saveDelay > Duration.zero) {
-      await Future<void>.delayed(saveDelay);
+    final invocation = _saveInvocationCount++;
+    final delay = invocation < saveDelays.length
+        ? saveDelays[invocation]
+        : saveDelay;
+    if (delay > Duration.zero) {
+      await Future<void>.delayed(delay);
     }
     if (throwOnSave != null) throw throwOnSave!;
     lastSavedOption = normalizeAssignedQuizSelectedOption(selectedOption);

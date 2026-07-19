@@ -8,6 +8,8 @@ void main() {
   group('AssignedQuizRepositorySupabase source contracts', () {
     late String repoSource;
     late String mapperSource;
+    late String resumeMigrationSource;
+    late String secureHeadersMigrationSource;
 
     setUpAll(() {
       repoSource = File(
@@ -15,6 +17,14 @@ void main() {
       ).readAsStringSync();
       mapperSource = File(
         'lib/data/supabase/mappers/assigned_quiz_mapper.dart',
+      ).readAsStringSync();
+      resumeMigrationSource = File(
+        'supabase/migrations/'
+        '20260718110100_resume_in_progress_assigned_quizzes.sql',
+      ).readAsStringSync();
+      secureHeadersMigrationSource = File(
+        'supabase/migrations/'
+        '20260719110000_secure_assigned_quiz_student_headers.sql',
       ).readAsStringSync();
     });
 
@@ -63,6 +73,65 @@ void main() {
       expect(repoSource, isNot(contains("'p_correct_count'")));
       expect(repoSource, isNot(contains("'p_score_percentage'")));
       expect(repoSource, isNot(contains("'p_answers'")));
+    });
+
+    test('resume precede i blocchi archivio e scadenza', () {
+      final resumeLookup = resumeMigrationSource.indexOf(
+        "AND a.status = 'in_progress'",
+      );
+      final availabilityGate = resumeMigrationSource.indexOf(
+        "IF v_assignment.status <> 'assigned'",
+      );
+      final expiryGate = resumeMigrationSource.indexOf(
+        'IF v_assignment.expires_at IS NOT NULL',
+      );
+
+      expect(resumeLookup, greaterThanOrEqualTo(0));
+      expect(availabilityGate, greaterThan(resumeLookup));
+      expect(expiryGate, greaterThan(resumeLookup));
+      expect(
+        resumeMigrationSource,
+        contains(
+          'GRANT EXECUTE ON FUNCTION '
+          'public.start_assigned_quiz_attempt(uuid) TO authenticated',
+        ),
+      );
+    });
+
+    test('lista studente include archiviati solo per resume', () {
+      expect(repoSource, contains(".rpc('list_my_assigned_quizzes')"));
+      expect(
+        repoSource,
+        contains("AssignedQuizAttemptStatus.inProgress.dbValue"),
+      );
+      expect(
+        repoSource,
+        contains('inProgressAssignmentIds.contains(summary.id)'),
+      );
+    });
+
+    test('lista studente non espone note interne staff', () {
+      expect(
+        secureHeadersMigrationSource,
+        contains(
+          'DROP POLICY IF EXISTS assigned_quizzes_student_select',
+        ),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        contains('public.list_my_assigned_quizzes()'),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        isNot(contains('aq.staff_note')),
+      );
+      expect(
+        secureHeadersMigrationSource,
+        contains(
+          'GRANT EXECUTE ON FUNCTION '
+          'public.list_my_assigned_quizzes() TO authenticated',
+        ),
+      );
     });
   });
 
