@@ -356,18 +356,25 @@ void main() {
       expect(repo.saveCalls.length, 2);
     });
 
-    testWidgets('cambio rapido risposta usa ultima selezione', (tester) async {
+    testWidgets('cambio rapido serializza i salvataggi e conserva l’ultima', (
+      tester,
+    ) async {
       _surface(tester);
       final repo = AssignedQuizRepositoryFake(
         questions: _questions(),
-        saveDelay: const Duration(milliseconds: 80),
+        saveDelays: const [Duration(milliseconds: 80), Duration.zero],
       );
       await tester.pumpWidget(MaterialApp(home: playerOf(repo)));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Opzione A0'));
+      await tester.tap(find.text('Opzione B0'));
       await tester.tap(find.text('Opzione C0'));
       await tester.pumpAndSettle();
-      expect(repo.saveCalls.last['selectedOption'], 'C');
+      expect(
+        repo.saveCalls.map((call) => call['selectedOption']),
+        orderedEquals(['B', 'C']),
+      );
+      expect(repo.lastSavedOption, 'C');
+      expect(repo.questions.single.selectedOption, 'C');
     });
 
     testWidgets('save failure blocca submit', (tester) async {

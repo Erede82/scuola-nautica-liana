@@ -427,6 +427,7 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     this.throwOnLoadMine,
     this.loadDelay = Duration.zero,
     this.saveDelay = Duration.zero,
+    this.saveDelays = const [],
     this.submitResult,
   });
 
@@ -445,7 +446,9 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
   Object? throwOnLoadMine;
   Duration loadDelay;
   Duration saveDelay;
+  List<Duration> saveDelays;
   AssignedQuizSubmitResult? submitResult;
+  int _saveInvocationCount = 0;
 
   final List<String> rpcCalls = [];
   Map<String, dynamic>? lastGenerateParams;
@@ -656,8 +659,12 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
     required String? selectedOption,
   }) async {
     rpcCalls.add('save_assigned_quiz_attempt_answer');
-    if (saveDelay > Duration.zero) {
-      await Future<void>.delayed(saveDelay);
+    final invocation = _saveInvocationCount++;
+    final delay = invocation < saveDelays.length
+        ? saveDelays[invocation]
+        : saveDelay;
+    if (delay > Duration.zero) {
+      await Future<void>.delayed(delay);
     }
     if (throwOnSave != null) throw throwOnSave!;
     lastSavedOption = normalizeAssignedQuizSelectedOption(selectedOption);
