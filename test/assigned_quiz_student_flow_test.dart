@@ -534,6 +534,15 @@ void main() {
       await tester.tap(find.text('Statistiche e ripasso errori'));
       await tester.pumpAndSettle();
       expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
+      expect(find.byKey(quizStatisticsReviewHubMacroCardKey), findsOneWidget);
+      // Un solo contenitore principale: nessuna DashboardActionCard nell’hub.
+      expect(
+        find.descendant(
+          of: find.byType(QuizStatisticsReviewHubPage),
+          matching: find.byType(DashboardActionCard),
+        ),
+        findsNothing,
+      );
       expect(find.text('Statistiche'), findsOneWidget);
       expect(find.text('Ripasso errori'), findsOneWidget);
 
@@ -587,7 +596,7 @@ void main() {
       expect(assigned.compactContent, isTrue);
     });
 
-    testWidgets('hub responsive 320 colonna e desktop affiancato', (
+    testWidgets('hub macro-card desktop affiancato e mobile sovrapposto', (
       tester,
     ) async {
       _surface(tester, size: const Size(320, 640));
@@ -596,6 +605,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      expect(find.byKey(quizStatisticsReviewHubMacroCardKey), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(quizStatisticsReviewHubMacroCardKey),
+          matching: find.byType(FittedBox),
+        ),
+        findsNothing,
+      );
+      expect(find.byType(VerticalDivider), findsNothing);
+      expect(find.byType(Divider), findsOneWidget);
       expect(find.text('Statistiche'), findsOneWidget);
       expect(find.text('Ripasso errori'), findsOneWidget);
 
@@ -605,7 +624,22 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byType(DashboardActionCard), findsNWidgets(2));
+      expect(find.byKey(quizStatisticsReviewHubMacroCardKey), findsOneWidget);
+      expect(find.byType(VerticalDivider), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(QuizStatisticsReviewHubPage),
+          matching: find.byType(DashboardActionCard),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(quizStatisticsReviewHubMacroCardKey),
+          matching: find.byType(FittedBox),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets(
