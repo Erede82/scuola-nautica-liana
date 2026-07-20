@@ -162,6 +162,64 @@ AssignedQuizSummary parseAssignedQuizSummary(Map<String, dynamic> json) {
     hasInProgressAttempt: parseAssignedQuizBool(
       json['has_in_progress_attempt'],
     ),
+    attemptsUsedCount: parseAssignedQuizInt(json['attempts_used_count']),
+  );
+}
+
+/// Aggrega tentativi per assignment e popola i campi summary usati dalla lista.
+///
+/// - [AssignedQuizSummary.hasInProgressAttempt]: esiste `in_progress`
+/// - [AssignedQuizSummary.submittedAttemptsCount]: solo `submitted`
+/// - [AssignedQuizSummary.attemptsUsedCount]: `in_progress` + `submitted` +
+///   `abandoned` (stessa semantica del limite RPC)
+List<AssignedQuizSummary> enrichAssignedQuizSummariesWithAttemptRows(
+  List<AssignedQuizSummary> summaries,
+  Iterable<Map<String, dynamic>> attemptRows,
+) {
+  final byAssignment = <String, List<AssignedQuizAttemptStatus>>{};
+  for (final row in attemptRows) {
+    final assignmentId = row['assignment_id']?.toString() ?? '';
+    if (assignmentId.isEmpty) continue;
+    final status = AssignedQuizAttemptStatus.tryParse(
+      row['status']?.toString(),
+    );
+    if (status == null) continue;
+    (byAssignment[assignmentId] ??= <AssignedQuizAttemptStatus>[]).add(status);
+  }
+
+  return summaries
+      .map((summary) {
+        final statuses = byAssignment[summary.id] ?? const [];
+        final submitted = statuses
+            .where((s) => s == AssignedQuizAttemptStatus.submitted)
+            .length;
+        final inProgress = statuses.any(
+          (s) => s == AssignedQuizAttemptStatus.inProgress,
+        );
+        return summary.copyWith(
+          hasInProgressAttempt: inProgress,
+          submittedAttemptsCount: submitted,
+          attemptsUsedCount: statuses.length,
+          attemptsCount: statuses.length,
+        );
+      })
+      .toList(growable: false);
+}
+
+/// Variante tipizzata per Fake / test a partire da [AssignedQuizAttemptSummary].
+List<AssignedQuizSummary> enrichAssignedQuizSummariesWithAttempts(
+  List<AssignedQuizSummary> summaries,
+  Iterable<AssignedQuizAttemptSummary> attempts,
+) {
+  return enrichAssignedQuizSummariesWithAttemptRows(
+    summaries,
+    attempts.map(
+      (a) => <String, dynamic>{
+        'assignment_id': a.assignmentId,
+        'status': a.status.dbValue,
+        'attempt_number': a.attemptNumber,
+      },
+    ),
   );
 }
 

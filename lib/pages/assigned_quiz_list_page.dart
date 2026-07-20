@@ -73,21 +73,25 @@ class AssignedQuizListPageState extends State<AssignedQuizListPage> {
   bool _limitReached(AssignedQuizSummary item) {
     if (item.repeatPolicy != AssignedQuizRepeatPolicy.limited) return false;
     final max = item.maxAttempts;
-    final used = item.submittedAttemptsCount;
+    // Slot usati come la RPC: in_progress + submitted + abandoned.
+    final used = item.attemptsUsedCount ?? item.submittedAttemptsCount;
     if (max == null || used == null) return false;
-    final inProgress = item.hasInProgressAttempt == true;
-    return used >= max && !inProgress;
+    return used >= max;
   }
 
   String _primaryCtaLabel(AssignedQuizSummary item) {
     if (_isExpired(item)) return 'Scaduto';
-    if (_limitReached(item)) return 'Tentativi terminati';
+    // Un in_progress resta riprendibile anche se è l’ultimo slot.
     if (item.hasInProgressAttempt == true) return 'Riprendi quiz';
+    if (_limitReached(item)) return 'Tentativi terminati';
     return 'Inizia quiz';
   }
 
   bool _canStart(AssignedQuizSummary item) {
-    if (_isExpired(item) || _limitReached(item)) return false;
+    if (_isExpired(item)) return false;
+    if (item.hasInProgressAttempt != true && _limitReached(item)) {
+      return false;
+    }
     if (StudentAreaContext.blocksWrites(context)) return false;
     // Con repository di produzione non configurato: nessuna azione reale.
     if (!SupabaseConfig.isConfigured && widget.repository == null) return false;

@@ -189,6 +189,57 @@ void main() {
       expect(summary.createdAt.isUtc, isTrue);
     });
 
+    test('enrich attempt rows: in_progress, submitted, slots, isolamento', () {
+      final base = AssignedQuizSummary(
+        id: 'a1',
+        publicCode: 'AQZ-a1',
+        studentId: 'st-1',
+        studentUserId: 'u-1',
+        licenseCategory: 'A12',
+        title: 'T',
+        status: AssignedQuizStatus.assigned,
+        questionCount: 5,
+        repeatPolicy: AssignedQuizRepeatPolicy.limited,
+        maxAttempts: 3,
+        createdAt: DateTime.utc(2026, 7, 1),
+      );
+      final other = base.copyWith(id: 'a2', publicCode: 'AQZ-a2');
+      final empty = base.copyWith(id: 'a3', publicCode: 'AQZ-a3');
+      final enriched = enrichAssignedQuizSummariesWithAttemptRows(
+        [base, other, empty],
+        [
+          {'assignment_id': 'a1', 'status': 'submitted', 'attempt_number': 1},
+          {'assignment_id': 'a1', 'status': 'in_progress', 'attempt_number': 2},
+          {'assignment_id': 'a1', 'status': 'abandoned', 'attempt_number': 3},
+          {'assignment_id': 'a2', 'status': 'submitted', 'attempt_number': 1},
+          {
+            'assignment_id': 'other',
+            'status': 'in_progress',
+            'attempt_number': 1,
+          },
+        ],
+      );
+      final a1 = enriched.firstWhere((s) => s.id == 'a1');
+      final a2 = enriched.firstWhere((s) => s.id == 'a2');
+      final a3 = enriched.firstWhere((s) => s.id == 'a3');
+      expect(a1.hasInProgressAttempt, isTrue);
+      expect(a1.submittedAttemptsCount, 1);
+      expect(a1.attemptsUsedCount, 3);
+      expect(a2.hasInProgressAttempt, isFalse);
+      expect(a2.submittedAttemptsCount, 1);
+      expect(a2.attemptsUsedCount, 1);
+      expect(a3.hasInProgressAttempt, isFalse);
+      expect(a3.submittedAttemptsCount, 0);
+      expect(a3.attemptsUsedCount, 0);
+    });
+
+    test('enrich lista vuota', () {
+      expect(
+        enrichAssignedQuizSummariesWithAttemptRows(const [], const []),
+        isEmpty,
+      );
+    });
+
     test('generation result', () {
       final result = parseAssignedQuizGenerationResult({
         'assignment_id': 'aq-1',

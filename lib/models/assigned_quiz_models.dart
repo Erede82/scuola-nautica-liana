@@ -28,6 +28,7 @@ class AssignedQuizSummary {
     this.bestScorePercentage,
     this.averageScorePercentage,
     this.hasInProgressAttempt,
+    this.attemptsUsedCount,
   });
 
   final String id;
@@ -54,6 +55,63 @@ class AssignedQuizSummary {
   final double? bestScorePercentage;
   final double? averageScorePercentage;
   final bool? hasInProgressAttempt;
+
+  /// Slot consumati per il limite RPC (`in_progress` + `submitted` + `abandoned`).
+  ///
+  /// Distinto da [submittedAttemptsCount], che conta solo i `submitted`.
+  final int? attemptsUsedCount;
+
+  AssignedQuizSummary copyWith({
+    String? id,
+    String? publicCode,
+    String? studentId,
+    String? studentUserId,
+    String? licenseCategory,
+    String? title,
+    String? staffNote,
+    AssignedQuizStatus? status,
+    int? questionCount,
+    AssignedQuizRepeatPolicy? repeatPolicy,
+    int? maxAttempts,
+    DateTime? createdAt,
+    DateTime? assignedAt,
+    DateTime? expiresAt,
+    DateTime? archivedAt,
+    int? attemptsCount,
+    int? submittedAttemptsCount,
+    DateTime? latestAttemptAt,
+    double? bestScorePercentage,
+    double? averageScorePercentage,
+    bool? hasInProgressAttempt,
+    int? attemptsUsedCount,
+  }) {
+    return AssignedQuizSummary(
+      id: id ?? this.id,
+      publicCode: publicCode ?? this.publicCode,
+      studentId: studentId ?? this.studentId,
+      studentUserId: studentUserId ?? this.studentUserId,
+      licenseCategory: licenseCategory ?? this.licenseCategory,
+      title: title ?? this.title,
+      staffNote: staffNote ?? this.staffNote,
+      status: status ?? this.status,
+      questionCount: questionCount ?? this.questionCount,
+      repeatPolicy: repeatPolicy ?? this.repeatPolicy,
+      maxAttempts: maxAttempts ?? this.maxAttempts,
+      createdAt: createdAt ?? this.createdAt,
+      assignedAt: assignedAt ?? this.assignedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      archivedAt: archivedAt ?? this.archivedAt,
+      attemptsCount: attemptsCount ?? this.attemptsCount,
+      submittedAttemptsCount:
+          submittedAttemptsCount ?? this.submittedAttemptsCount,
+      latestAttemptAt: latestAttemptAt ?? this.latestAttemptAt,
+      bestScorePercentage: bestScorePercentage ?? this.bestScorePercentage,
+      averageScorePercentage:
+          averageScorePercentage ?? this.averageScorePercentage,
+      hasInProgressAttempt: hasInProgressAttempt ?? this.hasInProgressAttempt,
+      attemptsUsedCount: attemptsUsedCount ?? this.attemptsUsedCount,
+    );
+  }
 }
 
 /// Richiesta generazione da errori storici (staff).

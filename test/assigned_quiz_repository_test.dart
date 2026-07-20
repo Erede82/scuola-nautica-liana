@@ -57,6 +57,31 @@ void main() {
       expect(repoSource, isNot(contains(".from('quiz_attempt_answers')")));
     });
 
+    test('loadMine arricchisce con query batch tentativi (no N+1)', () {
+      expect(
+        repoSource,
+        contains("select('assignment_id, status, attempt_number')"),
+      );
+      expect(repoSource, contains(".inFilter('assignment_id', assignmentIds)"));
+      expect(
+        repoSource,
+        contains('enrichAssignedQuizSummariesWithAttemptRows'),
+      );
+      final supabaseImpl = repoSource
+          .split('class AssignedQuizRepositorySupabase')
+          .last
+          .split('class AssignedQuizRepositoryFake')
+          .first;
+      expect(supabaseImpl, contains(".from('assigned_quizzes')"));
+      expect(supabaseImpl, contains(".from('assigned_quiz_attempts')"));
+      // Nessun loop per-assignment nella select tentativi di loadMine.
+      expect(supabaseImpl, isNot(contains('for (final assignmentId')));
+      final attemptsSelectCount = 'assignment_id, status, attempt_number'
+          .allMatches(supabaseImpl)
+          .length;
+      expect(attemptsSelectCount, 1);
+    });
+
     test('submit non invia risposte o punteggi', () {
       expect(repoSource, contains("'submit_assigned_quiz_attempt'"));
       expect(repoSource, contains("'p_attempt_id': attemptId"));
@@ -143,6 +168,137 @@ void main() {
       expect(updated.staffNote, isNull);
       expect(updated.expiresAt, isNull);
       expect(repo.lastMetadataPatch, isNotNull);
+    });
+  });
+
+  group('AssignedQuizRepositoryFake loadMine enrichment', () {
+    AssignedQuizSummary base({
+      required String id,
+      AssignedQuizStatus status = AssignedQuizStatus.assigned,
+    }) {
+      return AssignedQuizSummary(
+        id: id,
+        publicCode: 'AQZ-$id',
+        studentId: 'st-1',
+        studentUserId: 'u-1',
+        licenseCategory: 'A12',
+        title: 'T$id',
+        status: status,
+        questionCount: 5,
+        repeatPolicy: AssignedQuizRepeatPolicy.limited,
+        maxAttempts: 2,
+        createdAt: DateTime.utc(2026, 7, 1),
+        assignedAt: DateTime.utc(2026, 7, 2),
+      );
+    }
+
+    AssignedQuizAttemptSummary attempt({
+      required String id,
+      required String assignmentId,
+      required int number,
+      required AssignedQuizAttemptStatus status,
+    }) {
+      return AssignedQuizAttemptSummary(
+        id: id,
+        assignmentId: assignmentId,
+        attemptNumber: number,
+        status: status,
+        startedAt: DateTime.utc(2026, 7, 3),
+        correctCount: 0,
+        wrongCount: 0,
+        unansweredCount: 0,
+      );
+    }
+
+    test('senza tentativi lascia summary invariati', () async {
+      final repo = AssignedQuizRepositoryFake(summaries: [base(id: 'a1')]);
+      final mine = await repo.loadMine();
+      expect(mine.single.hasInProgressAttempt, isNull);
+      expect(mine.single.submittedAttemptsCount, isNull);
+      expect(mine.single.attemptsUsedCount, isNull);
+    });
+
+    test('lista vuota', () async {
+      final repo = AssignedQuizRepositoryFake();
+      expect(await repo.loadMine(), isEmpty);
+    });
+
+    test('mappa in_progress, submitted e slot usati per assignment', () async {
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          base(id: 'a1'),
+          base(id: 'a2'),
+        ],
+        attempts: [
+          attempt(
+            id: 't1',
+            assignmentId: 'a1',
+            number: 1,
+            status: AssignedQuizAttemptStatus.submitted,
+          ),
+          attempt(
+            id: 't2',
+            assignmentId: 'a1',
+            number: 2,
+            status: AssignedQuizAttemptStatus.inProgress,
+          ),
+          attempt(
+            id: 't3',
+            assignmentId: 'a2',
+            number: 1,
+            status: AssignedQuizAttemptStatus.abandoned,
+          ),
+        ],
+      );
+      final mine = await repo.loadMine();
+      final a1 = mine.firstWhere((s) => s.id == 'a1');
+      final a2 = mine.firstWhere((s) => s.id == 'a2');
+      expect(a1.hasInProgressAttempt, isTrue);
+      expect(a1.submittedAttemptsCount, 1);
+      expect(a1.attemptsUsedCount, 2);
+      expect(a2.hasInProgressAttempt, isFalse);
+      expect(a2.submittedAttemptsCount, 0);
+      expect(a2.attemptsUsedCount, 1);
+    });
+
+    test('tentativi di altre assegnazioni non contaminano', () async {
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [base(id: 'a1')],
+        attempts: [
+          attempt(
+            id: 'other',
+            assignmentId: 'other-id',
+            number: 1,
+            status: AssignedQuizAttemptStatus.inProgress,
+          ),
+        ],
+      );
+      final mine = await repo.loadMine();
+      expect(mine.single.hasInProgressAttempt, isNull);
+      expect(mine.single.attemptsUsedCount, isNull);
+    });
+
+    test('assegnazione senza tentativi tra altre con tentativi', () async {
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [
+          base(id: 'a1'),
+          base(id: 'a2'),
+        ],
+        attempts: [
+          attempt(
+            id: 't1',
+            assignmentId: 'a1',
+            number: 1,
+            status: AssignedQuizAttemptStatus.submitted,
+          ),
+        ],
+      );
+      final mine = await repo.loadMine();
+      expect(mine.firstWhere((s) => s.id == 'a1').submittedAttemptsCount, 1);
+      expect(
+        mine.firstWhere((s) => s.id == 'a2').submittedAttemptsCount,
+        isNull,
+      );
     });
   });
 }

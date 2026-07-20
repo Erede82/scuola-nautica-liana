@@ -25,6 +25,7 @@ AssignedQuizSummary _summary({
   int? submittedAttemptsCount,
   bool? hasInProgressAttempt,
   int? attemptsCount,
+  int? attemptsUsedCount,
   double? bestScorePercentage,
 }) {
   return AssignedQuizSummary(
@@ -45,6 +46,7 @@ AssignedQuizSummary _summary({
     submittedAttemptsCount: submittedAttemptsCount,
     hasInProgressAttempt: hasInProgressAttempt,
     attemptsCount: attemptsCount,
+    attemptsUsedCount: attemptsUsedCount,
     bestScorePercentage: bestScorePercentage,
   );
 }
@@ -191,6 +193,168 @@ void main() {
       await tester.tap(find.text('Riprendi quiz'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Riprendiamo il tentativo'), findsOneWidget);
+    });
+
+    testWidgets('CTA: nessun tentativo → Inizia quiz', (tester) async {
+      _surface(tester);
+      await tester.pumpWidget(
+        _list(
+          AssignedQuizRepositoryFake(
+            summaries: [_summary(id: 'a1', hasInProgressAttempt: false)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Inizia quiz'), findsOneWidget);
+      expect(find.text('Riprendi quiz'), findsNothing);
+    });
+
+    testWidgets('CTA: in_progress → Riprendi quiz', (tester) async {
+      _surface(tester);
+      await tester.pumpWidget(
+        _list(
+          AssignedQuizRepositoryFake(
+            summaries: [_summary(id: 'a1', hasInProgressAttempt: true)],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Riprendi quiz'), findsOneWidget);
+    });
+
+    testWidgets('CTA: ultimo slot in_progress → Riprendi, non terminati', (
+      tester,
+    ) async {
+      _surface(tester);
+      await tester.pumpWidget(
+        _list(
+          AssignedQuizRepositoryFake(
+            summaries: [
+              _summary(
+                id: 'a1',
+                repeat: AssignedQuizRepeatPolicy.limited,
+                maxAttempts: 2,
+                submittedAttemptsCount: 1,
+                attemptsUsedCount: 2,
+                hasInProgressAttempt: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Riprendi quiz'), findsOneWidget);
+      expect(find.text('Tentativi terminati'), findsNothing);
+    });
+
+    testWidgets('CTA: limite raggiunto senza in_progress → terminati', (
+      tester,
+    ) async {
+      _surface(tester);
+      await tester.pumpWidget(
+        _list(
+          AssignedQuizRepositoryFake(
+            summaries: [
+              _summary(
+                id: 'a1',
+                repeat: AssignedQuizRepeatPolicy.limited,
+                maxAttempts: 2,
+                submittedAttemptsCount: 1,
+                attemptsUsedCount: 2,
+                hasInProgressAttempt: false,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Tentativi terminati'), findsOneWidget);
+      expect(find.text('Riprendi quiz'), findsNothing);
+      expect(find.text('Inizia quiz'), findsNothing);
+    });
+
+    testWidgets('CTA: scaduto ha precedenza su in_progress', (tester) async {
+      _surface(tester);
+      await tester.pumpWidget(
+        _list(
+          AssignedQuizRepositoryFake(
+            summaries: [
+              _summary(
+                id: 'a1',
+                expiresAt: DateTime.utc(2020, 1, 1),
+                hasInProgressAttempt: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Scaduto'), findsWidgets);
+      expect(find.text('Riprendi quiz'), findsNothing);
+    });
+
+    testWidgets('Riprendi quiz usa startOrResume (RPC idempotente)', (
+      tester,
+    ) async {
+      _surface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [_summary(id: 'a1', hasInProgressAttempt: true)],
+        questions: _questions(),
+        startResult: const AssignedQuizAttemptStartResult(
+          attemptId: 'att-same',
+          attemptNumber: 2,
+          resumed: true,
+          questionCount: 3,
+          attemptsUsed: 2,
+        ),
+      );
+      await tester.pumpWidget(_list(repo));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Riprendi quiz'));
+      await tester.pumpAndSettle();
+      expect(repo.startOrResumeCalls, 1);
+      expect(find.byType(AssignedQuizPlayerPage), findsOneWidget);
+    });
+
+    testWidgets('ritorno dal player ricarica la lista', (tester) async {
+      _surface(tester);
+      final repo = AssignedQuizRepositoryFake(
+        summaries: [_summary(id: 'a1', hasInProgressAttempt: false)],
+        questions: _questions(),
+        startResult: const AssignedQuizAttemptStartResult(
+          attemptId: 'att-1',
+          attemptNumber: 1,
+          resumed: false,
+          questionCount: 3,
+          attemptsUsed: 1,
+        ),
+      );
+      await tester.pumpWidget(_list(repo));
+      await tester.pumpAndSettle();
+      expect(repo.loadMineCalls, 1);
+      await tester.tap(find.text('Inizia quiz'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AssignedQuizPlayerPage), findsOneWidget);
+      // Simula start: ora c’è in_progress in Fake.
+      repo.summaries = [_summary(id: 'a1', hasInProgressAttempt: true)];
+      repo.attempts = [
+        AssignedQuizAttemptSummary(
+          id: 'att-1',
+          assignmentId: 'a1',
+          attemptNumber: 1,
+          status: AssignedQuizAttemptStatus.inProgress,
+          startedAt: DateTime.utc(2026, 7, 4),
+          correctCount: 0,
+          wrongCount: 0,
+          unansweredCount: 0,
+        ),
+      ];
+      await tester.tap(find.byTooltip('Esci dal quiz'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Esci e riprendi più tardi'));
+      await tester.pumpAndSettle();
+      expect(repo.loadMineCalls, greaterThan(1));
+      expect(find.text('Riprendi quiz'), findsOneWidget);
     });
 
     testWidgets('lazy storico tentativi', (tester) async {

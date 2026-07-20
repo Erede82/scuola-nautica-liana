@@ -190,9 +190,21 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
           .eq('student_user_id', uid)
           .eq('status', AssignedQuizStatus.assigned.dbValue)
           .order('assigned_at', ascending: false);
-      return (res as List<dynamic>)
+      final summaries = (res as List<dynamic>)
           .map((row) => parseAssignedQuizSummary(requireAssignedQuizMap(row)))
           .toList(growable: false);
+      if (summaries.isEmpty) return summaries;
+
+      final assignmentIds = summaries.map((s) => s.id).toList(growable: false);
+      final attemptsRes = await _client
+          .from('assigned_quiz_attempts')
+          .select('assignment_id, status, attempt_number')
+          .eq('user_id', uid)
+          .inFilter('assignment_id', assignmentIds);
+      final attemptRows = (attemptsRes as List<dynamic>)
+          .map((row) => requireAssignedQuizMap(row))
+          .toList(growable: false);
+      return enrichAssignedQuizSummariesWithAttemptRows(summaries, attemptRows);
     } on AssignedQuizException {
       rethrow;
     } catch (error) {
@@ -560,9 +572,22 @@ class AssignedQuizRepositoryFake implements AssignedQuizRepository {
       await Future<void>.delayed(loadDelay);
     }
     if (throwOnLoadMine != null) throw throwOnLoadMine!;
-    return summaries
+    final base = summaries
         .where((s) => s.status == AssignedQuizStatus.assigned)
         .toList(growable: false);
+    if (attempts.isEmpty) return base;
+    // Arricchisci solo le assegnazioni che hanno tentativi nel Fake;
+    // le altre restano come in fixture (test UI).
+    final withAttempts = base
+        .where((s) => attempts.any((a) => a.assignmentId == s.id))
+        .toList(growable: false);
+    if (withAttempts.isEmpty) return base;
+    final enriched = enrichAssignedQuizSummariesWithAttempts(
+      withAttempts,
+      attempts,
+    );
+    final byId = {for (final s in enriched) s.id: s};
+    return base.map((s) => byId[s.id] ?? s).toList(growable: false);
   }
 
   @override
