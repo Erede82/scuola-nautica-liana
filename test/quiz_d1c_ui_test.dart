@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/domain/exam_error_review.dart';
 import 'package:scuola_nautica_liana/domain/quiz_sheet_player_navigation.dart';
+import 'package:scuola_nautica_liana/domain/exam_quiz_attempt_models.dart';
+import 'package:scuola_nautica_liana/domain/exam_quiz_rules.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_question.dart';
 import 'package:scuola_nautica_liana/pages/quiz_exam_error_review_page.dart';
 import 'package:scuola_nautica_liana/pages/quiz_exam_player_page.dart';
+import 'package:scuola_nautica_liana/repositories/exam_quiz_attempt_repository.dart';
 import 'package:scuola_nautica_liana/widgets/nautical_answer_marker.dart';
 import 'package:scuola_nautica_liana/widgets/quiz_question_progress_strip.dart';
 import 'package:scuola_nautica_liana/widgets/quiz_question_prompt_panel.dart';
@@ -24,13 +27,35 @@ QuizQuestion _question(int n) => QuizQuestion(
 Future<void> _pumpExamPlayer(
   WidgetTester tester, {
   int questionCount = 2,
+  ExamQuizAttemptRepository? repository,
 }) async {
   final questions = List.generate(questionCount, _question);
+  final repo =
+      repository ??
+      ExamQuizAttemptRepositoryFake(
+        submitResult: ExamQuizAttemptSubmitResult(
+          idempotent: false,
+          attempt: ExamQuizAttemptSummary(
+            id: 'att-test',
+            licenseCategory: LicenseCategoryId.motore,
+            completedAt: DateTime.utc(2026, 7, 24),
+            duration: const Duration(minutes: 10),
+            timeExpired: false,
+            totalQuestions: questionCount,
+            correctCount: 0,
+            wrongCount: questionCount,
+            unansweredCount: 0,
+            outcome: ExamQuizOutcome.failed,
+          ),
+        ),
+      );
   await tester.pumpWidget(
     MaterialApp(
       home: QuizExamPlayerPage(
         categoryId: LicenseCategoryId.motore,
         questions: questions,
+        clientAttemptToken: 'test-token',
+        repository: repo,
       ),
     ),
   );
@@ -154,10 +179,14 @@ void main() {
     testWidgets('Vedi riepilogo nel dialog apre il riepilogo finale', (
       tester,
     ) async {
-      await _pumpExamPlayer(tester, questionCount: 2);
+      await _pumpExamPlayer(tester, questionCount: 20);
 
       await tester.tap(find.byTooltip('Domanda successiva'));
       await tester.pumpAndSettle();
+      for (var i = 0; i < 18; i++) {
+        await tester.tap(find.byTooltip('Domanda successiva'));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.text('Vedi riepilogo'));
       await tester.pumpAndSettle();
       await tester.tap(

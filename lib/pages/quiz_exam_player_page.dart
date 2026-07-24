@@ -6,11 +6,16 @@ import 'package:flutter/material.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../domain/exam_error_review.dart';
 import '../domain/exam_question_selection.dart';
+import '../domain/exam_quiz_attempt_exception.dart';
+import '../domain/exam_quiz_attempt_submission.dart';
+import '../domain/exam_quiz_client_token.dart';
 import '../domain/exam_quiz_rules.dart';
+import '../domain/quiz_sheet_exit_policy.dart';
 import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
 import '../pages/quiz_exam_error_review_page.dart';
+import '../repositories/exam_quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_progress_strip.dart';
@@ -24,16 +29,20 @@ const String kExamRestartSimulationResult = 'restart_exam_simulation';
 /// Risultato [Navigator.pop] per tornare alla home Quiz (dashboard 4 card).
 const String kExamExitToQuizHomeResult = 'exit_to_quiz_home';
 
-/// Player simulazione esame con domande reali (nessun salvataggio DB in P9C.4-A).
+/// Player simulazione esame con submit persistente (P9E.5-A).
 class QuizExamPlayerPage extends StatefulWidget {
   const QuizExamPlayerPage({
     super.key,
     required this.categoryId,
     required this.questions,
+    required this.clientAttemptToken,
+    this.repository,
   });
 
   final LicenseCategoryId categoryId;
   final List<QuizQuestion> questions;
+  final String clientAttemptToken;
+  final ExamQuizAttemptRepository? repository;
 
   @override
   State<QuizExamPlayerPage> createState() => _QuizExamPlayerPageState();
@@ -52,17 +61,29 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
 
   late List<QuizAnswerOption?> _userAnswers;
   late Duration _remaining;
+  late final ExamQuizAttemptRepository _repository;
+  late final DateTime _startedAt;
   Timer? _timer;
   int _currentIndex = 0;
   bool _showSummary = false;
   ExamQuizSummary? _summary;
+  bool _isSubmitting = false;
+  bool _submitSucceeded = false;
+  String? _submitErrorMessage;
+  ExamQuizAttemptSubmission? _pendingSubmission;
+
+  /// Conservato per P9E.5-B (riapertura risultato).
+  String? get completedAttemptId => _completedAttemptId;
+  String? _completedAttemptId;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? examQuizAttemptRepository;
+    _startedAt = DateTime.now();
     qfLog(
       'route: QuizExamPlayerPage init categoryId=${widget.categoryId} '
-      'questions=${widget.questions.length}',
+      'questions=${widget.questions.length} token=${widget.clientAttemptToken}',
     );
     _userAnswers = List<QuizAnswerOption?>.filled(
       widget.questions.length,
@@ -73,7 +94,12 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
   }
 
   void _onTimerTick(Timer timer) {
-    if (!mounted || _showSummary) return;
+    if (!mounted ||
+        _showSummary ||
+        _isSubmitting ||
+        _pendingSubmission != null) {
+      return;
+    }
     if (_remaining.inSeconds <= 1) {
       setState(() => _remaining = Duration.zero);
       _finishExam(timeExpired: true);
@@ -94,33 +120,16 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
 
   QuizAnswerOption? get _selectedAnswer => _userAnswers[_currentIndex];
 
-  int get _correctCount {
-    var n = 0;
-    for (var i = 0; i < widget.questions.length; i++) {
-      final answer = _userAnswers[i];
-      if (answer != null && answer == widget.questions[i].correctOption) {
-        n++;
-      }
-    }
-    return n;
-  }
-
-  int get _wrongCount {
-    var n = 0;
-    for (var i = 0; i < widget.questions.length; i++) {
-      final answer = _userAnswers[i];
-      if (answer != null && answer != widget.questions[i].correctOption) {
-        n++;
-      }
-    }
-    return n;
-  }
-
   int get _unansweredCount =>
       _userAnswers.where((answer) => answer == null).length;
 
   void _selectAnswer(QuizAnswerOption option) {
-    if (_showSummary) return;
+    if (_showSummary ||
+        _isSubmitting ||
+        _submitSucceeded ||
+        _pendingSubmission != null) {
+      return;
+    }
     setState(() => _userAnswers[_currentIndex] = option);
   }
 
@@ -140,6 +149,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
   }
 
   Future<void> _completeExamFlow() async {
+    if (_isSubmitting || _submitSucceeded) return;
     final unanswered = _unansweredCount;
     if (unanswered > 0) {
       final proceed = await showDialog<bool>(
@@ -174,26 +184,118 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
       }
     }
 
-    _finishExam(timeExpired: false);
+    await _finishExam(timeExpired: false);
   }
 
-  void _finishExam({required bool timeExpired}) {
-    _timer?.cancel();
-    final summary = buildExamQuizSummary(
-      totalQuestions: widget.questions.length,
-      correctCount: _correctCount,
-      wrongCount: _wrongCount,
-      unansweredCount: _unansweredCount,
+  bool get _allowsImmediatePop =>
+      _submitSucceeded || allowsImmediateQuizSheetExit(_userAnswers);
+
+  Future<bool> _confirmLeaveExam() async {
+    if (_allowsImmediatePop) return true;
+
+    final leave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Uscire dalla simulazione?'),
+        content: const Text(
+          'Hai risposto ad alcune domande ma non hai completato la simulazione. '
+          'Se esci ora, le risposte non verranno salvate.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Resta nella simulazione'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Esci senza salvare'),
+          ),
+        ],
+      ),
     );
-    qfLog(
-      'QuizExamPlayer: summary correct=${summary.correctCount} '
-      'errors=${summary.errorCount} outcome=${summary.outcome}'
-      '${timeExpired ? ' (time expired)' : ''}',
-    );
+    return leave == true;
+  }
+
+  Future<void> _finishExam({required bool timeExpired}) async {
+    if (_isSubmitting || _submitSucceeded) return;
+
+    _pendingSubmission ??= () {
+      _timer?.cancel();
+      final duration = DateTime.now().difference(_startedAt);
+      return buildExamQuizAttemptSubmission(
+        licenseCategory: widget.categoryId,
+        clientAttemptToken: widget.clientAttemptToken,
+        duration: duration,
+        timeExpired: timeExpired,
+        questions: widget.questions,
+        userAnswers: _userAnswers,
+      );
+    }();
+
+    await _submitPending();
+  }
+
+  Future<void> _submitPending() async {
+    if (_isSubmitting || _submitSucceeded || _pendingSubmission == null) {
+      return;
+    }
+
     setState(() {
-      _showSummary = true;
-      _summary = summary;
+      _isSubmitting = true;
+      _submitErrorMessage = null;
     });
+
+    try {
+      final result = await _repository.submitAttempt(_pendingSubmission!);
+      if (!mounted) return;
+
+      final attempt = result.attempt;
+      final summary = buildExamQuizSummary(
+        totalQuestions: attempt.totalQuestions,
+        correctCount: attempt.correctCount,
+        wrongCount: attempt.wrongCount,
+        unansweredCount: attempt.unansweredCount,
+      );
+
+      qfLog(
+        'QuizExamPlayer: submit ok attemptId=${attempt.id} '
+        'idempotent=${result.idempotent} correct=${summary.correctCount} '
+        'errors=${summary.errorCount} outcome=${summary.outcome}'
+        '${_pendingSubmission!.timeExpired ? ' (time expired)' : ''}',
+      );
+
+      setState(() {
+        _isSubmitting = false;
+        _submitSucceeded = true;
+        _showSummary = true;
+        _summary = summary;
+        _completedAttemptId = attempt.id;
+      });
+    } on ExamQuizAttemptException catch (error) {
+      if (!mounted) return;
+      qfLog('QuizExamPlayer: submit error code=${error.code}');
+      setState(() {
+        _isSubmitting = false;
+        _submitErrorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      qfLog('QuizExamPlayer: submit unknown error $error');
+      setState(() {
+        _isSubmitting = false;
+        _submitErrorMessage = examQuizAttemptErrorMessageIt(
+          ExamQuizAttemptErrorCode.unknown,
+        );
+      });
+    }
+  }
+
+  Future<void> _retrySubmit() async {
+    if (_pendingSubmission == null || _isSubmitting || _submitSucceeded) {
+      return;
+    }
+    await _submitPending();
   }
 
   void _openErrorReview() {
@@ -216,136 +318,189 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
     final compact = MediaQuery.sizeOf(context).width < 600;
 
     if (_showSummary && _summary != null) {
-      return _buildSummaryScaffold(context, textTheme, _summary!);
+      return PopScope(
+        canPop: true,
+        child: _buildSummaryScaffold(context, textTheme, _summary!),
+      );
+    }
+
+    if (_isSubmitting) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (_, _) {},
+        child: Scaffold(
+          backgroundColor: _backgroundColor,
+          appBar: AppBar(
+            backgroundColor: _primaryColor,
+            foregroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            title: const Text('Simulazione esame'),
+            centerTitle: true,
+            actions: const [StaffPreviewAppBarBadge()],
+          ),
+          body: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Salvataggio risultato…'),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     final question = _currentQuestion;
     final selected = _selectedAnswer;
 
-    return Scaffold(
-      backgroundColor: _backgroundColor,
-      appBar: AppBar(
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
-        title: const Text('Simulazione esame'),
-        centerTitle: true,
-        actions: [
-          const StaffPreviewAppBarBadge(),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: Text(
-                formatExamDurationMmSs(_remaining),
-                style: textTheme.titleSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
+    return PopScope(
+      canPop: _allowsImmediatePop,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || _isSubmitting) return;
+        final leave = await _confirmLeaveExam();
+        if (leave && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          title: const Text('Simulazione esame'),
+          centerTitle: true,
+          actions: [
+            const StaffPreviewAppBarBadge(),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(
+                child: Text(
+                  formatExamDurationMmSs(_remaining),
+                  style: textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _ExamProgressPanel(
-            currentIndex: _currentIndex,
-            total: widget.questions.length,
-            isAnswered: (index) => QuizSheetPlayerNavigation.isQuestionAnswered(
-              _userAnswers,
-              index,
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _neutralColor),
-                    ),
-                    child: QuizQuestionPromptPanel(
-                      questionNumber: _currentIndex + 1,
-                      prompt: question.prompt,
-                      imagePath: question.imagePath,
-                      compact: compact,
-                      labelColor: _primaryColor,
-                      textColor: _textPrimaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...question.options.map(
-                    (option) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _ExamAnswerTile(
-                        answerNumber: option.index + 1,
-                        text: question.textForOption(option),
-                        selected: selected == option,
-                        compact: compact,
-                        onTap: () => _selectAnswer(option),
-                      ),
-                    ),
+          ],
+        ),
+        body: Column(
+          children: [
+            if (_submitErrorMessage != null)
+              MaterialBanner(
+                content: Text(_submitErrorMessage!),
+                leading: const Icon(Icons.error_outline),
+                actions: [
+                  TextButton(
+                    onPressed: _retrySubmit,
+                    child: const Text('Riprova'),
                   ),
                 ],
               ),
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  IconButton.filledTonal(
-                    onPressed: _currentIndex > 0 ? _goBack : null,
-                    icon: const Icon(Icons.chevron_left_rounded),
-                    tooltip: 'Domanda precedente',
+            _ExamProgressPanel(
+              currentIndex: _currentIndex,
+              total: widget.questions.length,
+              isAnswered: (index) =>
+                  QuizSheetPlayerNavigation.isQuestionAnswered(
+                    _userAnswers,
+                    index,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _neutralColor),
+                      ),
+                      child: QuizQuestionPromptPanel(
+                        questionNumber: _currentIndex + 1,
+                        prompt: question.prompt,
+                        imagePath: question.imagePath,
+                        compact: compact,
+                        labelColor: _primaryColor,
+                        textColor: _textPrimaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...question.options.map(
+                      (option) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _ExamAnswerTile(
+                          answerNumber: option.index + 1,
+                          text: question.textForOption(option),
+                          selected: selected == option,
+                          compact: compact,
+                          onTap: () => _selectAnswer(option),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Row(
+                  children: [
+                    IconButton.filledTonal(
+                      onPressed: _currentIndex > 0 ? _goBack : null,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      tooltip: 'Domanda precedente',
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed:
+                            QuizSheetPlayerNavigation.canGoForward(
+                              currentIndex: _currentIndex,
+                              questionCount: widget.questions.length,
+                            )
+                            ? _goForward
+                            : _completeExamFlow,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          QuizSheetPlayerNavigation.examPrimaryButtonLabel(
+                            currentIndex: _currentIndex,
+                            questionCount: widget.questions.length,
+                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
                       onPressed:
                           QuizSheetPlayerNavigation.canGoForward(
                             currentIndex: _currentIndex,
                             questionCount: widget.questions.length,
                           )
                           ? _goForward
-                          : _completeExamFlow,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        QuizSheetPlayerNavigation.examPrimaryButtonLabel(
-                          currentIndex: _currentIndex,
-                          questionCount: widget.questions.length,
-                        ),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                          : null,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      tooltip: 'Domanda successiva',
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed:
-                        QuizSheetPlayerNavigation.canGoForward(
-                          currentIndex: _currentIndex,
-                          questionCount: widget.questions.length,
-                        )
-                        ? _goForward
-                        : null,
-                    icon: const Icon(Icons.chevron_right_rounded),
-                    tooltip: 'Domanda successiva',
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -618,11 +773,15 @@ Future<void> startExamSimulation({
       return;
     }
 
+    final clientAttemptToken = generateExamClientAttemptToken();
     final result = await Navigator.push<String?>(
       context,
       MaterialPageRoute<String?>(
-        builder: (_) =>
-            QuizExamPlayerPage(categoryId: categoryId, questions: questions),
+        builder: (_) => QuizExamPlayerPage(
+          categoryId: categoryId,
+          questions: questions,
+          clientAttemptToken: clientAttemptToken,
+        ),
       ),
     );
 
