@@ -29,6 +29,20 @@ const String kExamRestartSimulationResult = 'restart_exam_simulation';
 /// Risultato [Navigator.pop] per tornare alla home Quiz (dashboard 4 card).
 const String kExamExitToQuizHomeResult = 'exit_to_quiz_home';
 
+/// Prefisso pop result: tentativo completato e salvato (`suffix` = attemptId).
+const String kExamAttemptCompletedPrefix = 'exam_attempt_completed:';
+
+String examAttemptCompletedPopResult(String attemptId) =>
+    '$kExamAttemptCompletedPrefix$attemptId';
+
+bool isExamAttemptCompletedPopResult(String? value) =>
+    value != null && value.startsWith(kExamAttemptCompletedPrefix);
+
+String? attemptIdFromExamCompletedPopResult(String? value) {
+  if (!isExamAttemptCompletedPopResult(value)) return null;
+  return value!.substring(kExamAttemptCompletedPrefix.length);
+}
+
 /// Player simulazione esame con submit persistente (P9E.5-A).
 class QuizExamPlayerPage extends StatefulWidget {
   const QuizExamPlayerPage({
@@ -319,7 +333,16 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
 
     if (_showSummary && _summary != null) {
       return PopScope(
-        canPop: true,
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          final attemptId = _completedAttemptId;
+          if (attemptId != null) {
+            Navigator.pop(context, examAttemptCompletedPopResult(attemptId));
+          } else {
+            Navigator.pop(context);
+          }
+        },
         child: _buildSummaryScaffold(context, textTheme, _summary!),
       );
     }
@@ -739,13 +762,19 @@ class _SummaryRow extends StatelessWidget {
 }
 
 /// Carica e avvia simulazione esame per la categoria indicata.
-Future<void> startExamSimulation({
+///
+/// Restituisce `true` se almeno un tentativo è stato completato e salvato
+/// nella sessione (per refresh storico sulla landing).
+Future<bool> startExamSimulation({
   required BuildContext context,
   required LicenseCategoryId categoryId,
+  ExamQuizAttemptRepository? repository,
 }) async {
   final dbCategory = categoryId == LicenseCategoryId.motore ? 'A12' : 'D1';
   final quotas = examTopicQuotasForCategory(dbCategory);
-  if (quotas == null) return;
+  if (quotas == null) return false;
+
+  var completedInSession = false;
 
   while (context.mounted) {
     final pool = await studentQuizRepository.fetchExamQuestionsByTopic(
@@ -758,7 +787,7 @@ Future<void> startExamSimulation({
       random: Random(),
     );
 
-    if (!context.mounted) return;
+    if (!context.mounted) return completedInSession;
 
     if (questions.length < ExamQuizRules.questionCount) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -770,7 +799,7 @@ Future<void> startExamSimulation({
           behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
+      return completedInSession;
     }
 
     final clientAttemptToken = generateExamClientAttemptToken();
@@ -781,15 +810,27 @@ Future<void> startExamSimulation({
           categoryId: categoryId,
           questions: questions,
           clientAttemptToken: clientAttemptToken,
+          repository: repository,
         ),
       ),
     );
 
     if (result == kExamExitToQuizHomeResult) {
       if (context.mounted) Navigator.pop(context);
-      return;
+      return completedInSession;
     }
 
-    if (result != kExamRestartSimulationResult) return;
+    if (result == kExamRestartSimulationResult) {
+      completedInSession = true;
+      continue;
+    }
+
+    if (isExamAttemptCompletedPopResult(result)) {
+      return true;
+    }
+
+    return completedInSession;
   }
+
+  return completedInSession;
 }

@@ -2,21 +2,31 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/exam_quiz_attempt_exception.dart';
+import '../domain/exam_quiz_attempt_models.dart';
 import '../domain/exam_quiz_rules.dart';
 import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/license_models.dart';
+import '../repositories/exam_quiz_attempt_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/category_content_state.dart';
+import '../widgets/exam_quiz_attempt_card.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
+import 'quiz_exam_attempt_detail_page.dart';
 import 'quiz_exam_player_page.dart';
 import '../theme/app_visual_tokens.dart';
 
 class QuizExamPage extends StatefulWidget {
-  const QuizExamPage({super.key, this.categoryId = LicenseCategoryId.motore});
+  const QuizExamPage({
+    super.key,
+    this.categoryId = LicenseCategoryId.motore,
+    this.repository,
+  });
 
   final LicenseCategoryId categoryId;
+  final ExamQuizAttemptRepository? repository;
 
   @override
   State<QuizExamPage> createState() => _QuizExamPageState();
@@ -27,12 +37,51 @@ class _QuizExamPageState extends State<QuizExamPage> {
   static const Color _backgroundColor = AppVisual.canvas;
   static const Color _textPrimaryColor = AppVisual.ink;
 
+  late final ExamQuizAttemptRepository _repository;
   bool _startingExam = false;
+  bool _loadingAttempts = true;
+  String? _attemptsError;
+  List<ExamQuizAttemptSummary> _attempts = const [];
+  int _loadGen = 0;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? examQuizAttemptRepository;
     qfLog('route: QuizExamPage init categoryId=${widget.categoryId}');
+    _loadAttempts();
+  }
+
+  Future<void> _loadAttempts() async {
+    final gen = ++_loadGen;
+    setState(() {
+      _loadingAttempts = true;
+      _attemptsError = null;
+    });
+    try {
+      final list = await _repository.fetchCurrentUserAttempts(
+        category: widget.categoryId,
+      );
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _attempts = list;
+        _loadingAttempts = false;
+      });
+    } on ExamQuizAttemptException catch (error) {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _attemptsError = error.message;
+        _loadingAttempts = false;
+      });
+    } catch (_) {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _attemptsError = examQuizAttemptErrorMessageIt(
+          ExamQuizAttemptErrorCode.unknown,
+        );
+        _loadingAttempts = false;
+      });
+    }
   }
 
   Future<void> _onStartSimulation() async {
@@ -42,20 +91,41 @@ class _QuizExamPageState extends State<QuizExamPage> {
       'QuizExamPage: tap Avvia simulazione categoryId=${widget.categoryId}',
     );
     try {
-      await startExamSimulation(
+      final completedInSession = await startExamSimulation(
         context: context,
         categoryId: widget.categoryId,
+        repository: _repository,
       );
+      if (completedInSession && mounted) {
+        await _loadAttempts();
+      }
     } finally {
       if (mounted) setState(() => _startingExam = false);
     }
   }
 
+  Future<void> _openAttemptDetail(ExamQuizAttemptSummary attempt) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => QuizExamAttemptDetailPage(
+          attemptId: attempt.id,
+          categoryId: widget.categoryId,
+          repository: _repository,
+          onStartNewSimulation: () {
+            Navigator.of(context).pop();
+            _onStartSimulation();
+          },
+        ),
+      ),
+    );
+    if (mounted) await _loadAttempts();
+  }
+
   Widget _motoreExamBody(TextTheme textTheme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return RefreshIndicator(
+      onRefresh: _loadAttempts,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
         children: [
           Text(
             'Simulazione esame',
@@ -97,6 +167,54 @@ class _QuizExamPageState extends State<QuizExamPage> {
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
+          const SizedBox(height: 28),
+          Text(
+            'Tentativi svolti',
+            style: textTheme.titleMedium?.copyWith(
+              color: _textPrimaryColor,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_loadingAttempts)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_attemptsError != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _attemptsError!,
+                  style: textTheme.bodyMedium?.copyWith(color: AppVisual.error),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: _loadAttempts,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Riprova'),
+                ),
+              ],
+            )
+          else if (_attempts.isEmpty)
+            Text(
+              'Non hai ancora completato simulazioni esame in questa categoria.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppVisual.inkMuted,
+                height: 1.35,
+              ),
+            )
+          else
+            ..._attempts.map(
+              (attempt) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ExamQuizAttemptCard(
+                  attempt: attempt,
+                  onOpen: () => _openAttemptDetail(attempt),
+                ),
+              ),
+            ),
         ],
       ),
     );
