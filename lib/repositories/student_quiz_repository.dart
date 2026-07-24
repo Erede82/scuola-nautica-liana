@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../data/quiz_question_mapper.dart';
 import '../data/supabase/dto/question_row.dart';
+import '../data/supabase/quiz_attempt_history_data_source.dart';
+import '../data/supabase/supabase_select_pagination.dart';
 import '../models/lesson_quiz_sheet_content.dart';
 import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
@@ -40,10 +42,17 @@ abstract class StudentQuizRepository {
 }
 
 class StudentQuizRepositorySupabase implements StudentQuizRepository {
-  StudentQuizRepositorySupabase._();
+  StudentQuizRepositorySupabase._({
+    QuizAttemptHistoryDataSource? attemptHistory,
+  }) : _attemptHistory = attemptHistory;
 
   static final StudentQuizRepositorySupabase instance =
       StudentQuizRepositorySupabase._();
+
+  final QuizAttemptHistoryDataSource? _attemptHistory;
+
+  QuizAttemptHistoryDataSource get _history =>
+      _attemptHistory ?? quizAttemptHistoryDataSource;
 
   SupabaseClient get _client {
     if (!SupabaseConfig.isConfigured) {
@@ -186,15 +195,21 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
       );
     }
 
-    final resultsRes = await _client
-        .from('quiz_results')
-        .select('id, quiz_set_id, total_questions')
-        .eq('user_id', userId)
-        .inFilter('quiz_set_id', quizSetIdBySheet.values.toList());
+    // Paginazione: lezioni lunghe (es. 36 schede) × ripassi superano il
+    // tetto silenzioso PostgREST (1000) sulle risposte (~20/scheda).
+    final resultsRes = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from('quiz_results')
+          .select('id, quiz_set_id, total_questions')
+          .eq('user_id', userId)
+          .inFilter('quiz_set_id', quizSetIdBySheet.values.toList())
+          .order('id')
+          .range(from, to);
+    });
 
     final attempts = <LessonQuizResultAttempt>[];
     final resultIds = <String>[];
-    for (final row in resultsRes as List<dynamic>) {
+    for (final row in resultsRes) {
       final map = Map<String, dynamic>.from(row as Map);
       final id = map['id']?.toString();
       final quizSetId = map['quiz_set_id']?.toString();
@@ -212,21 +227,12 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
       resultIds.add(id);
     }
 
-    final answerCountByResultId = <String, int>{};
-    if (resultIds.isNotEmpty) {
-      final answersRes = await _client
-          .from('quiz_attempt_answers')
-          .select('quiz_result_id')
-          .inFilter('quiz_result_id', resultIds);
-
-      for (final row in answersRes as List<dynamic>) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final resultId = map['quiz_result_id']?.toString();
-        if (resultId == null || resultId.isEmpty) continue;
-        answerCountByResultId[resultId] =
-            (answerCountByResultId[resultId] ?? 0) + 1;
-      }
-    }
+    final answerCountByResultId = resultIds.isEmpty
+        ? const <String, int>{}
+        : await _history.fetchAnswerCountsByResultIds(
+            userId: userId,
+            quizResultIds: resultIds,
+          );
 
     final completedQuizSetIds = completedQuizSetIdsFromAttempts(
       results: attempts,
