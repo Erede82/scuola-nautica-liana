@@ -64,18 +64,15 @@ Future<void> _pumpExamPlayer(
 
 void main() {
   group('QuizSheetPlayerNavigation D1C', () {
-    test(
-      'examPrimaryButtonLabel mostra Vedi riepilogo sull’ultima domanda',
-      () {
-        expect(
-          QuizSheetPlayerNavigation.examPrimaryButtonLabel(
-            currentIndex: 19,
-            questionCount: 20,
-          ),
-          'Vedi riepilogo',
-        );
-      },
-    );
+    test('ultima domanda: canGoForward false abilita conclusione esame', () {
+      expect(
+        QuizSheetPlayerNavigation.canGoForward(
+          currentIndex: 19,
+          questionCount: 20,
+        ),
+        isFalse,
+      );
+    });
 
     test('isQuestionAnswered distingue risposte e gap', () {
       final answers = <QuizAnswerOption?>[QuizAnswerOption.a, null];
@@ -140,7 +137,8 @@ void main() {
           .where((button) => button.tooltip == 'Domanda successiva');
       expect(forwardButtons, hasLength(1));
       expect(forwardButtons.first.onPressed, isNull);
-      expect(find.text('Vedi riepilogo'), findsOneWidget);
+      expect(find.text('Termina esame'), findsOneWidget);
+      expect(find.text('Vedi riepilogo'), findsNothing);
       expect(find.text('Riepilogo esame'), findsNothing);
     });
 
@@ -151,24 +149,35 @@ void main() {
 
       await tester.tap(find.byTooltip('Domanda successiva'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(QuizExamPlayerPage),
+          matching: find.widgetWithText(FilledButton, 'Termina esame'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Domande non completate'), findsOneWidget);
-      expect(find.text('Ricontrolla'), findsOneWidget);
-      expect(find.text('Vedi riepilogo'), findsWidgets);
+      expect(find.text('Indietro'), findsOneWidget);
+      expect(find.text('Termina esame'), findsNWidgets(2));
+      expect(find.text('Vedi riepilogo'), findsNothing);
     });
 
-    testWidgets('Ricontrolla nel dialog non chiude la simulazione', (
+    testWidgets('Indietro nel dialog non chiude la simulazione', (
       tester,
     ) async {
       await _pumpExamPlayer(tester, questionCount: 2);
 
       await tester.tap(find.byTooltip('Domanda successiva'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(QuizExamPlayerPage),
+          matching: find.widgetWithText(FilledButton, 'Termina esame'),
+        ),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Ricontrolla'));
+      await tester.tap(find.text('Indietro'));
       await tester.pumpAndSettle();
 
       expect(find.text('Simulazione esame'), findsOneWidget);
@@ -176,7 +185,7 @@ void main() {
       expect(find.text('Riepilogo esame'), findsNothing);
     });
 
-    testWidgets('Vedi riepilogo nel dialog apre il riepilogo finale', (
+    testWidgets('Termina esame nel dialog apre il riepilogo finale', (
       tester,
     ) async {
       await _pumpExamPlayer(tester, questionCount: 20);
@@ -187,13 +196,18 @@ void main() {
         await tester.tap(find.byTooltip('Domanda successiva'));
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(QuizExamPlayerPage),
+          matching: find.widgetWithText(FilledButton, 'Termina esame'),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(
         find
             .descendant(
               of: find.byType(AlertDialog),
-              matching: find.text('Vedi riepilogo'),
+              matching: find.text('Termina esame'),
             )
             .last,
       );

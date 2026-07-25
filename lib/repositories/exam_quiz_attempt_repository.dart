@@ -1,13 +1,87 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../data/supabase/mappers/exam_quiz_attempt_mapper.dart';
+import '../debug/quiz_flow_debug.dart';
 import '../domain/exam_quiz_attempt_exception.dart';
 import '../domain/exam_quiz_attempt_models.dart';
 import '../domain/exam_quiz_attempt_result.dart';
 import '../domain/exam_quiz_attempt_submission.dart';
 import '../domain/quiz_license_category.dart';
 import '../models/license_models.dart';
+
+/// Nome RPC submit tentativo esame Quiz.
+const examQuizAttemptSubmitRpcName = 'submit_exam_quiz_attempt';
+
+/// Chiavi attese del payload client verso [examQuizAttemptSubmitRpcName].
+const examQuizAttemptSubmitRpcParamKeys = {
+  'p_client_attempt_token',
+  'p_license_category',
+  'p_duration_seconds',
+  'p_time_expired',
+  'p_answers',
+};
+
+/// Etichetta tipo Dart per log diagnostico (nessun valore sensibile).
+String examQuizAttemptRpcParamTypeLabel(Object? value) {
+  if (value == null) return 'null';
+  if (value is String) return 'String';
+  if (value is int) return 'int';
+  if (value is bool) return 'bool';
+  if (value is List) return 'List';
+  return value.runtimeType.toString();
+}
+
+/// Verifica che il payload RPC contenga esattamente le chiavi attese.
+void validateExamQuizAttemptSubmitRpcParams(Map<String, dynamic> params) {
+  final keys = params.keys.toSet();
+  if (keys.length == examQuizAttemptSubmitRpcParamKeys.length &&
+      examQuizAttemptSubmitRpcParamKeys.every(keys.contains)) {
+    return;
+  }
+
+  final missing = examQuizAttemptSubmitRpcParamKeys.difference(keys);
+  final unexpected = keys.difference(examQuizAttemptSubmitRpcParamKeys);
+  if (kDebugMode) {
+    qfLog(
+      'ExamQuizAttempt RPC params mismatch '
+      'missing=$missing unexpected=$unexpected',
+    );
+  }
+  throw const ExamQuizAttemptException(
+    code: ExamQuizAttemptErrorCode.invalidPayload,
+    message: 'Parametri RPC submit esame non validi.',
+  );
+}
+
+/// Log diagnostico pre-RPC: solo nomi chiavi e tipi Dart (no valori).
+void debugLogExamQuizAttemptSubmitRpcRequest(Map<String, dynamic> params) {
+  if (!kDebugMode) return;
+  final sortedKeys = params.keys.toList()..sort();
+  final types = {
+    for (final key in sortedKeys)
+      key: examQuizAttemptRpcParamTypeLabel(params[key]),
+  };
+  qfLog(
+    'ExamQuizAttempt RPC request '
+    'rpc=$examQuizAttemptSubmitRpcName '
+    'keys=$sortedKeys '
+    'types=$types',
+  );
+}
+
+/// Log diagnostico PostgREST prima del mapping dominio (no body/token/risposte).
+void debugLogExamQuizAttemptPostgrestException(PostgrestException error) {
+  if (!kDebugMode) return;
+  qfLog(
+    'ExamQuizAttempt RPC PostgrestException '
+    'code=${error.code} '
+    'message=${error.message} '
+    'details=${error.details} '
+    'hint=${error.hint}',
+  );
+}
 
 /// Contratto data layer Quiz Esame (submit + storico tentativi).
 ///
@@ -82,10 +156,18 @@ class ExamQuizAttemptRepositorySupabase implements ExamQuizAttemptRepository {
     try {
       // Esclusivamente i parametri dichiarabili dal client.
       final params = submission.toRpcParams();
-      final raw = await _client.rpc('submit_exam_quiz_attempt', params: params);
+      validateExamQuizAttemptSubmitRpcParams(params);
+      debugLogExamQuizAttemptSubmitRpcRequest(params);
+      final raw = await _client.rpc(
+        examQuizAttemptSubmitRpcName,
+        params: params,
+      );
       return _mapParse(() => parseExamQuizAttemptSubmitResult(raw));
     } on ExamQuizAttemptException {
       rethrow;
+    } on PostgrestException catch (error) {
+      debugLogExamQuizAttemptPostgrestException(error);
+      _rethrowMapped(error);
     } catch (error) {
       _rethrowMapped(error);
     }

@@ -177,11 +177,11 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Ricontrolla'),
+              child: const Text('Indietro'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Vedi riepilogo'),
+              child: const Text('Termina esame'),
             ),
           ],
         ),
@@ -498,10 +498,12 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: Text(
-                          QuizSheetPlayerNavigation.examPrimaryButtonLabel(
-                            currentIndex: _currentIndex,
-                            questionCount: widget.questions.length,
-                          ),
+                          QuizSheetPlayerNavigation.canGoForward(
+                                currentIndex: _currentIndex,
+                                questionCount: widget.questions.length,
+                              )
+                              ? 'Avanti'
+                              : 'Termina esame',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),

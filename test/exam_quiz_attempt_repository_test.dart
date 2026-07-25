@@ -153,8 +153,11 @@ void main() {
     });
 
     test('RPC submit_exam_quiz_attempt con soli toRpcParams()', () {
-      expect(repoSource, contains("'submit_exam_quiz_attempt'"));
+      expect(repoSource, contains('examQuizAttemptSubmitRpcName'));
       expect(repoSource, contains('submission.toRpcParams()'));
+      expect(repoSource, contains('validateExamQuizAttemptSubmitRpcParams'));
+      expect(repoSource, contains('debugLogExamQuizAttemptSubmitRpcRequest'));
+      expect(repoSource, contains('debugLogExamQuizAttemptPostgrestException'));
       expect(repoSource, isNot(contains("'p_user_id'")));
       expect(repoSource, isNot(contains("'p_correct_count'")));
       expect(repoSource, isNot(contains("'p_passed'")));
@@ -164,11 +167,71 @@ void main() {
       expect(repoSource, isNot(contains(".from('quiz_attempt_answers')")));
     });
 
+    test('log diagnostico non interpola token, risposte o credenziali', () {
+      expect(repoSource, contains('examQuizAttemptRpcParamTypeLabel'));
+      expect(repoSource, isNot(contains('submission.clientAttemptToken')));
+      expect(repoSource, isNot(contains('params.toString()')));
+      expect(repoSource, isNot(contains('accessToken')));
+      expect(repoSource, isNot(contains('refreshToken')));
+      expect(repoSource, isNot(contains('currentSession')));
+      expect(repoSource, isNot(contains('\'types=\${params\'')));
+    });
+
     test('query solo exam_quiz_attempts / exam_quiz_attempt_answers', () {
       expect(repoSource, contains(".from('exam_quiz_attempts')"));
       expect(repoSource, contains(".from('exam_quiz_attempt_answers')"));
       expect(repoSource, contains("order('completed_at', ascending: false)"));
       expect(repoSource, contains("order('position', ascending: true)"));
+    });
+  });
+
+  group('ExamQuizAttempt submit RPC params (P9E.6-A3)', () {
+    test('toRpcParams espone esattamente cinque chiavi p_*', () {
+      final params = _submission().toRpcParams();
+      expect(params.keys.toSet(), examQuizAttemptSubmitRpcParamKeys);
+      for (final key in params.keys) {
+        expect(key.startsWith('p_'), isTrue);
+      }
+      expect(params.containsKey('client_attempt_token'), isFalse);
+      expect(params.containsKey('license_category'), isFalse);
+    });
+
+    test('tipi Dart attesi per ogni parametro RPC', () {
+      final params = _submission().toRpcParams();
+      expect(params['p_client_attempt_token'], isA<String>());
+      expect(params['p_license_category'], isA<String>());
+      expect(params['p_duration_seconds'], isA<int>());
+      expect(params['p_time_expired'], isA<bool>());
+      expect(params['p_answers'], isA<List<dynamic>>());
+      expect(
+        examQuizAttemptRpcParamTypeLabel(params['p_client_attempt_token']),
+        'String',
+      );
+      expect(examQuizAttemptRpcParamTypeLabel(params['p_answers']), 'List');
+    });
+
+    test('validateExamQuizAttemptSubmitRpcParams accetta payload valido', () {
+      expect(
+        () =>
+            validateExamQuizAttemptSubmitRpcParams(_submission().toRpcParams()),
+        returnsNormally,
+      );
+    });
+
+    test('validateExamQuizAttemptSubmitRpcParams rifiuta chiavi errate', () {
+      expect(
+        () => validateExamQuizAttemptSubmitRpcParams({
+          'p_client_attempt_token': 'x',
+          'license_category': 'A12',
+        }),
+        throwsA(
+          isA<ExamQuizAttemptException>().having(
+            (e) => e.code,
+            'code',
+            ExamQuizAttemptErrorCode.invalidPayload,
+          ),
+        ),
+      );
     });
   });
 

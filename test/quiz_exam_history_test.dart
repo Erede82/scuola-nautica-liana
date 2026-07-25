@@ -508,14 +508,19 @@ void main() {
         await tester.tap(find.byTooltip('Domanda successiva'));
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(QuizExamPlayerPage),
+          matching: find.widgetWithText(FilledButton, 'Termina esame'),
+        ),
+      );
       await tester.pumpAndSettle();
       if (find.byType(AlertDialog).evaluate().isNotEmpty) {
         await tester.tap(
           find
               .descendant(
                 of: find.byType(AlertDialog),
-                matching: find.text('Vedi riepilogo'),
+                matching: find.text('Termina esame'),
               )
               .last,
         );

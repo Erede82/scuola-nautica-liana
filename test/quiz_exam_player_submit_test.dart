@@ -121,15 +121,22 @@ int? _selectedAnswerNumber(WidgetTester tester) {
   return selected.single.answerNumber;
 }
 
+Finder _examPrimaryFinishButton() {
+  return find.descendant(
+    of: find.byType(QuizExamPlayerPage),
+    matching: find.widgetWithText(FilledButton, 'Termina esame'),
+  );
+}
+
 Future<void> _confirmSummaryDialog(WidgetTester tester) async {
-  await tester.tap(find.text('Vedi riepilogo'));
+  await tester.tap(_examPrimaryFinishButton());
   await tester.pumpAndSettle();
   if (find.byType(AlertDialog).evaluate().isNotEmpty) {
     await tester.tap(
       find
           .descendant(
             of: find.byType(AlertDialog),
-            matching: find.text('Vedi riepilogo'),
+            matching: find.text('Termina esame'),
           )
           .last,
     );
@@ -253,13 +260,13 @@ void main() {
       final pending = _PendingSubmitRepository();
       await _pumpPlayer(tester, repository: pending, questionCount: 20);
       await _goToLastQuestion(tester, 20);
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(_examPrimaryFinishButton());
       await tester.pumpAndSettle();
       await tester.tap(
         find
             .descendant(
               of: find.byType(AlertDialog),
-              matching: find.text('Vedi riepilogo'),
+              matching: find.text('Termina esame'),
             )
             .last,
       );
@@ -313,6 +320,52 @@ void main() {
     });
   });
 
+  group('QuizExamPlayerPage dialog gap (P9E.6-A3)', () {
+    testWidgets('mostra Indietro e Termina esame', (tester) async {
+      final repo = ExamQuizAttemptRepositoryFake(submitResult: _submitResult());
+      await _pumpPlayer(tester, repository: repo, questionCount: 20);
+      await _goToLastQuestion(tester, 20);
+      await tester.tap(_examPrimaryFinishButton());
+      await tester.pumpAndSettle();
+      expect(find.text('Indietro'), findsOneWidget);
+      expect(find.text('Termina esame'), findsNWidgets(2));
+      expect(find.text('Ricontrolla'), findsNothing);
+      expect(find.text('Vedi riepilogo'), findsNothing);
+      expect(repo.submitCalls, 0);
+    });
+
+    testWidgets('Indietro non chiama il repository', (tester) async {
+      final repo = ExamQuizAttemptRepositoryFake(submitResult: _submitResult());
+      await _pumpPlayer(tester, repository: repo, questionCount: 20);
+      await _goToLastQuestion(tester, 20);
+      await tester.tap(_examPrimaryFinishButton());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Indietro'));
+      await tester.pumpAndSettle();
+      expect(repo.submitCalls, 0);
+      expect(find.text('Simulazione esame'), findsOneWidget);
+    });
+
+    testWidgets('Termina esame chiama il repository una volta', (tester) async {
+      final repo = ExamQuizAttemptRepositoryFake(submitResult: _submitResult());
+      await _pumpPlayer(tester, repository: repo, questionCount: 20);
+      await _goToLastQuestion(tester, 20);
+      await tester.tap(_examPrimaryFinishButton());
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.text('Termina esame'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      expect(repo.submitCalls, 1);
+      expect(find.text('Riepilogo esame'), findsOneWidget);
+    });
+  });
+
   group('QuizExamPlayerPage timer', () {
     testWidgets('scadenza timer → submit timeExpired=true senza dialog gap', (
       tester,
@@ -333,7 +386,7 @@ void main() {
       final repo = ExamQuizAttemptRepositoryFake(submitResult: _submitResult());
       await _pumpPlayer(tester, repository: repo, questionCount: 20);
       await _goToLastQuestion(tester, 20);
-      await tester.tap(find.text('Vedi riepilogo'));
+      await tester.tap(_examPrimaryFinishButton());
       await tester.pump();
       expect(find.text('Domande non completate'), findsOneWidget);
       await tester.pump(const Duration(minutes: 31));
@@ -344,7 +397,7 @@ void main() {
           find
               .descendant(
                 of: find.byType(AlertDialog),
-                matching: find.text('Vedi riepilogo'),
+                matching: find.text('Termina esame'),
               )
               .last,
         );
