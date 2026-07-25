@@ -95,7 +95,10 @@ class ExamQuizAttemptRepositorySupabase implements ExamQuizAttemptRepository {
   Future<List<ExamQuizAttemptSummary>> fetchCurrentUserAttempts({
     required LicenseCategoryId category,
   }) async {
-    _requireUid();
+    // Filtro esplicito su auth.uid(): la policy staff SELECT vede tutti i
+    // tentativi; senza .eq('user_id') l’anteprima area studente staff
+    // mostrerebbe lo storico (e i dettagli) di altri allievi.
+    final uid = _requireUid();
     final dbCategory = dbLicenseCategoryFor(category);
     if (dbCategory == null) {
       throw const ExamQuizAttemptException(
@@ -107,6 +110,7 @@ class ExamQuizAttemptRepositorySupabase implements ExamQuizAttemptRepository {
       final res = await _client
           .from('exam_quiz_attempts')
           .select(_attemptSelect)
+          .eq('user_id', uid)
           .eq('license_category', dbCategory)
           .order('completed_at', ascending: false);
       return _mapParse(() {
