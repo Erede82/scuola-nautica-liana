@@ -271,6 +271,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Riepilogo esame'), findsOneWidget);
     });
+
+    testWidgets(
+      'submit fallito a zero risposte → back conferma, non perde subito',
+      (tester) async {
+        final repo = ExamQuizAttemptRepositoryFake(
+          throwOnSubmit: ExamQuizAttemptException(
+            code: ExamQuizAttemptErrorCode.repositoryUnavailable,
+            message: examQuizAttemptErrorMessageIt(
+              ExamQuizAttemptErrorCode.repositoryUnavailable,
+            ),
+          ),
+        );
+        await _pumpPlayer(tester, repository: repo, questionCount: 20);
+        // Timer scaduto: conclude con 0 risposte e tenta il submit.
+        await tester.pump(const Duration(minutes: 31));
+        await tester.pumpAndSettle();
+        expect(repo.submitCalls, 1);
+        expect(find.textContaining('non disponibile'), findsOneWidget);
+        expect(find.text('Riepilogo esame'), findsNothing);
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.text('Uscire dalla simulazione?'), findsOneWidget);
+        expect(
+          find.textContaining('non verrà salvato nello storico'),
+          findsOneWidget,
+        );
+        // Resta: il pending submission non deve sparire.
+        await tester.tap(find.text('Resta nella simulazione'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('non disponibile'), findsOneWidget);
+        expect(find.text('Riprova'), findsOneWidget);
+      },
+    );
   });
 
   group('QuizExamPlayerPage submit manuale', () {
