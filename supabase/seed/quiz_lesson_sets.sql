@@ -1,5 +1,5 @@
 -- =============================================================================
--- P9C.3-B — Seed quiz_sets + quiz_set_items per schede lezione A12 / D1
+-- P9C.3-B / P9F-D1.3-A — Seed quiz_sets + quiz_set_items per schede lezione
 -- =============================================================================
 -- PREREQUISITI (applicare prima, con approvazione):
 --   1. Migration 20260707120000_quiz_lesson_sheets_attempts.sql
@@ -13,12 +13,18 @@
 --   quiz_set_items → ON CONFLICT (quiz_set_id, question_id) DO NOTHING (PK esistente)
 --
 -- Algoritmo domande per scheda (allineato a sliceLessonSheetQuestions in Flutter):
---   start = ((sheet_number - 1) * 20) % pool_size
---   count = LEAST(20, pool_size)
+--   items_per_sheet = 20 per A12, 15 per D1
+--   start = ((sheet_number - 1) * items_per_sheet) % pool_size
+--   count = LEAST(items_per_sheet, pool_size)
 --   position i → pool[1 + mod(start + i - 1, pool_size)]  (array PostgreSQL 1-based)
 --
 -- Catalogo schede: lib/data/license_catalog.dart (patenteMotore.lessons[].quizSheets)
 -- Categorie seed: A12 (motore), D1
+--
+-- Conteggi attesi (catalogo 14 lezioni × sheet_count, pool presente):
+--   A12: 328 set × 20 item = 6560
+--   D1:  232 set × 15 item = 3480
+--   Totale: 560 set / 10040 item
 
 BEGIN;
 
@@ -97,38 +103,9 @@ WHERE NOT EXISTS (
 );
 
 -- ---------------------------------------------------------------------------
--- 2) quiz_set_items
+-- 2) quiz_set_items (A12 → 20, D1 → 15)
 -- ---------------------------------------------------------------------------
-WITH lesson_catalog (lesson_number, sheet_count) AS (
-  VALUES
-    (1, 24),
-    (2, 24),
-    (3, 24),
-    (4, 28),
-    (5, 20),
-    (6, 20),
-    (7, 36),
-    (8, 20),
-    (9, 20),
-    (10, 16),
-    (11, 28),
-    (12, 16),
-    (13, 16),
-    (14, 36)
-),
-seed_categories (license_category) AS (
-  VALUES ('A12'), ('D1')
-),
-sheet_grid AS (
-  SELECT
-    sc.license_category,
-    lc.lesson_number,
-    gs.sheet_number
-  FROM seed_categories sc
-  CROSS JOIN lesson_catalog lc
-  CROSS JOIN LATERAL generate_series(1, lc.sheet_count) AS gs(sheet_number)
-),
-question_pools AS (
+WITH question_pools AS (
   SELECT
     q.license_category,
     q.lesson_number,
@@ -144,7 +121,11 @@ resolved_sets AS (
     qs.id AS quiz_set_id,
     qs.license_category,
     qs.lesson_number,
-    qs.sheet_number
+    qs.sheet_number,
+    CASE qs.license_category
+      WHEN 'D1' THEN 15
+      ELSE 20
+    END AS items_per_sheet
   FROM public.quiz_sets qs
   WHERE qs.kind = 'lesson'
     AND qs.license_category IN ('A12', 'D1')
@@ -155,7 +136,7 @@ item_rows AS (
     rs.quiz_set_id,
     qp.pool[
       1 + mod(
-        (rs.sheet_number - 1) * 20 + pos.i - 1,
+        (rs.sheet_number - 1) * rs.items_per_sheet + pos.i - 1,
         array_length(qp.pool, 1)
       )
     ] AS question_id,
@@ -166,7 +147,7 @@ item_rows AS (
    AND qp.lesson_number = rs.lesson_number
   CROSS JOIN LATERAL generate_series(
     1,
-    LEAST(20, array_length(qp.pool, 1))
+    LEAST(rs.items_per_sheet, array_length(qp.pool, 1))
   ) AS pos(i)
 )
 INSERT INTO public.quiz_set_items (quiz_set_id, question_id, position)
@@ -183,8 +164,25 @@ COMMIT;
 -- FROM public.quiz_sets
 -- WHERE kind = 'lesson' AND license_category IN ('A12', 'D1')
 -- GROUP BY 1;
+-- -- atteso: A12=328, D1=232
 --
--- SELECT count(*) AS quiz_set_items
+-- SELECT
+--   qs.license_category,
+--   count(*) AS items,
+--   min(cnt) AS min_items,
+--   max(cnt) AS max_items
+-- FROM public.quiz_sets qs
+-- JOIN LATERAL (
+--   SELECT count(*)::int AS cnt
+--   FROM public.quiz_set_items i
+--   WHERE i.quiz_set_id = qs.id
+-- ) c ON true
+-- WHERE qs.kind = 'lesson' AND qs.license_category IN ('A12', 'D1')
+-- GROUP BY 1;
+-- -- atteso: A12 items=6560 (20/20/20), D1 items=3480 (15/15/15)
+--
+-- SELECT count(*) AS quiz_set_items_total
 -- FROM public.quiz_set_items qsi
 -- JOIN public.quiz_sets qs ON qs.id = qsi.quiz_set_id
 -- WHERE qs.kind = 'lesson' AND qs.license_category IN ('A12', 'D1');
+-- -- atteso: 10040

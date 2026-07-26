@@ -1,8 +1,9 @@
-// P9C.3-B — Piano dry-run seed quiz_sets / quiz_set_items (NON esegue INSERT).
+// P9C.3-B / P9F-D1.3-B — Piano dry-run seed quiz_sets / quiz_set_items (NON esegue INSERT).
 //
 // Allineato a:
 //   - lib/data/license_catalog.dart (conteggio schede per lezione)
 //   - lib/domain/quiz_sheet_slicing.dart (rotazione deterministica)
+//   - lib/domain/lesson_quiz_rules.dart (domande per scheda: A12=20, D1=15)
 //   - supabase/seed/quiz_lesson_sets.sql (seed SQL idempotente)
 //
 // Uso:
@@ -57,6 +58,9 @@ const _a12PoolSizesP9C1 = <int, int>{
   14: 165,
 };
 
+/// Lezioni D1 senza domande nel catalogo operativo (0 set / 0 item).
+const _d1LessonsWithoutPool = <int>{11, 12, 13, 14};
+
 void main(List<String> args) {
   final poolsPath = _argValue(args, '--pools-from');
   final poolsByCategoryLesson = poolsPath == null
@@ -67,16 +71,19 @@ void main(List<String> args) {
   var totalItems = 0;
   var skippedSetsNoPool = 0;
 
-  stdout.writeln('P9C.3-B — Piano seed quiz_sets (dry-run, nessun INSERT)\n');
+  stdout.writeln(
+    'P9C.3-B / P9F-D1.3-B — Piano seed quiz_sets (dry-run, nessun INSERT)\n',
+  );
 
   for (final licenseCategory in _seedLicenseCategories) {
+    final questionsPerSheet = _questionsPerSheetForDbCategory(licenseCategory);
     var categorySets = 0;
     var categoryItems = 0;
 
     for (final entry in _lessonSheetCounts.entries) {
       final lessonNumber = entry.key;
       final sheetCount = entry.value;
-      final poolSize = _poolSize(
+      final poolSize = _estimatedPoolSize(
         licenseCategory: licenseCategory,
         lessonNumber: lessonNumber,
         poolsByCategoryLesson: poolsByCategoryLesson,
@@ -93,46 +100,73 @@ void main(List<String> args) {
         final indices = sliceLessonSheetQuestionIndices(
           poolLength: poolSize,
           sheetNumber: sheetNumber,
+          limit: questionsPerSheet,
         );
         categoryItems += indices.length;
 
         final uniqueInSheet = indices.toSet().length;
-        if (poolSize >= 20 && uniqueInSheet != indices.length) {
+        if (poolSize >= questionsPerSheet && uniqueInSheet != indices.length) {
           stderr.writeln(
-            'WARN: duplicato in scheda $licenseCategory L$lessonNumber S$sheetNumber '
-            '(pool=$poolSize)',
+            'WARN: duplicato in scheda $licenseCategory L$lessonNumber '
+            'S$sheetNumber (pool=$poolSize; $licenseCategory richiede almeno '
+            '$questionsPerSheet domande)',
           );
         }
       }
     }
 
     stdout.writeln(
-      '$licenseCategory: $categorySets quiz_sets, $categoryItems quiz_set_items stimati',
+      '$licenseCategory: $categorySets quiz_sets, $categoryItems quiz_set_items '
+      'stimati ($questionsPerSheet item per set)',
     );
     totalSets += categorySets;
     totalItems += categoryItems;
   }
 
-  final catalogSheetsPerCategory =
-      _lessonSheetCounts.values.fold<int>(0, (a, b) => a + b);
+  final catalogSheetsPerCategory = _lessonSheetCounts.values.fold<int>(
+    0,
+    (a, b) => a + b,
+  );
 
   stdout.writeln('\n--- Riepilogo ---');
-  stdout.writeln('Schede per categoria (catalogo Flutter): $catalogSheetsPerCategory');
+  stdout.writeln(
+    'Schede per categoria (catalogo Flutter): $catalogSheetsPerCategory',
+  );
   stdout.writeln('Categorie seed: ${_seedLicenseCategories.length}');
   stdout.writeln('quiz_sets stimati: $totalSets');
   stdout.writeln('quiz_set_items stimati: $totalItems');
   if (skippedSetsNoPool > 0) {
-    stdout.writeln(
-      'Set saltati (pool vuoto): $skippedSetsNoPool',
-    );
+    stdout.writeln('Set saltati (pool vuoto): $skippedSetsNoPool');
   }
 
-  stdout.writeln('\nSeed SQL preparato: supabase/seed/quiz_lesson_sets.sql');
-  stdout.writeln('Migration preparata: supabase/migrations/20260707120000_quiz_lesson_sheets_attempts.sql');
+  stdout.writeln('\nSeed preparato: supabase/seed/quiz_lesson_sets.sql');
   stdout.writeln('\nNON eseguito: db push, INSERT, seed live.');
 }
 
-int _poolSize({
+/// Domande per scheda allineate a `LessonQuizRules` (motore/A12=20, d1/D1=15).
+///
+/// Non importa `lib/domain/lesson_quiz_rules.dart` direttamente: quella API
+/// dipende da `license_models.dart` → `package:flutter/material.dart`,
+/// incompatibile con `dart run tool/...` (CLI senza binding Flutter).
+int _questionsPerSheetForDbCategory(String licenseCategory) {
+  switch (licenseCategory) {
+    case 'A12':
+      return 20; // LessonQuizRules.a12 / LicenseCategoryId.motore
+    case 'D1':
+      return 15; // LessonQuizRules.d1 / LicenseCategoryId.d1
+    default:
+      throw StateError(
+        'Categoria seed non supportata: $licenseCategory '
+        '(attese esplicite: A12, D1; nessun fallback)',
+      );
+  }
+}
+
+/// Stima dimensione pool domande per (categoria, lezione).
+///
+/// Non confondere con [_questionsPerSheetForDbCategory]: qui si stima quante
+/// domande esistono nel pool della lezione, non quante ne vanno in una scheda.
+int _estimatedPoolSize({
   required String licenseCategory,
   required int lessonNumber,
   required Map<String, Map<int, int>>? poolsByCategoryLesson,
@@ -143,8 +177,15 @@ int _poolSize({
   if (licenseCategory == 'A12') {
     return _a12PoolSizesP9C1[lessonNumber] ?? 0;
   }
-  // D1: senza export, stima conservativa (tutte le lezioni hanno pool >= 20 in P9C.1).
-  return 20;
+  if (licenseCategory == 'D1') {
+    // Senza export: lezioni 11–14 restano senza domande (0 set), come nel seed.
+    // Per lezioni 1–10 si usa una stima = domande per scheda (pool >= 15).
+    if (_d1LessonsWithoutPool.contains(lessonNumber)) return 0;
+    return _questionsPerSheetForDbCategory('D1');
+  }
+  throw StateError(
+    'Categoria seed non supportata per stima pool: $licenseCategory',
+  );
 }
 
 Map<String, Map<int, int>> _loadPoolsFromExport(String path) {
