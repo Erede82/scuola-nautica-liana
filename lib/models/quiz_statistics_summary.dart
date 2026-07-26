@@ -29,7 +29,7 @@ class QuizStatisticsSummary {
   /// (Errate + non risposte) / totale domande (0–100).
   final double errorPercentage;
 
-  /// Media risposte errate per scheda completata (solo [wrongCount], non le non risposte).
+  /// Media errori statistici per scheda (A12: solo errate; D1: errate + non risposte).
   final double averageErrorsPerSheet;
 
   /// Tentativi scartati per metadati incoerenti o answer count non valido.

@@ -12,6 +12,17 @@ import '../domain/exam_question_selection.dart';
 
 export '../domain/quiz_sheet_slicing.dart';
 
+/// Applica [limit] solo se passato esplicitamente (nessun truncate automatico).
+@visibleForTesting
+List<QuizQuestion> applyOptionalLessonSheetQuestionLimit(
+  List<QuizQuestion> questions, {
+  int? limit,
+}) {
+  if (limit == null || limit < 1) return questions;
+  if (questions.length <= limit) return questions;
+  return questions.take(limit).toList(growable: false);
+}
+
 /// Lettura domande quiz per area studente (`quiz_sets` + `quiz_set_items`).
 abstract class StudentQuizRepository {
   Future<LessonQuizSheetContent?> fetchLessonSheetContent({
@@ -20,11 +31,16 @@ abstract class StudentQuizRepository {
     required int sheetNumber,
   });
 
+  /// Legacy: preferire [fetchLessonSheetContent] (player runtime).
+  ///
+  /// Senza [limit] restituisce tutte le domande del set (nessun truncate
+  /// automatico per categoria). Con [limit] esplicito applica `take(limit)`.
+  @Deprecated('Usa fetchLessonSheetContent per il player schede.')
   Future<List<QuizQuestion>> fetchLessonSheetQuestions({
     required LicenseCategoryId categoryId,
     required int lessonNumber,
     required int sheetNumber,
-    int limit = 20,
+    int? limit,
   });
 
   /// Schede con tentativo completo (`quiz_results` + `quiz_attempt_answers` coerenti).
@@ -137,14 +153,17 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required int lessonNumber,
     required int sheetNumber,
-    int limit = 20,
+    int? limit,
   }) async {
     final content = await fetchLessonSheetContent(
       categoryId: categoryId,
       lessonNumber: lessonNumber,
       sheetNumber: sheetNumber,
     );
-    return content?.questions ?? const [];
+    return applyOptionalLessonSheetQuestionLimit(
+      content?.questions ?? const [],
+      limit: limit,
+    );
   }
 
   @override
@@ -306,7 +325,7 @@ class StudentQuizRepositoryEmpty implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required int lessonNumber,
     required int sheetNumber,
-    int limit = 20,
+    int? limit,
   }) async => const [];
 
   @override

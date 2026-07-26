@@ -325,6 +325,73 @@ void main() {
       );
     });
 
+    testWidgets('D1 mostra titolo e soglia 3 per QA 4+14', (tester) async {
+      final repo = _FakeQuizStatisticsRepository(
+        result: QuizCategoryStatistics(
+          categoryId: LicenseCategoryId.d1,
+          summary: const QuizStatisticsSummary(
+            completedSheetsCount: 1,
+            totalQuestions: 20,
+            correctCount: 2,
+            wrongCount: 4,
+            unansweredCount: 14,
+            accuracyPercentage: 10,
+            errorPercentage: 90,
+            averageErrorsPerSheet: 18,
+            ignoredIncompleteAttempts: 0,
+          ),
+          lessonSnapshots: const [
+            LessonQuizPerformanceSnapshot(
+              categoryId: LicenseCategoryId.d1,
+              lessonNumber: 1,
+              lessonTitle: '1. Teoria dello scafo',
+              totalAttempts: 1,
+              averageErrorPercentage: 90,
+            ),
+          ],
+          recentAttempts: [
+            QuizAttemptActivity(
+              quizResultId: 'd1-qa',
+              lessonNumber: 1,
+              sheetNumber: 1,
+              totalQuestions: 20,
+              correctCount: 2,
+              wrongCount: 4,
+              unansweredCount: 14,
+              errorPercentage: 90,
+              completedAt: DateTime.utc(2026, 7, 26, 10),
+            ),
+          ],
+          progress: const CategoryQuizProgress(
+            totalAvailableSheets: 232,
+            totalCompletedUniqueSheets: 1,
+            overallCompletionPercentage: 0.4,
+            lessonProgress: [],
+            completedLessonsCount: 0,
+            availableLessonsCount: 14,
+            inProgressLessonsCount: 1,
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatisticsPage(
+            categoryId: LicenseCategoryId.d1,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Statistiche · Patente D1'), findsOneWidget);
+      expect(find.text('Sopra la soglia'), findsOneWidget);
+      expect(find.text('Entro la soglia'), findsNothing);
+      expect(find.textContaining('Soglia 3 errori'), findsOneWidget);
+      expect(find.text('18'), findsWidgets);
+      expect(repo.lastCategoryId, LicenseCategoryId.d1);
+    });
+
     testWidgets('preview staff non invoca repository', (tester) async {
       final repo = _FakeQuizStatisticsRepository(
         result: _motoreStatsWithData(),

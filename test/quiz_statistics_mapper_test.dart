@@ -227,6 +227,43 @@ void main() {
         0,
       );
     });
+
+    test('A12 media resta basata sul solo wrongCount', () {
+      final summary = buildQuizStatisticsSummary(
+        completeResults: [
+          _result(
+            id: 'a12',
+            sheetNumber: 1,
+            correct: 2,
+            wrong: 4,
+            unanswered: 14,
+          ),
+        ],
+        ignoredIncompleteAttempts: 0,
+        categoryId: LicenseCategoryId.motore,
+      );
+      expect(summary.averageErrorsPerSheet, 4);
+    });
+
+    test('D1 media usa wrong + unanswered (QA 4+14 → 18)', () {
+      final summary = buildQuizStatisticsSummary(
+        completeResults: [
+          _result(
+            id: 'd1-qa',
+            sheetNumber: 1,
+            correct: 2,
+            wrong: 4,
+            unanswered: 14,
+            licenseCategory: 'D1',
+          ),
+        ],
+        ignoredIncompleteAttempts: 0,
+        categoryId: LicenseCategoryId.d1,
+      );
+      expect(summary.averageErrorsPerSheet, 18);
+      expect(summary.wrongCount, 4);
+      expect(summary.unansweredCount, 14);
+    });
   });
 
   group('buildLessonPerformanceSnapshots', () {

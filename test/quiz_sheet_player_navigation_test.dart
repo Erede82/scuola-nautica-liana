@@ -79,6 +79,30 @@ void main() {
       expect(QuizSheetPlayerNavigation.isQuestionAnswered(answers, 1), isTrue);
       expect(QuizSheetPlayerNavigation.isQuestionAnswered(answers, 2), isFalse);
     });
+
+    test('scheda D1 sintetica: navigazione 1–15 e chiusura sull’ultima', () {
+      expect(
+        QuizSheetPlayerNavigation.canGoForward(
+          currentIndex: 0,
+          questionCount: 15,
+        ),
+        isTrue,
+      );
+      expect(
+        QuizSheetPlayerNavigation.canGoForward(
+          currentIndex: 14,
+          questionCount: 15,
+        ),
+        isFalse,
+      );
+      expect(
+        QuizSheetPlayerNavigation.primaryButtonLabel(
+          currentIndex: 14,
+          questionCount: 15,
+        ),
+        'Chiudi scheda',
+      );
+    });
   });
 
   group('isExamQuizUiAccessible', () {

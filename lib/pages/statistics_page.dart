@@ -260,6 +260,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
             summary: stats.summary,
             progress: stats.progress,
             recentAttempts: stats.recentAttempts,
+            categoryId: widget.categoryId,
           ),
           if (stats.progress.lessonProgress.isNotEmpty)
             StatisticsTopicProgressSection(

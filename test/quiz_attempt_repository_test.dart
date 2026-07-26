@@ -72,6 +72,37 @@ void main() {
       expect(payload.wrongQuestionIds, ['q2']);
       expect(payload.unansweredCount, 1);
     });
+
+    test('set D1 sintetico 15 item → totalQuestions 15, posizioni 1–15', () {
+      final questions = List.generate(
+        15,
+        (i) => QuizQuestion(
+          id: 'd1-q$i',
+          prompt: 'Domanda D1 $i',
+          optionA: 'A',
+          optionB: 'B',
+          optionC: 'C',
+          correctOption: QuizAnswerOption.a,
+          lessonNumber: 1,
+          licenseCategory: 'D1',
+        ),
+      );
+      final answers = List<QuizAnswerOption?>.filled(15, QuizAnswerOption.a);
+
+      final payload = buildQuizAttemptPayload(
+        questions: questions,
+        answers: answers,
+        startedAt: startedAt,
+        completedAt: completedAt,
+      );
+
+      expect(questions.length, 15);
+      expect(payload.totalQuestions, 15);
+      expect(payload.answerRows, hasLength(15));
+      expect(payload.correctCount, 15);
+      expect(payload.wrongCount, 0);
+      expect(payload.unansweredCount, 0);
+    });
   });
 
   group('shouldCreateQuizResultForSubmit', () {

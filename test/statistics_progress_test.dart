@@ -423,19 +423,36 @@ void main() {
   });
 
   group('soglia media errori', () {
-    test('media 3,9 entro soglia', () {
-      expect(3.9 <= StatisticsSummarySection.averageErrorThreshold, isTrue);
+    test('media 3,9 entro soglia A12', () {
+      final threshold = StatisticsSummarySection.averageErrorThresholdFor(
+        LicenseCategoryId.motore,
+      );
+      expect(3.9 <= threshold, isTrue);
+      expect(threshold, 4);
     });
 
-    test('media 4,0 entro soglia', () {
-      expect(4.0 <= StatisticsSummarySection.averageErrorThreshold, isTrue);
+    test('media 4,0 entro soglia A12', () {
+      final threshold = StatisticsSummarySection.averageErrorThresholdFor(
+        LicenseCategoryId.motore,
+      );
+      expect(4.0 <= threshold, isTrue);
     });
 
-    test('media 4,1 sopra soglia', () {
-      expect(4.1 <= StatisticsSummarySection.averageErrorThreshold, isFalse);
+    test('media 4,1 sopra soglia A12', () {
+      final threshold = StatisticsSummarySection.averageErrorThresholdFor(
+        LicenseCategoryId.motore,
+      );
+      expect(4.1 <= threshold, isFalse);
     });
 
-    test('media errori non include non risposte', () {
+    test('D1 soglia 3', () {
+      expect(
+        StatisticsSummarySection.averageErrorThresholdFor(LicenseCategoryId.d1),
+        3,
+      );
+    });
+
+    test('media errori A12 non include non risposte', () {
       final average = averageWrongAnswersPerSheet(
         wrongCount: 12,
         completedSheetsCount: 3,

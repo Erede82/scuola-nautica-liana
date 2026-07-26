@@ -1,29 +1,48 @@
 import 'package:flutter/material.dart';
 
+import '../domain/lesson_quiz_rules.dart';
+import '../models/license_models.dart';
 import '../models/quiz_attempt_activity.dart';
 import '../theme/app_visual_tokens.dart';
 
-/// Mini andamento errori sulle ultime schede (solo `wrongCount`).
+/// Mini andamento errori sulle ultime schede (conteggio category-aware).
 class StatisticsErrorTrend extends StatelessWidget {
   const StatisticsErrorTrend({
     super.key,
     required this.attempts,
     this.maxItems = 5,
-    this.threshold = 4,
+    this.categoryId = LicenseCategoryId.motore,
+    this.threshold,
   });
 
   final List<QuizAttemptActivity> attempts;
   final int maxItems;
-  final double threshold;
+  final LicenseCategoryId categoryId;
+
+  /// Se null, usa [LessonQuizRules.maxErrors] della [categoryId].
+  final double? threshold;
 
   static const Color _withinColor = Color(0xFF3D8B6E);
   static const Color _aboveColor = Color(0xFFC75D3A);
   static const Color _neutralColor = AppVisual.chipFill;
   static const Color _textPrimaryColor = AppVisual.ink;
 
+  double get _effectiveThreshold =>
+      threshold ??
+      (lessonQuizRulesForCategory(categoryId)?.maxErrors ?? 4).toDouble();
+
+  int _errorCount(QuizAttemptActivity attempt) {
+    return lessonQuizErrorCountForResult(
+      categoryId: categoryId,
+      wrongCount: attempt.wrongCount,
+      unansweredCount: attempt.unansweredCount,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final effectiveThreshold = _effectiveThreshold;
     final visible = attempts.take(maxItems).toList(growable: false).reversed;
 
     if (visible.isEmpty) {
@@ -35,10 +54,10 @@ class StatisticsErrorTrend extends StatelessWidget {
       );
     }
 
-    final maxWrong = visible
-        .map((a) => a.wrongCount)
+    final maxErrors = visible
+        .map(_errorCount)
         .fold<int>(0, (a, b) => a > b ? a : b)
-        .clamp(threshold.ceil(), 20);
+        .clamp(effectiveThreshold.ceil(), 20);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,9 +70,10 @@ class StatisticsErrorTrend extends StatelessWidget {
               for (final attempt in visible) ...[
                 Expanded(
                   child: _bar(
-                    wrongCount: attempt.wrongCount,
-                    maxWrong: maxWrong,
+                    errorCount: _errorCount(attempt),
+                    maxErrors: maxErrors,
                     sheetNumber: attempt.sheetNumber,
+                    effectiveThreshold: effectiveThreshold,
                   ),
                 ),
                 if (attempt != visible.last) const SizedBox(width: 4),
@@ -71,7 +91,7 @@ class StatisticsErrorTrend extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              'Soglia ${threshold.toInt()} errori',
+              'Soglia ${effectiveThreshold.toInt()} errori',
               style: textTheme.labelSmall?.copyWith(
                 color: _textPrimaryColor.withValues(alpha: 0.68),
                 fontWeight: FontWeight.w600,
@@ -84,20 +104,21 @@ class StatisticsErrorTrend extends StatelessWidget {
   }
 
   Widget _bar({
-    required int wrongCount,
-    required int maxWrong,
+    required int errorCount,
+    required int maxErrors,
     required int sheetNumber,
+    required double effectiveThreshold,
   }) {
-    final ratio = maxWrong <= 0 ? 0.0 : wrongCount / maxWrong;
-    final color = wrongCount <= threshold ? _withinColor : _aboveColor;
+    final ratio = maxErrors <= 0 ? 0.0 : errorCount / maxErrors;
+    final color = errorCount <= effectiveThreshold ? _withinColor : _aboveColor;
 
     return Semantics(
-      label: 'Scheda $sheetNumber: $wrongCount errori',
+      label: 'Scheda $sheetNumber: $errorCount errori',
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Text(
-            '$wrongCount',
+            '$errorCount',
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,

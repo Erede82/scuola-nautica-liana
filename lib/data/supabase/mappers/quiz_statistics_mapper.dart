@@ -1,4 +1,5 @@
 import '../../license_catalog.dart';
+import '../../../domain/lesson_quiz_rules.dart';
 import '../../../domain/quiz_license_category.dart';
 import '../dto/quiz_result_row.dart';
 import '../dto/quiz_sheet_catalog_row.dart';
@@ -120,12 +121,37 @@ double errorPercentageForCounts({
   return (wrongCount + unansweredCount) * 100 / totalQuestions;
 }
 
+/// Media errori per scheda. [errorCount] è già calcolato per categoria
+/// (A12: solo errate; D1: errate + non risposte).
 double averageWrongAnswersPerSheet({
   required int wrongCount,
   required int completedSheetsCount,
 }) {
   if (completedSheetsCount <= 0) return 0;
   return wrongCount / completedSheetsCount;
+}
+
+/// Somma errori statistici category-aware / numero schede.
+double averageLessonQuizErrorsPerSheet({
+  required Iterable<QuizResultRow> completeResults,
+  required LicenseCategoryId categoryId,
+}) {
+  final rows = completeResults.toList(growable: false);
+  if (rows.isEmpty) return 0;
+  final totalErrors = rows.fold<int>(
+    0,
+    (sum, row) =>
+        sum +
+        lessonQuizErrorCountForResult(
+          categoryId: categoryId,
+          wrongCount: row.wrongCount,
+          unansweredCount: row.unansweredCount,
+        ),
+  );
+  return averageWrongAnswersPerSheet(
+    wrongCount: totalErrors,
+    completedSheetsCount: rows.length,
+  );
 }
 
 double clampCompletionPercentage({
@@ -354,9 +380,9 @@ QuizStatisticsSummary buildQuizStatisticsSummary({
       unansweredCount: unansweredCount,
       totalQuestions: totalQuestions,
     ),
-    averageErrorsPerSheet: averageWrongAnswersPerSheet(
-      wrongCount: wrongCount,
-      completedSheetsCount: completedSheetsCount,
+    averageErrorsPerSheet: averageLessonQuizErrorsPerSheet(
+      completeResults: completeResults,
+      categoryId: categoryId,
     ),
     ignoredIncompleteAttempts: ignoredIncompleteAttempts,
     lastActivityAt: activityTimestamp(latest),

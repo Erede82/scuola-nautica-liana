@@ -299,6 +299,86 @@ void main() {
       expect(find.text('4'), findsOneWidget);
       expect(find.textContaining('Soglia 4 errori'), findsOneWidget);
     });
+
+    testWidgets('D1 usa wrong+unanswered e soglia 3', (tester) async {
+      final d1Attempts = [
+        QuizAttemptActivity(
+          quizResultId: 'd1-qa',
+          lessonNumber: 1,
+          sheetNumber: 1,
+          totalQuestions: 20,
+          correctCount: 2,
+          wrongCount: 4,
+          unansweredCount: 14,
+          errorPercentage: 90,
+          completedAt: DateTime.utc(2026, 7, 26, 10),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatisticsErrorTrend(
+              attempts: d1Attempts,
+              categoryId: LicenseCategoryId.d1,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('18'), findsOneWidget);
+      expect(find.textContaining('Soglia 3 errori'), findsOneWidget);
+      expect(find.textContaining('Soglia 4 errori'), findsNothing);
+    });
+  });
+
+  group('StatisticsSummarySection D1', () {
+    testWidgets('QA D1 4+14 → media 18, Sopra la soglia, soglia 3', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: StatisticsSummarySection(
+                categoryId: LicenseCategoryId.d1,
+                summary: const QuizStatisticsSummary(
+                  completedSheetsCount: 1,
+                  totalQuestions: 20,
+                  correctCount: 2,
+                  wrongCount: 4,
+                  unansweredCount: 14,
+                  accuracyPercentage: 10,
+                  errorPercentage: 90,
+                  averageErrorsPerSheet: 18,
+                  ignoredIncompleteAttempts: 0,
+                ),
+                progress: CategoryQuizProgress.empty,
+                recentAttempts: [
+                  QuizAttemptActivity(
+                    quizResultId: 'd1-qa',
+                    lessonNumber: 1,
+                    sheetNumber: 1,
+                    totalQuestions: 20,
+                    correctCount: 2,
+                    wrongCount: 4,
+                    unansweredCount: 14,
+                    errorPercentage: 90,
+                    completedAt: DateTime.utc(2026, 7, 26, 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Media errori per scheda'), findsOneWidget);
+      expect(find.text('18'), findsWidgets);
+      expect(find.text('Sopra la soglia'), findsOneWidget);
+      expect(find.text('Entro la soglia'), findsNothing);
+      expect(find.textContaining('Soglia 3 errori'), findsOneWidget);
+    });
   });
 
   group('StatisticsLessonErrorChart', () {

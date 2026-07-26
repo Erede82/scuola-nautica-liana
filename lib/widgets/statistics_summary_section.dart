@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../domain/lesson_quiz_rules.dart';
 import '../models/lesson_quiz_progress.dart';
+import '../models/license_models.dart';
 import '../models/quiz_attempt_activity.dart';
 import '../models/quiz_statistics_summary.dart';
 import '../theme/app_visual_tokens.dart';
@@ -14,13 +16,17 @@ class StatisticsSummarySection extends StatelessWidget {
     required this.summary,
     required this.progress,
     required this.recentAttempts,
+    this.categoryId = LicenseCategoryId.motore,
   });
 
   final QuizStatisticsSummary summary;
   final CategoryQuizProgress progress;
   final List<QuizAttemptActivity> recentAttempts;
+  final LicenseCategoryId categoryId;
 
-  static const double averageErrorThreshold = 4.0;
+  static double averageErrorThresholdFor(LicenseCategoryId categoryId) {
+    return (lessonQuizRulesForCategory(categoryId)?.maxErrors ?? 4).toDouble();
+  }
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _accentColor = Color(0xFF44BBCA);
@@ -145,7 +151,10 @@ class StatisticsSummarySection extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                StatisticsErrorTrend(attempts: recentAttempts),
+                StatisticsErrorTrend(
+                  attempts: recentAttempts,
+                  categoryId: categoryId,
+                ),
               ],
             ],
           );
@@ -344,7 +353,8 @@ class StatisticsSummarySection extends StatelessWidget {
   Widget _averageErrorsTile(TextTheme textTheme) {
     final hasAttempts = _hasAttempts;
     final average = summary.averageErrorsPerSheet;
-    final withinThreshold = average <= averageErrorThreshold;
+    final threshold = averageErrorThresholdFor(categoryId);
+    final withinThreshold = average <= threshold;
     final statusColor = !hasAttempts
         ? _textPrimaryColor.withValues(alpha: 0.55)
         : (withinThreshold ? _withinColor : _aboveColor);

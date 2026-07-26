@@ -11,6 +11,9 @@ import '../models/quiz_question.dart';
 /// Se `pool.length >= limit`: nessun duplicato nella stessa scheda.
 /// Se `pool.length < limit`: restituisce tutte le domande del pool (meno di
 /// [limit]), senza duplicati — caso raro/edge.
+///
+/// Il default [limit] = 20 è retrocompatibile A12. Per D1 passare
+/// esplicitamente `limit: LessonQuizRules.d1.questionsPerSheet` (15).
 List<QuizQuestion> sliceLessonSheetQuestions({
   required List<QuizQuestion> pool,
   required int sheetNumber,
@@ -30,6 +33,8 @@ List<QuizQuestion> sliceLessonSheetQuestions({
 
 /// Indici 0-based nel pool ordinato per [questionIds] (stesso algoritmo di
 /// [sliceLessonSheetQuestions], senza dipendere da [QuizQuestion]).
+///
+/// Default [limit] = 20 (A12). Per D1 passare esplicitamente `limit: 15`.
 List<int> sliceLessonSheetQuestionIndices({
   required int poolLength,
   required int sheetNumber,
@@ -40,8 +45,5 @@ List<int> sliceLessonSheetQuestionIndices({
   final startIndex = ((sheetNumber - 1) * limit) % poolLength;
   final count = math.min(limit, poolLength);
 
-  return List<int>.generate(
-    count,
-    (i) => (startIndex + i) % poolLength,
-  );
+  return List<int>.generate(count, (i) => (startIndex + i) % poolLength);
 }
