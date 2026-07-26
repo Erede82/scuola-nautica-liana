@@ -24,6 +24,9 @@ QuizQuestion _question(
 List<QuizQuestion> _twentyQuestions() =>
     List.generate(ExamQuizRules.questionCount, (i) => _question(i));
 
+List<QuizQuestion> _fifteenQuestions() =>
+    List.generate(15, (i) => _question(i));
+
 void main() {
   group('buildExamQuizAttemptSubmission - payload valido', () {
     test('20 domande con mix corrette/errate/non risposte', () {
@@ -297,6 +300,7 @@ void main() {
       ];
 
       final summary = examQuizSummaryFromAnswers(
+        licenseCategory: LicenseCategoryId.motore,
         questions: questions,
         userAnswers: answers,
       );
@@ -306,6 +310,7 @@ void main() {
         correctCount: 16,
         wrongCount: 3,
         unansweredCount: 1,
+        maxErrorsToPass: 4,
       );
 
       expect(summary.correctCount, reference.correctCount);
@@ -325,6 +330,7 @@ void main() {
       ];
 
       final summary = examQuizSummaryFromAnswers(
+        licenseCategory: LicenseCategoryId.motore,
         questions: questions,
         userAnswers: answers,
       );
@@ -332,6 +338,93 @@ void main() {
       expect(summary.unansweredCount, 5);
       expect(summary.errorCount, 5);
       expect(summary.outcome, ExamQuizOutcome.failed);
+    });
+  });
+
+  group('buildExamQuizAttemptSubmission - D1', () {
+    ExamQuizAttemptSubmission buildD1({
+      List<QuizQuestion>? questions,
+      List<QuizAnswerOption?>? userAnswers,
+    }) {
+      final qs = questions ?? _fifteenQuestions();
+      return buildExamQuizAttemptSubmission(
+        licenseCategory: LicenseCategoryId.d1,
+        clientAttemptToken: 'd1-token',
+        duration: const Duration(minutes: 30),
+        timeExpired: false,
+        questions: qs,
+        userAnswers:
+            userAnswers ?? List<QuizAnswerOption?>.filled(qs.length, null),
+      );
+    }
+
+    test('15 answers valide con posizioni 1–15', () {
+      final submission = buildD1();
+      expect(submission.answers.length, 15);
+      expect(submission.licenseCategory, LicenseCategoryId.d1);
+      expect(submission.toRpcParams()['p_license_category'], 'D1');
+      for (var i = 0; i < 15; i++) {
+        expect(submission.answers[i].position, i + 1);
+      }
+    });
+
+    test('14 answers → errore', () {
+      expect(
+        () => buildD1(
+          questions: _fifteenQuestions().sublist(0, 14),
+          userAnswers: List<QuizAnswerOption?>.filled(14, null),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('16 answers → errore', () {
+      final sixteen = List.generate(16, (i) => _question(i));
+      expect(
+        () => buildD1(
+          questions: sixteen,
+          userAnswers: List<QuizAnswerOption?>.filled(16, null),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('id domanda duplicato → errore', () {
+      final questions = _fifteenQuestions();
+      final withDup = [...questions.sublist(0, 14), questions[0]];
+      expect(
+        () => buildD1(
+          questions: withDup,
+          userAnswers: List<QuizAnswerOption?>.filled(15, null),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('disallineamento lunghezze → errore', () {
+      expect(
+        () => buildD1(
+          userAnswers: List<QuizAnswerOption?>.filled(14, QuizAnswerOption.a),
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('buildExamQuizAttemptSubmission - regressione A12', () {
+    test('21 answers → errore', () {
+      final twentyOne = List.generate(21, (i) => _question(i));
+      expect(
+        () => buildExamQuizAttemptSubmission(
+          licenseCategory: LicenseCategoryId.motore,
+          clientAttemptToken: 'token',
+          duration: Duration.zero,
+          timeExpired: false,
+          questions: twentyOne,
+          userAnswers: List<QuizAnswerOption?>.filled(21, null),
+        ),
+        throwsArgumentError,
+      );
     });
   });
 }

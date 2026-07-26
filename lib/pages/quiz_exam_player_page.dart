@@ -90,6 +90,9 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
   String? get completedAttemptId => _completedAttemptId;
   String? _completedAttemptId;
 
+  ExamQuizCategoryRules get _rules =>
+      examQuizRulesForCategory(widget.categoryId)!;
+
   @override
   void initState() {
     super.initState();
@@ -103,7 +106,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
       widget.questions.length,
       null,
     );
-    _remaining = const Duration(minutes: ExamQuizRules.durationMinutes);
+    _remaining = Duration(seconds: _rules.durationSeconds);
     _timer = Timer.periodic(const Duration(seconds: 1), _onTimerTick);
   }
 
@@ -265,12 +268,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
       if (!mounted) return;
 
       final attempt = result.attempt;
-      final summary = buildExamQuizSummary(
-        totalQuestions: attempt.totalQuestions,
-        correctCount: attempt.correctCount,
-        wrongCount: attempt.wrongCount,
-        unansweredCount: attempt.unansweredCount,
-      );
+      final summary = attempt.toExamQuizSummary();
 
       qfLog(
         'QuizExamPlayer: submit ok attemptId=${attempt.id} '
@@ -536,6 +534,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
     ExamQuizSummary summary,
   ) {
     final passed = summary.outcome == ExamQuizOutcome.passed;
+    final maxErrors = _rules.maxErrorsToPass;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -562,8 +561,8 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
             const SizedBox(height: 8),
             Text(
               passed
-                  ? 'Hai totalizzato al massimo ${ExamQuizRules.maxErrorsToPass} errori.'
-                  : 'Soglia superata: più di ${ExamQuizRules.maxErrorsToPass} errori '
+                  ? 'Hai totalizzato al massimo $maxErrors errori.'
+                  : 'Soglia superata: più di $maxErrors errori '
                         '(risposte errate e non risposte).',
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
@@ -594,7 +593,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
             _SummaryRow(
               label: 'Errori totali (per esito)',
               value: '${summary.errorCount}',
-              valueColor: summary.errorCount > ExamQuizRules.maxErrorsToPass
+              valueColor: summary.errorCount > maxErrors
                   ? _failedColor
                   : _textPrimaryColor,
             ),
@@ -772,9 +771,8 @@ Future<bool> startExamSimulation({
   required LicenseCategoryId categoryId,
   ExamQuizAttemptRepository? repository,
 }) async {
-  final dbCategory = categoryId == LicenseCategoryId.motore ? 'A12' : 'D1';
-  final quotas = examTopicQuotasForCategory(dbCategory);
-  if (quotas == null) return false;
+  final rules = examQuizRulesForCategory(categoryId);
+  if (rules == null) return false;
 
   var completedInSession = false;
 
@@ -783,20 +781,45 @@ Future<bool> startExamSimulation({
       categoryId: categoryId,
     );
 
+    if (!context.mounted) return completedInSession;
+
+    final shortfall = findExamTopicPoolShortfall(
+      poolByTopic: pool,
+      topicQuotas: rules.topicQuotas,
+    );
+    if (shortfall != null) {
+      qfLog(
+        'startExamSimulation: pool insufficiente topic=${shortfall.topic} '
+        'required=${shortfall.required} available=${shortfall.available}',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Non ci sono abbastanza domande per creare questa simulazione.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return completedInSession;
+    }
+
     final questions = pickExamQuestions(
       poolByTopic: pool,
-      topicQuotas: quotas,
+      topicQuotas: rules.topicQuotas,
       random: Random(),
     );
 
     if (!context.mounted) return completedInSession;
 
-    if (questions.length < ExamQuizRules.questionCount) {
+    if (questions.length < rules.totalQuestions) {
+      qfLog(
+        'startExamSimulation: selezione incompleta '
+        'picked=${questions.length} required=${rules.totalQuestions}',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            'Domande insufficienti per la simulazione '
-            '(${questions.length}/${ExamQuizRules.questionCount}).',
+            'Non ci sono abbastanza domande per creare questa simulazione.',
           ),
           behavior: SnackBarBehavior.floating,
         ),

@@ -121,7 +121,12 @@ class _QuizExamPageState extends State<QuizExamPage> {
     if (mounted) await _loadAttempts();
   }
 
-  Widget _motoreExamBody(TextTheme textTheme) {
+  Widget _examBody(TextTheme textTheme) {
+    final rules = examQuizRulesForCategory(widget.categoryId)!;
+    final categoryLabel = widget.categoryId == LicenseCategoryId.motore
+        ? 'Patente entro le 12 miglia (motore)'
+        : 'Patente entro le 12 miglia (D1)';
+
     return RefreshIndicator(
       onRefresh: _loadAttempts,
       child: ListView(
@@ -137,9 +142,9 @@ class _QuizExamPageState extends State<QuizExamPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Patente entro le 12 miglia (motore): ${ExamQuizRules.questionCount} '
-            'quesiti, ${ExamQuizRules.durationMinutes} minuti, massimo '
-            '${ExamQuizRules.maxErrorsToPass} errori per superare. '
+            '$categoryLabel: ${rules.totalQuestions} quesiti, '
+            '${rules.durationMinutes} minuti, massimo '
+            '${rules.maxErrorsToPass} errori per superare. '
             'Le domande non risposte contano come errore.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
@@ -220,6 +225,10 @@ class _QuizExamPageState extends State<QuizExamPage> {
     );
   }
 
+  bool get _isExamCategorySupported =>
+      widget.categoryId == LicenseCategoryId.motore ||
+      widget.categoryId == LicenseCategoryId.d1;
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -267,17 +276,14 @@ class _QuizExamPageState extends State<QuizExamPage> {
                   primaryActionIcon: Icons.arrow_back_rounded,
                   onPrimaryActionPressed: () => Navigator.maybePop(context),
                 )
-              : widget.categoryId == LicenseCategoryId.motore
-              ? _motoreExamBody(textTheme)
+              : _isExamCategorySupported
+              ? _examBody(textTheme)
               : CategoryContentState(
                   category: category,
-                  availableTitle: widget.categoryId == LicenseCategoryId.d1
-                      ? 'Quiz esame D1'
-                      : 'Quiz esame — ${category.name}',
+                  availableTitle: 'Quiz esame — ${category.name}',
                   availableMessage:
-                      'Simulazione esame per ${category.name}: regole e '
-                      'selezione domande in preparazione. Usa le schede lezione '
-                      'per allenarti.',
+                      'La modalità esame per ${category.name} sarà disponibile '
+                      'con i contenuti didattici.',
                   availableIcon: Icons.quiz_rounded,
                   unavailableTitle: null,
                   unavailableMessage: null,

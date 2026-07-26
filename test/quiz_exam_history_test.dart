@@ -28,13 +28,15 @@ ExamQuizAttemptSummary _summary({
   bool timeExpired = false,
   Duration duration = const Duration(minutes: 12),
 }) {
+  final rules = examQuizRulesForCategory(category)!;
+  final total = rules.totalQuestions;
   return ExamQuizAttemptSummary(
     id: id,
     licenseCategory: category,
     completedAt: completedAt ?? DateTime.utc(2026, 7, 24, 10),
     duration: duration,
     timeExpired: timeExpired,
-    totalQuestions: 20,
+    totalQuestions: total,
     correctCount: correct,
     wrongCount: wrong,
     unansweredCount: unanswered,
@@ -256,6 +258,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.lastListCategory, LicenseCategoryId.motore);
       expect(find.text('Svolto'), findsOneWidget);
+    });
+
+    testWidgets('D1 storico richiede categoria D1 e mostra totale 15', (
+      tester,
+    ) async {
+      final repo = ExamQuizAttemptRepositoryFake(
+        summaries: [
+          _summary(
+            id: 'd1-only',
+            category: LicenseCategoryId.d1,
+            correct: 13,
+            wrong: 1,
+            unanswered: 1,
+          ),
+          _summary(id: 'motore-other', category: LicenseCategoryId.motore),
+        ],
+      );
+      await _pumpExamLanding(
+        tester,
+        repository: repo,
+        categoryId: LicenseCategoryId.d1,
+      );
+      await tester.pumpAndSettle();
+      expect(repo.lastListCategory, LicenseCategoryId.d1);
+      expect(find.text('Svolto'), findsOneWidget);
+      expect(find.textContaining('Corrette 13'), findsOneWidget);
+      final cards = tester.widgetList<ExamQuizAttemptCard>(
+        find.byType(ExamQuizAttemptCard),
+      );
+      expect(cards, hasLength(1));
+      expect(cards.single.attempt.licenseCategory, LicenseCategoryId.d1);
+      expect(cards.single.attempt.totalQuestions, 15);
     });
 
     testWidgets('ordine più recente per primo', (tester) async {

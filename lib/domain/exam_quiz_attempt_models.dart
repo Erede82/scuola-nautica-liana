@@ -31,6 +31,16 @@ class ExamQuizAttemptSummary {
 
   int get errorCount => wrongCount + unansweredCount;
 
+  /// Riepilogo UI con esito autorevole dal server.
+  ExamQuizSummary toExamQuizSummary() => ExamQuizSummary(
+    totalQuestions: totalQuestions,
+    correctCount: correctCount,
+    wrongCount: wrongCount,
+    unansweredCount: unansweredCount,
+    errorCount: errorCount,
+    outcome: outcome,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is ExamQuizAttemptSummary &&

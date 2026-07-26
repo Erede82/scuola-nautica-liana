@@ -361,6 +361,86 @@ void main() {
         throwsA(isA<ExamQuizAttemptException>()),
       );
     });
+
+    test('D1 accetta 15 domande e soglia 3 errori', () {
+      final summary = parseExamQuizAttemptSummary(
+        _summaryJson(
+          category: 'D1',
+          total: 15,
+          correct: 12,
+          wrong: 2,
+          unanswered: 1,
+          passed: true,
+        ),
+      );
+      expect(summary.licenseCategory, LicenseCategoryId.d1);
+      expect(summary.totalQuestions, 15);
+      expect(summary.outcome, ExamQuizOutcome.passed);
+    });
+
+    test('D1 rifiuta passed con 4 errori', () {
+      expect(
+        () => parseExamQuizAttemptSummary(
+          _summaryJson(
+            category: 'D1',
+            total: 15,
+            correct: 11,
+            wrong: 3,
+            unanswered: 1,
+            passed: true,
+          ),
+        ),
+        throwsA(isA<ExamQuizAttemptException>()),
+      );
+    });
+
+    test('D1 rifiuta total_questions=20 anche se conteggi coerenti', () {
+      expect(
+        () => parseExamQuizAttemptSummary(
+          _summaryJson(
+            category: 'D1',
+            total: 20,
+            correct: 16,
+            wrong: 3,
+            unanswered: 1,
+            passed: true,
+          ),
+        ),
+        throwsA(isA<ExamQuizAttemptException>()),
+      );
+    });
+
+    test('D1 rifiuta total_questions=14', () {
+      expect(
+        () => parseExamQuizAttemptSummary(
+          _summaryJson(
+            category: 'D1',
+            total: 14,
+            correct: 12,
+            wrong: 1,
+            unanswered: 1,
+            passed: true,
+          ),
+        ),
+        throwsA(isA<ExamQuizAttemptException>()),
+      );
+    });
+
+    test('A12 rifiuta total_questions=15', () {
+      expect(
+        () => parseExamQuizAttemptSummary(
+          _summaryJson(
+            category: 'A12',
+            total: 15,
+            correct: 12,
+            wrong: 2,
+            unanswered: 1,
+            passed: true,
+          ),
+        ),
+        throwsA(isA<ExamQuizAttemptException>()),
+      );
+    });
   });
 
   group('parseExamQuizAttemptResult dettaglio', () {

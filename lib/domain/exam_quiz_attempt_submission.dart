@@ -130,12 +130,20 @@ ExamQuizAttemptSubmission buildExamQuizAttemptSubmission({
       'Nessuna domanda nella simulazione.',
     );
   }
-  if (questions.length != ExamQuizRules.questionCount) {
+  final rules = examQuizRulesForCategory(licenseCategory);
+  if (rules == null) {
+    throw ArgumentError.value(
+      licenseCategory,
+      'licenseCategory',
+      'Categoria esame non supportata.',
+    );
+  }
+  if (questions.length != rules.totalQuestions) {
     throw ArgumentError.value(
       questions.length,
       'questions',
       'La simulazione esame richiede esattamente '
-          '${ExamQuizRules.questionCount} domande.',
+          '${rules.totalQuestions} domande.',
     );
   }
   if (userAnswers.length != questions.length) {

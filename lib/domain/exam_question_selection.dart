@@ -3,7 +3,7 @@ import 'dart:math';
 import '../models/quiz_question.dart';
 import 'exam_quiz_rules.dart';
 
-/// Seleziona [ExamQuizRules.questionCount] domande rispettando le quote per topic.
+/// Seleziona domande rispettando le [topicQuotas] per categoria.
 ///
 /// [poolByTopic] mappa `exam_topic_code` → domande disponibili.
 /// [random] iniettabile per test deterministici.
@@ -38,12 +38,40 @@ List<QuizQuestion> pickExamQuestions({
   return picked;
 }
 
+/// Primo topic con pool insufficiente rispetto alla quota richiesta.
+class ExamTopicPoolShortfall {
+  const ExamTopicPoolShortfall({
+    required this.topic,
+    required this.required,
+    required this.available,
+  });
+
+  final String topic;
+  final int required;
+  final int available;
+}
+
+/// Restituisce il primo topic la cui disponibilità è inferiore alla quota.
+ExamTopicPoolShortfall? findExamTopicPoolShortfall({
+  required Map<String, List<QuizQuestion>> poolByTopic,
+  required Map<String, int> topicQuotas,
+}) {
+  for (final entry in topicQuotas.entries) {
+    final quota = entry.value;
+    if (quota <= 0) continue;
+    final available = poolByTopic[entry.key]?.length ?? 0;
+    if (available < quota) {
+      return ExamTopicPoolShortfall(
+        topic: entry.key,
+        required: quota,
+        available: available,
+      );
+    }
+  }
+  return null;
+}
+
 /// Quote topic per categoria esame supportata.
 Map<String, int>? examTopicQuotasForCategory(String licenseCategoryDb) {
-  switch (licenseCategoryDb) {
-    case 'A12':
-      return ExamQuizRules.a12TopicQuotas;
-    default:
-      return null;
-  }
+  return examQuizRulesForDbCategory(licenseCategoryDb)?.topicQuotas;
 }

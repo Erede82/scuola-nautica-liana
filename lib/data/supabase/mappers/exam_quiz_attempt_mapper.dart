@@ -170,16 +170,34 @@ QuizAnswerOption requireExamQuizCorrectOption(Object? raw) {
 }
 
 void validateExamQuizAttemptCounts({
+  required LicenseCategoryId licenseCategory,
   required int totalQuestions,
   required int correctCount,
   required int wrongCount,
   required int unansweredCount,
   required bool passed,
 }) {
+  final rules = examQuizRulesForCategory(licenseCategory);
+  if (rules == null) {
+    throw ExamQuizAttemptException(
+      code: ExamQuizAttemptErrorCode.invalidLicenseCategory,
+      message: examQuizAttemptErrorMessageIt(
+        ExamQuizAttemptErrorCode.invalidLicenseCategory,
+      ),
+    );
+  }
   if (totalQuestions <= 0) {
     throw const ExamQuizAttemptException(
       code: ExamQuizAttemptErrorCode.invalidPayload,
       message: 'total_questions non valido.',
+    );
+  }
+  if (totalQuestions != rules.totalQuestions) {
+    throw ExamQuizAttemptException(
+      code: ExamQuizAttemptErrorCode.invalidPayload,
+      message:
+          'total_questions ($totalQuestions) non valido per la categoria: '
+          'atteso ${rules.totalQuestions}.',
     );
   }
   if (correctCount + wrongCount + unansweredCount != totalQuestions) {
@@ -191,7 +209,7 @@ void validateExamQuizAttemptCounts({
     );
   }
   final expectedPassed =
-      (wrongCount + unansweredCount) <= ExamQuizRules.maxErrorsToPass;
+      (wrongCount + unansweredCount) <= rules.maxErrorsToPass;
   if (passed != expectedPassed) {
     throw ExamQuizAttemptException(
       code: ExamQuizAttemptErrorCode.invalidPayload,
@@ -241,6 +259,7 @@ ExamQuizAttemptSummary parseExamQuizAttemptSummary(Map<String, dynamic> json) {
   final passed = requireExamQuizBool(json['passed'], field: 'passed');
 
   validateExamQuizAttemptCounts(
+    licenseCategory: licenseCategory,
     totalQuestions: totalQuestions,
     correctCount: correctCount,
     wrongCount: wrongCount,

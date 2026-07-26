@@ -13,7 +13,7 @@ import '../widgets/quiz_question_image.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
 
-/// Dettaglio read-only di un tentativo esame persistito (header + 20 snapshot).
+/// Dettaglio read-only di un tentativo esame persistito (header + N snapshot).
 class QuizExamAttemptDetailPage extends StatefulWidget {
   const QuizExamAttemptDetailPage({
     super.key,
@@ -167,12 +167,7 @@ class _DetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final passed = result.passed;
-    final summary = buildExamQuizSummary(
-      totalQuestions: result.totalQuestions,
-      correctCount: result.correctCount,
-      wrongCount: result.wrongCount,
-      unansweredCount: result.unansweredCount,
-    );
+    final summary = examQuizSummaryFromResult(result);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),

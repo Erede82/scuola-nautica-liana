@@ -102,6 +102,7 @@ void main() {
       ];
       final answers = <QuizAnswerOption?>[QuizAnswerOption.a, null];
       final summary = examQuizSummaryFromAnswers(
+        licenseCategory: LicenseCategoryId.motore,
         questions: questions,
         userAnswers: answers,
       );

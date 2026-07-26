@@ -152,9 +152,18 @@ class ExamQuizAttemptAnswerSnapshot {
 /// Adapter puro: traduce le risposte del player nel formato richiesto da
 /// [buildExamQuizSummary], senza duplicarne soglia/esito/conteggi.
 ExamQuizSummary examQuizSummaryFromAnswers({
+  required LicenseCategoryId licenseCategory,
   required List<QuizQuestion> questions,
   required List<QuizAnswerOption?> userAnswers,
 }) {
+  final rules = examQuizRulesForCategory(licenseCategory);
+  if (rules == null) {
+    throw ArgumentError.value(
+      licenseCategory,
+      'licenseCategory',
+      'Categoria esame non supportata.',
+    );
+  }
   if (questions.length != userAnswers.length) {
     throw ArgumentError(
       'Risposte (${userAnswers.length}) non allineate alle domande '
@@ -181,6 +190,19 @@ ExamQuizSummary examQuizSummaryFromAnswers({
     correctCount: correctCount,
     wrongCount: wrongCount,
     unansweredCount: unansweredCount,
+    maxErrorsToPass: rules.maxErrorsToPass,
+  );
+}
+
+/// Riepilogo UI da risultato persistito (esito autorevole dal server).
+ExamQuizSummary examQuizSummaryFromResult(ExamQuizAttemptResult result) {
+  return ExamQuizSummary(
+    totalQuestions: result.totalQuestions,
+    correctCount: result.correctCount,
+    wrongCount: result.wrongCount,
+    unansweredCount: result.unansweredCount,
+    errorCount: result.errorCount,
+    outcome: result.outcome,
   );
 }
 
