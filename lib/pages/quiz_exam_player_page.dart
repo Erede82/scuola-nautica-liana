@@ -18,10 +18,11 @@ import '../pages/quiz_exam_error_review_page.dart';
 import '../repositories/exam_quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../widgets/nautical_answer_marker.dart';
+import '../widgets/quiz_player_answer_tile.dart';
 import '../widgets/quiz_question_progress_strip.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
-import '../theme/app_visual_tokens.dart';
+import '../theme/quiz_player_visual_tokens.dart';
 
 /// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
 const String kExamRestartSimulationResult = 'restart_exam_simulation';
@@ -63,15 +64,15 @@ class QuizExamPlayerPage extends StatefulWidget {
 }
 
 class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _backgroundColor = AppVisual.canvas;
-  static const Color _cardColor = Color(0xFFFFFFFF);
-  static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _neutralColor = AppVisual.chipFill;
-  static const Color _correctColor = Color(0xFF15803D);
-  static const Color _wrongColor = Color(0xFFD32F2F);
-  static const Color _passedColor = Color(0xFF15803D);
-  static const Color _failedColor = Color(0xFFD32F2F);
+  static const Color _primaryColor = QuizPlayerVisual.accent;
+  static const Color _backgroundColor = QuizPlayerVisual.pageBackground;
+  static const Color _cardColor = QuizPlayerVisual.cardSurface;
+  static const Color _textPrimaryColor = QuizPlayerVisual.ink;
+  static const Color _neutralColor = QuizPlayerVisual.cardBorder;
+  static const Color _correctColor = QuizPlayerVisual.correctBorder;
+  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
+  static const Color _passedColor = QuizPlayerVisual.correctBorder;
+  static const Color _failedColor = QuizPlayerVisual.wrongBorder;
 
   late List<QuizAnswerOption?> _userAnswers;
   late Duration _remaining;
@@ -327,7 +328,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final compact = MediaQuery.sizeOf(context).width < 600;
+    final compact = QuizPlayerVisual.isCompact(context);
 
     if (_showSummary && _summary != null) {
       return PopScope(
@@ -431,98 +432,131 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                   ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: _cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _neutralColor),
-                      ),
-                      child: QuizQuestionPromptPanel(
-                        questionNumber: _currentIndex + 1,
-                        prompt: question.prompt,
-                        imagePath: question.imagePath,
-                        compact: compact,
-                        labelColor: _primaryColor,
-                        textColor: _textPrimaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...question.options.map(
-                      (option) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _ExamAnswerTile(
-                          answerNumber: option.index + 1,
-                          text: question.textForOption(option),
-                          selected: selected == option,
-                          compact: compact,
-                          onTap: () => _selectAnswer(option),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: QuizPlayerVisual.contentMaxWidth,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: QuizPlayerVisual.bodyPadding,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(
+                            QuizPlayerVisual.cardPadding,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _cardColor,
+                            borderRadius: BorderRadius.circular(
+                              QuizPlayerVisual.cardRadius,
+                            ),
+                            border: Border.all(color: _neutralColor),
+                          ),
+                          child: QuizQuestionPromptPanel(
+                            questionNumber: _currentIndex + 1,
+                            prompt: question.prompt,
+                            imagePath: question.imagePath,
+                            compact: compact,
+                            labelColor: _primaryColor,
+                            textColor: _textPrimaryColor,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: QuizPlayerVisual.sectionSpacing),
+                        ...question.options.map(
+                          (option) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: QuizPlayerVisual.answerSpacing,
+                            ),
+                            child: QuizPlayerAnswerTile(
+                              answerNumber: option.index + 1,
+                              text: question.textForOption(option),
+                              onTap: () => _selectAnswer(option),
+                              markerState: selected == option
+                                  ? NauticalAnswerMarkerState.selected
+                                  : NauticalAnswerMarkerState.neutral,
+                              backgroundColor: selected == option
+                                  ? QuizPlayerVisual.selectedFill
+                                  : QuizPlayerVisual.cardSurface,
+                              borderColor: selected == option
+                                  ? QuizPlayerVisual.selectedBorder
+                                  : QuizPlayerVisual.cardBorder,
+                              borderWidth: selected == option ? 2.0 : 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: Row(
-                  children: [
-                    IconButton.filledTonal(
-                      onPressed: _currentIndex > 0 ? _goBack : null,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                      tooltip: 'Domanda precedente',
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed:
-                            QuizSheetPlayerNavigation.canGoForward(
-                              currentIndex: _currentIndex,
-                              questionCount: widget.questions.length,
-                            )
-                            ? _goForward
-                            : _completeExamFlow,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          QuizSheetPlayerNavigation.canGoForward(
-                                currentIndex: _currentIndex,
-                                questionCount: widget.questions.length,
-                              )
-                              ? 'Avanti'
-                              : 'Termina esame',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Material(
+            color: _backgroundColor,
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                QuizPlayerVisual.bottomBarPaddingV,
+                12,
+                12,
+              ),
+              child: Row(
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: _currentIndex > 0 ? _goBack : null,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    tooltip: 'Domanda precedente',
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
                       onPressed:
                           QuizSheetPlayerNavigation.canGoForward(
                             currentIndex: _currentIndex,
                             questionCount: widget.questions.length,
                           )
                           ? _goForward
-                          : null,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                      tooltip: 'Domanda successiva',
+                          : _completeExamFlow,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: QuizPlayerVisual.bottomButtonPaddingV,
+                        ),
+                      ),
+                      child: Text(
+                        QuizSheetPlayerNavigation.canGoForward(
+                              currentIndex: _currentIndex,
+                              questionCount: widget.questions.length,
+                            )
+                            ? 'Avanti'
+                            : 'Termina esame',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed:
+                        QuizSheetPlayerNavigation.canGoForward(
+                          currentIndex: _currentIndex,
+                          questionCount: widget.questions.length,
+                        )
+                        ? _goForward
+                        : null,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    tooltip: 'Domanda successiva',
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -652,73 +686,18 @@ class _ExamProgressPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      margin: QuizPlayerVisual.progressPanelMargin,
+      padding: QuizPlayerVisual.progressPanelPadding,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppVisual.chipFill),
+        color: QuizPlayerVisual.cardSurface,
+        borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
+        border: Border.all(color: QuizPlayerVisual.cardBorder),
       ),
       child: QuizQuestionProgressStrip(
         currentIndex: currentIndex,
         total: total,
         isAnswered: isAnswered,
-      ),
-    );
-  }
-}
-
-class _ExamAnswerTile extends StatelessWidget {
-  const _ExamAnswerTile({
-    required this.answerNumber,
-    required this.text,
-    required this.selected,
-    required this.onTap,
-    this.compact = false,
-  });
-
-  final int answerNumber;
-  final String text;
-  final bool selected;
-  final VoidCallback onTap;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final answerStyle = QuizAnswerTextStyle.answer(context, compact: compact);
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            compact ? 12 : 14,
-            compact ? 12 : 14,
-            compact ? 10 : 12,
-            compact ? 12 : 14,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppVisual.chipFill, width: 1.2),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: Text(text, style: answerStyle)),
-              const SizedBox(width: 10),
-              NauticalAnswerMarker(
-                answerNumber: answerNumber,
-                state: selected
-                    ? NauticalAnswerMarkerState.selected
-                    : NauticalAnswerMarkerState.neutral,
-                compact: compact,
-              ),
-            ],
-          ),
-        ),
+        compact: true,
       ),
     );
   }

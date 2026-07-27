@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/lesson_quiz_rules.dart';
 import '../models/license_models.dart';
-import '../theme/app_visual_tokens.dart';
+import '../theme/quiz_player_visual_tokens.dart';
 
 /// Card esito scheda lezione: PROMOSSO / BOCCIATO (regole [LessonQuizRules]).
 class LessonQuizSheetSummaryOutcome extends StatelessWidget {
@@ -17,8 +17,8 @@ class LessonQuizSheetSummaryOutcome extends StatelessWidget {
   final int wrongCount;
   final int unansweredCount;
 
-  static const Color _promotedColor = Color(0xFF15803D);
-  static const Color _failedColor = Color(0xFFD32F2F);
+  static const Color _promotedColor = QuizPlayerVisual.correctBorder;
+  static const Color _failedColor = QuizPlayerVisual.wrongBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +40,8 @@ class LessonQuizSheetSummaryOutcome extends StatelessWidget {
     final promoted = label == 'PROMOSSO';
     final accent = promoted ? _promotedColor : _failedColor;
     final background = promoted
-        ? const Color(0xFFDFF5E8)
-        : const Color(0xFFFDE8E8);
+        ? QuizPlayerVisual.correctFill
+        : QuizPlayerVisual.wrongFill;
     final icon = promoted ? Icons.check_circle_rounded : Icons.cancel_rounded;
 
     return Semantics(
@@ -51,7 +51,7 @@ class LessonQuizSheetSummaryOutcome extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
           border: Border.all(color: accent.withValues(alpha: 0.45)),
         ),
         child: Row(
@@ -66,7 +66,7 @@ class LessonQuizSheetSummaryOutcome extends StatelessWidget {
                   Text(
                     'Esito',
                     style: textTheme.bodyMedium?.copyWith(
-                      color: AppVisual.ink.withValues(alpha: 0.75),
+                      color: QuizPlayerVisual.ink.withValues(alpha: 0.75),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -83,7 +83,7 @@ class LessonQuizSheetSummaryOutcome extends StatelessWidget {
                   Text(
                     detail,
                     style: textTheme.bodyMedium?.copyWith(
-                      color: AppVisual.ink,
+                      color: QuizPlayerVisual.ink,
                       fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),

@@ -13,10 +13,11 @@ import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/lesson_quiz_sheet_summary_body.dart';
 import '../widgets/nautical_answer_marker.dart';
+import '../widgets/quiz_player_answer_tile.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/quiz_question_progress_strip.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
-import '../theme/app_visual_tokens.dart';
+import '../theme/quiz_player_visual_tokens.dart';
 
 /// Dettaglio scheda quiz per lezione — domande da `quiz_sets` / `quiz_set_items`.
 class QuizSheetDetailPage extends StatefulWidget {
@@ -46,8 +47,8 @@ class QuizSheetDetailPage extends StatefulWidget {
 }
 
 class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _backgroundColor = AppVisual.canvas;
+  static const Color _primaryColor = QuizPlayerVisual.accent;
+  static const Color _backgroundColor = QuizPlayerVisual.pageBackground;
 
   @override
   void initState() {
@@ -138,15 +139,15 @@ class _QuizSheetPlayer extends StatefulWidget {
 }
 
 class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _backgroundColor = AppVisual.canvas;
-  static const Color _cardColor = Color(0xFFFFFFFF);
-  static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _neutralColor = AppVisual.chipFill;
-  static const Color _correctColor = Color(0xFF15803D);
-  static const Color _wrongColor = Color(0xFFD32F2F);
-  static const Color _correctBg = Color(0xFFDFF5E8);
-  static const Color _wrongBg = Color(0xFFFDE8E8);
+  static const Color _primaryColor = QuizPlayerVisual.accent;
+  static const Color _backgroundColor = QuizPlayerVisual.pageBackground;
+  static const Color _cardColor = QuizPlayerVisual.cardSurface;
+  static const Color _textPrimaryColor = QuizPlayerVisual.ink;
+  static const Color _neutralColor = QuizPlayerVisual.cardBorder;
+  static const Color _correctColor = QuizPlayerVisual.correctBorder;
+  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
+  static const Color _correctBg = QuizPlayerVisual.correctFill;
+  static const Color _wrongBg = QuizPlayerVisual.wrongFill;
 
   List<QuizQuestion> _questions = const [];
   List<QuizAnswerOption?> _userAnswers = const [];
@@ -608,126 +609,141 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, viewport) {
-                  final height = MediaQuery.sizeOf(context).height;
-                  final compact = viewport.maxWidth < 700 || height < 900;
-                  final cardPadding = compact ? 12.0 : 14.0;
+                  final compact = QuizPlayerVisual.isCompact(context);
 
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(cardPadding),
-                          decoration: BoxDecoration(
-                            color: _cardColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _neutralColor),
-                          ),
-                          child: QuizQuestionPromptPanel(
-                            questionNumber: _currentIndex + 1,
-                            prompt: question.prompt,
-                            imagePath: question.imagePath,
-                            compact: compact,
-                            labelColor: _primaryColor,
-                            textColor: _textPrimaryColor,
-                          ),
-                        ),
-                        SizedBox(height: compact ? 8 : 10),
-                        ...question.options.map(
-                          (option) => Padding(
-                            padding: EdgeInsets.only(bottom: compact ? 6 : 8),
-                            child: _AnswerOptionTile(
-                              answerNumber: option.index + 1,
-                              text: question.textForOption(option),
-                              onTap: revealed
-                                  ? null
-                                  : () => _selectAnswer(option),
-                              backgroundColor: _optionBackground(
-                                option,
-                                selected,
-                                revealed,
+                  return Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: QuizPlayerVisual.contentMaxWidth,
+                      ),
+                      child: SingleChildScrollView(
+                        padding: QuizPlayerVisual.bodyPadding,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(
+                                QuizPlayerVisual.cardPadding,
                               ),
-                              borderColor: _optionBorder(
-                                option,
-                                selected,
-                                revealed,
+                              decoration: BoxDecoration(
+                                color: _cardColor,
+                                borderRadius: BorderRadius.circular(
+                                  QuizPlayerVisual.cardRadius,
+                                ),
+                                border: Border.all(color: _neutralColor),
                               ),
-                              borderWidth: _optionBorderWidth(
-                                option,
-                                selected,
-                                revealed,
-                              ),
-                              textColor: _textPrimaryColor,
-                              markerState: _markerState(
-                                option,
-                                selected,
-                                revealed,
-                              ),
-                              compact: compact,
-                            ),
-                          ),
-                        ),
-                        if (revealed) ...[
-                          const SizedBox(height: 2),
-                          Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.all(compact ? 10 : 12),
-                            decoration: BoxDecoration(
-                              color: selected == question.correctOption
-                                  ? _correctBg
-                                  : _wrongBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: selected == question.correctOption
-                                    ? _correctColor
-                                    : _wrongColor,
-                                width: 2,
+                              child: QuizQuestionPromptPanel(
+                                questionNumber: _currentIndex + 1,
+                                prompt: question.prompt,
+                                imagePath: question.imagePath,
+                                compact: compact,
+                                labelColor: _primaryColor,
+                                textColor: _textPrimaryColor,
                               ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  selected == question.correctOption
-                                      ? 'Risposta corretta'
-                                      : 'Risposta errata',
-                                  style: textTheme.titleSmall?.copyWith(
+                            const SizedBox(
+                              height: QuizPlayerVisual.sectionSpacing,
+                            ),
+                            ...question.options.map(
+                              (option) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: QuizPlayerVisual.answerSpacing,
+                                ),
+                                child: QuizPlayerAnswerTile(
+                                  answerNumber: option.index + 1,
+                                  text: question.textForOption(option),
+                                  onTap: revealed
+                                      ? null
+                                      : () => _selectAnswer(option),
+                                  backgroundColor: _optionBackground(
+                                    option,
+                                    selected,
+                                    revealed,
+                                  ),
+                                  borderColor: _optionBorder(
+                                    option,
+                                    selected,
+                                    revealed,
+                                  ),
+                                  borderWidth: _optionBorderWidth(
+                                    option,
+                                    selected,
+                                    revealed,
+                                  ),
+                                  markerState: _markerState(
+                                    option,
+                                    selected,
+                                    revealed,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (revealed) ...[
+                              const SizedBox(height: 2),
+                              Container(
+                                width: double.infinity,
+                                padding: EdgeInsets.all(compact ? 10 : 12),
+                                decoration: BoxDecoration(
+                                  color: selected == question.correctOption
+                                      ? _correctBg
+                                      : _wrongBg,
+                                  borderRadius: BorderRadius.circular(
+                                    QuizPlayerVisual.cardRadius,
+                                  ),
+                                  border: Border.all(
                                     color: selected == question.correctOption
                                         ? _correctColor
                                         : _wrongColor,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: compact ? 15 : 16,
+                                    width: 2,
                                   ),
                                 ),
-                                if (selected != question.correctOption) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'La risposta corretta è ${question.correctOption.letter}.',
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: _textPrimaryColor,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                                if (question.explanation != null &&
-                                    question.explanation!.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    question.explanation!,
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: _textPrimaryColor.withValues(
-                                        alpha: 0.9,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selected == question.correctOption
+                                          ? 'Risposta corretta'
+                                          : 'Risposta errata',
+                                      style: textTheme.titleSmall?.copyWith(
+                                        color:
+                                            selected == question.correctOption
+                                            ? _correctColor
+                                            : _wrongColor,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: compact ? 15 : 16,
                                       ),
-                                      height: 1.4,
                                     ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
+                                    if (selected != question.correctOption) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'La risposta corretta è ${question.correctOption.letter}.',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: _textPrimaryColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                    if (question.explanation != null &&
+                                        question.explanation!.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        question.explanation!,
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: _textPrimaryColor.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },
@@ -741,7 +757,12 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
             color: _backgroundColor,
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                QuizPlayerVisual.bottomBarPaddingV,
+                12,
+                12,
+              ),
               child: Row(
                 children: [
                   IconButton.filledTonal(
@@ -762,7 +783,9 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                       style: FilledButton.styleFrom(
                         backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: QuizPlayerVisual.bottomButtonPaddingV,
+                        ),
                       ),
                       child: Text(
                         QuizSheetPlayerNavigation.primaryButtonLabel(
@@ -814,7 +837,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     QuizAnswerOption? selected,
     bool revealed,
   ) {
-    if (!revealed) return _cardColor;
+    if (!revealed) {
+      if (option == selected) return QuizPlayerVisual.selectedFill;
+      return _cardColor;
+    }
     final correct = _currentQuestion!.correctOption;
     if (option == correct) return _correctBg;
     if (option == selected) return _wrongBg;
@@ -826,7 +852,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     QuizAnswerOption? selected,
     bool revealed,
   ) {
-    if (!revealed) return _neutralColor;
+    if (!revealed) {
+      if (option == selected) return QuizPlayerVisual.selectedBorder;
+      return _neutralColor;
+    }
     final correct = _currentQuestion!.correctOption;
     if (option == correct) return _correctColor;
     if (option == selected && option != correct) return _wrongColor;
@@ -838,7 +867,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     QuizAnswerOption? selected,
     bool revealed,
   ) {
-    if (!revealed) return 1.2;
+    if (!revealed) {
+      if (option == selected) return 2.0;
+      return 1.2;
+    }
     final correct = _currentQuestion!.correctOption;
     if (option == correct || option == selected) return 2.4;
     return 1.2;
@@ -864,20 +896,20 @@ class _QuizSheetProgressPanel extends StatelessWidget {
   final int wrongCount;
   final int unansweredCount;
 
-  static const Color _neutralColor = AppVisual.chipFill;
-  static const Color _correctColor = Color(0xFF15803D);
-  static const Color _wrongColor = Color(0xFFD32F2F);
+  static const Color _neutralColor = QuizPlayerVisual.cardBorder;
+  static const Color _correctColor = QuizPlayerVisual.correctBorder;
+  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
   static const Color _unansweredColor = Color(0xFF6B7280);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      margin: QuizPlayerVisual.progressPanelMargin,
+      padding: QuizPlayerVisual.progressPanelPadding,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: QuizPlayerVisual.cardSurface,
+        borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
         border: Border.all(color: _neutralColor),
         boxShadow: const [
           BoxShadow(
@@ -906,13 +938,13 @@ class _QuizSheetProgressPanel extends StatelessWidget {
                 label: 'Corrette',
                 value: '$correctCount',
                 color: _correctColor,
-                background: const Color(0xFFDFF5E8),
+                background: QuizPlayerVisual.correctFill,
               ),
               _StatChip(
                 label: 'Errori',
                 value: '$wrongCount',
                 color: _wrongColor,
-                background: const Color(0xFFFDE8E8),
+                background: QuizPlayerVisual.wrongFill,
               ),
               _StatChip(
                 label: 'Non risposte',
@@ -962,73 +994,6 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _AnswerOptionTile extends StatelessWidget {
-  const _AnswerOptionTile({
-    required this.answerNumber,
-    required this.text,
-    required this.onTap,
-    required this.backgroundColor,
-    required this.borderColor,
-    required this.borderWidth,
-    required this.textColor,
-    required this.markerState,
-    this.compact = false,
-  });
-
-  final int answerNumber;
-  final String text;
-  final VoidCallback? onTap;
-  final Color backgroundColor;
-  final Color borderColor;
-  final double borderWidth;
-  final Color textColor;
-  final NauticalAnswerMarkerState markerState;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final answerStyle = QuizAnswerTextStyle.answer(
-      context,
-      compact: compact,
-    ).copyWith(color: textColor);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: borderWidth),
-          ),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 10 : 12,
-              compact ? 10 : 12,
-              compact ? 8 : 10,
-              compact ? 10 : 12,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: Text(text, style: answerStyle)),
-                const SizedBox(width: 10),
-                NauticalAnswerMarker(
-                  answerNumber: answerNumber,
-                  state: markerState,
-                  compact: compact,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 enum _AttemptSaveStatus { idle, saving, saved, failed }
 
 class _AttemptSaveStatusCard extends StatelessWidget {
@@ -1042,10 +1007,10 @@ class _AttemptSaveStatusCard extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback? onRetry;
 
-  static const Color _primaryColor = AppVisual.logoBlue;
-  static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _savedColor = Color(0xFF15803D);
-  static const Color _wrongColor = Color(0xFFD32F2F);
+  static const Color _primaryColor = QuizPlayerVisual.accent;
+  static const Color _textPrimaryColor = QuizPlayerVisual.ink;
+  static const Color _savedColor = QuizPlayerVisual.correctBorder;
+  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
 
   @override
   Widget build(BuildContext context) {

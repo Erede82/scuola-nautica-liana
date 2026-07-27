@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_visual_tokens.dart';
+import '../theme/quiz_player_visual_tokens.dart';
 import 'quiz_question_image.dart';
 
 /// Corpo domanda quiz: figura a sinistra su viewport largo, testo più leggibile.
@@ -12,7 +13,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     this.imagePath,
     this.compact = false,
     this.labelColor = AppVisual.logoBlue,
-    this.textColor = AppVisual.ink,
+    this.textColor = QuizPlayerVisual.ink,
   });
 
   final int questionNumber;
@@ -26,14 +27,14 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
   static double stackedImageBoxHeight(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 600) return 112;
-    if (width < 900) return 124;
-    return 132;
+    if (width < 600) return 120;
+    if (width < 900) return 132;
+    return 140;
   }
 
   static double sideImageBoxHeight(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 700) return 128;
+    if (width < 700) return 132;
     return 140;
   }
 
@@ -47,20 +48,17 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final width = MediaQuery.sizeOf(context).width;
     final hasImage = _hasImage(imagePath);
-    final sideLayout = hasImage && !compact && width >= _sideLayoutMinWidth;
+    final useCompact = compact || QuizPlayerVisual.isCompact(context);
+    final sideLayout = hasImage && !useCompact && width >= _sideLayoutMinWidth;
 
     final labelStyle = textTheme.labelLarge?.copyWith(
       color: labelColor,
       fontWeight: FontWeight.w800,
     );
 
-    final promptStyle = (compact ? textTheme.titleMedium : textTheme.titleLarge)
-        ?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w700,
-          height: compact ? 1.35 : 1.4,
-          fontSize: compact ? 17 : 20,
-        );
+    final promptStyle = QuizPlayerVisual.questionStyle(
+      context,
+    ).copyWith(color: textColor);
 
     final promptWidget = Text(prompt, style: promptStyle);
 
@@ -69,7 +67,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Domanda $questionNumber', style: labelStyle),
-          SizedBox(height: compact ? 8 : 10),
+          SizedBox(height: useCompact ? 8 : 10),
           promptWidget,
         ],
       );
@@ -108,7 +106,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Domanda $questionNumber', style: labelStyle),
-        SizedBox(height: compact ? 8 : 10),
+        SizedBox(height: useCompact ? 8 : 10),
         SizedBox(
           height: imageHeight,
           width: double.infinity,
@@ -124,16 +122,11 @@ class QuizQuestionPromptPanel extends StatelessWidget {
   }
 }
 
-/// Stili testo risposta quiz con font leggermente più grande.
+/// Stili testo risposta quiz — allineati a [QuizPlayerVisual].
 class QuizAnswerTextStyle {
   QuizAnswerTextStyle._();
 
   static TextStyle answer(BuildContext context, {required bool compact}) {
-    final textTheme = Theme.of(context).textTheme;
-    return (compact ? textTheme.bodyLarge : textTheme.titleSmall)!.copyWith(
-      fontWeight: FontWeight.w600,
-      height: 1.35,
-      fontSize: compact ? 16 : 17.5,
-    );
+    return QuizPlayerVisual.answerStyle(context);
   }
 }

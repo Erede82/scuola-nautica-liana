@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/license_models.dart';
-import '../theme/app_visual_tokens.dart';
+import '../theme/quiz_player_visual_tokens.dart';
 import 'lesson_quiz_sheet_summary_outcome.dart';
 
 /// Corpo riepilogo scheda lezione (senza azioni di navigazione / salvataggio).
@@ -21,11 +21,11 @@ class LessonQuizSheetSummaryBody extends StatelessWidget {
   final int wrongCount;
   final int unansweredCount;
 
-  static const Color _correctColor = Color(0xFF15803D);
-  static const Color _wrongColor = Color(0xFFD32F2F);
+  static const Color _correctColor = QuizPlayerVisual.correctBorder;
+  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
   static const Color _unansweredColor = Color(0xFF6B7280);
-  static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _neutralColor = AppVisual.chipFill;
+  static const Color _textPrimaryColor = QuizPlayerVisual.ink;
+  static const Color _neutralColor = QuizPlayerVisual.cardBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -90,8 +90,8 @@ class _SummaryStatRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: QuizPlayerVisual.cardSurface,
+        borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
         border: Border.all(color: LessonQuizSheetSummaryBody._neutralColor),
       ),
       child: Row(
