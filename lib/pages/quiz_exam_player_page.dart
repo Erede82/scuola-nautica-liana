@@ -204,20 +204,33 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
     await _finishExam(timeExpired: false);
   }
 
-  bool get _allowsImmediatePop =>
-      _submitSucceeded || allowsImmediateQuizSheetExit(_userAnswers);
+  /// Uscita libera solo a submit riuscito, oppure se non c’è un tentativo
+  /// concluso in attesa di salvataggio e l’allievo non ha ancora risposto.
+  bool get _allowsImmediatePop {
+    if (_submitSucceeded) return true;
+    // Tentativo già concluso (timer/manuale) ma non ancora persistito: non
+    // perdere il payload con un back accidentale (anche a 0 risposte).
+    if (_pendingSubmission != null) return false;
+    return allowsImmediateQuizSheetExit(_userAnswers);
+  }
 
   Future<bool> _confirmLeaveExam() async {
     if (_allowsImmediatePop) return true;
+
+    final hasUnsavedCompletedAttempt =
+        _pendingSubmission != null && !_submitSucceeded;
 
     final leave = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Uscire dalla simulazione?'),
-        content: const Text(
-          'Hai risposto ad alcune domande ma non hai completato la simulazione. '
-          'Se esci ora, le risposte non verranno salvate.',
+        content: Text(
+          hasUnsavedCompletedAttempt
+              ? 'Il salvataggio del risultato non è ancora riuscito. '
+                    'Se esci ora, questo tentativo non verrà salvato nello storico.'
+              : 'Hai risposto ad alcune domande ma non hai completato la '
+                    'simulazione. Se esci ora, le risposte non verranno salvate.',
         ),
         actions: [
           TextButton(
