@@ -11,6 +11,7 @@ import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
 import '../services/student_area_context.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/lesson_quiz_sheet_summary_body.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/quiz_question_progress_strip.dart';
@@ -24,11 +25,21 @@ class QuizSheetDetailPage extends StatefulWidget {
     required this.lessonNumber,
     required this.sheetNumber,
     this.categoryId = LicenseCategoryId.motore,
+    @visibleForTesting this.studentQuizRepositoryOverride,
+    @visibleForTesting this.quizAttemptRepositoryOverride,
   });
 
   final int lessonNumber;
   final int sheetNumber;
   final LicenseCategoryId categoryId;
+
+  /// Solo test: evita accesso remoto per caricare domande.
+  @visibleForTesting
+  final StudentQuizRepository? studentQuizRepositoryOverride;
+
+  /// Solo test: evita accesso remoto al salvataggio.
+  @visibleForTesting
+  final QuizAttemptRepository? quizAttemptRepositoryOverride;
 
   @override
   State<QuizSheetDetailPage> createState() => _QuizSheetDetailPageState();
@@ -82,6 +93,10 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
           sheetNumber: widget.sheetNumber,
           categoryId: widget.categoryId,
           categoryName: category.name,
+          studentQuizRepository:
+              widget.studentQuizRepositoryOverride ?? studentQuizRepository,
+          quizAttemptRepository:
+              widget.quizAttemptRepositoryOverride ?? quizAttemptRepository,
         );
       },
     );
@@ -107,12 +122,16 @@ class _QuizSheetPlayer extends StatefulWidget {
     required this.sheetNumber,
     required this.categoryId,
     required this.categoryName,
+    required this.studentQuizRepository,
+    required this.quizAttemptRepository,
   });
 
   final int lessonNumber;
   final int sheetNumber;
   final LicenseCategoryId categoryId;
   final String categoryName;
+  final StudentQuizRepository studentQuizRepository;
+  final QuizAttemptRepository quizAttemptRepository;
 
   @override
   State<_QuizSheetPlayer> createState() => _QuizSheetPlayerState();
@@ -128,7 +147,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   static const Color _wrongColor = Color(0xFFD32F2F);
   static const Color _correctBg = Color(0xFFDFF5E8);
   static const Color _wrongBg = Color(0xFFFDE8E8);
-  static const Color _unansweredColor = Color(0xFF6B7280);
 
   List<QuizQuestion> _questions = const [];
   List<QuizAnswerOption?> _userAnswers = const [];
@@ -158,11 +176,12 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     });
 
     try {
-      final content = await studentQuizRepository.fetchLessonSheetContent(
-        categoryId: widget.categoryId,
-        lessonNumber: widget.lessonNumber,
-        sheetNumber: widget.sheetNumber,
-      );
+      final content = await widget.studentQuizRepository
+          .fetchLessonSheetContent(
+            categoryId: widget.categoryId,
+            lessonNumber: widget.lessonNumber,
+            sheetNumber: widget.sheetNumber,
+          );
       if (!mounted) return;
       final loaded = content?.questions ?? const [];
       setState(() {
@@ -234,11 +253,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
 
   int get _unansweredCount =>
       _userAnswers.where((answer) => answer == null).length;
-
-  int get _percentCorrect {
-    if (_questions.isEmpty) return 0;
-    return ((_correctCount / _questions.length) * 100).round();
-  }
 
   void _selectAnswer(QuizAnswerOption option) {
     if (_showSummary || _isCurrentAnswered) return;
@@ -349,14 +363,15 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     });
 
     try {
-      final result = await quizAttemptRepository.submitLessonSheetAttempt(
-        quizSetId: quizSetId,
-        questions: _questions,
-        answers: _userAnswers,
-        startedAt: startedAt,
-        completedAt: completedAt,
-        existingQuizResultId: _partialQuizResultId,
-      );
+      final result = await widget.quizAttemptRepository
+          .submitLessonSheetAttempt(
+            quizSetId: quizSetId,
+            questions: _questions,
+            answers: _userAnswers,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            existingQuizResultId: _partialQuizResultId,
+          );
       if (!mounted) return;
       setState(() {
         _saveStatus = _AttemptSaveStatus.saved;
@@ -492,37 +507,14 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Scheda completata',
-                textAlign: TextAlign.center,
-                style: textTheme.titleLarge?.copyWith(
-                  color: _textPrimaryColor,
-                  fontWeight: FontWeight.w800,
-                ),
+              LessonQuizSheetSummaryBody(
+                categoryId: widget.categoryId,
+                totalQuestions: _questions.length,
+                correctCount: _correctCount,
+                wrongCount: _wrongCount,
+                unansweredCount: _unansweredCount,
               ),
-              const SizedBox(height: 20),
-              _SummaryStatRow(
-                label: 'Domande totali',
-                value: '${_questions.length}',
-              ),
-              _SummaryStatRow(
-                label: 'Risposte corrette',
-                value: '$_correctCount',
-                valueColor: _correctColor,
-              ),
-              _SummaryStatRow(
-                label: 'Errori',
-                value: '$_wrongCount',
-                valueColor: _wrongCount > 0 ? _wrongColor : _textPrimaryColor,
-              ),
-              if (_unansweredCount > 0)
-                _SummaryStatRow(
-                  label: 'Non risposte',
-                  value: '$_unansweredCount',
-                  valueColor: _unansweredColor,
-                ),
-              _SummaryStatRow(label: 'Percentuale', value: '$_percentCorrect%'),
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
               _AttemptSaveStatusCard(
                 status: _saveStatus,
                 errorMessage: _saveErrorMessage,
@@ -602,6 +594,13 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                     _userAnswers,
                     index,
                   ),
+              cellTone: (index) {
+                final answer = _userAnswers[index];
+                if (answer == null) return QuizProgressCellTone.unanswered;
+                return answer == _questions[index].correctOption
+                    ? QuizProgressCellTone.correct
+                    : QuizProgressCellTone.wrong;
+              },
               correctCount: _correctCount,
               wrongCount: _wrongCount,
               unansweredCount: _unansweredCount,
@@ -609,13 +608,12 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, viewport) {
-                  final compact =
-                      viewport.maxWidth < 600 ||
-                      MediaQuery.sizeOf(context).height < 640;
-                  final cardPadding = compact ? 14.0 : 16.0;
+                  final height = MediaQuery.sizeOf(context).height;
+                  final compact = viewport.maxWidth < 700 || height < 900;
+                  final cardPadding = compact ? 12.0 : 14.0;
 
                   return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -623,7 +621,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                           padding: EdgeInsets.all(cardPadding),
                           decoration: BoxDecoration(
                             color: _cardColor,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: _neutralColor),
                           ),
                           child: QuizQuestionPromptPanel(
@@ -635,10 +633,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                             textColor: _textPrimaryColor,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: compact ? 8 : 10),
                         ...question.options.map(
                           (option) => Padding(
-                            padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+                            padding: EdgeInsets.only(bottom: compact ? 6 : 8),
                             child: _AnswerOptionTile(
                               answerNumber: option.index + 1,
                               text: question.textForOption(option),
@@ -671,10 +669,10 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                           ),
                         ),
                         if (revealed) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Container(
                             width: double.infinity,
-                            padding: EdgeInsets.all(compact ? 12 : 14),
+                            padding: EdgeInsets.all(compact ? 10 : 12),
                             decoration: BoxDecoration(
                               color: selected == question.correctOption
                                   ? _correctBg
@@ -735,58 +733,62 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                 },
               ),
             ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: Row(
-                  children: [
-                    IconButton.filledTonal(
-                      onPressed: _currentIndex > 0 ? _goBack : null,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                      tooltip: 'Domanda precedente',
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed:
-                            QuizSheetPlayerNavigation.canGoForward(
-                              currentIndex: _currentIndex,
-                              questionCount: _questions.length,
-                            )
-                            ? _goForward
-                            : _closeSheet,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          QuizSheetPlayerNavigation.primaryButtonLabel(
-                            currentIndex: _currentIndex,
-                            questionCount: _questions.length,
-                          ),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Material(
+            color: _backgroundColor,
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: _currentIndex > 0 ? _goBack : null,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    tooltip: 'Domanda precedente',
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
                       onPressed:
                           QuizSheetPlayerNavigation.canGoForward(
                             currentIndex: _currentIndex,
                             questionCount: _questions.length,
                           )
                           ? _goForward
-                          : null,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                      tooltip: 'Domanda successiva',
+                          : _closeSheet,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        QuizSheetPlayerNavigation.primaryButtonLabel(
+                          currentIndex: _currentIndex,
+                          questionCount: _questions.length,
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed:
+                        QuizSheetPlayerNavigation.canGoForward(
+                          currentIndex: _currentIndex,
+                          questionCount: _questions.length,
+                        )
+                        ? _goForward
+                        : null,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    tooltip: 'Domanda successiva',
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -848,6 +850,7 @@ class _QuizSheetProgressPanel extends StatelessWidget {
     required this.currentIndex,
     required this.total,
     required this.isAnswered,
+    required this.cellTone,
     required this.correctCount,
     required this.wrongCount,
     required this.unansweredCount,
@@ -856,6 +859,7 @@ class _QuizSheetProgressPanel extends StatelessWidget {
   final int currentIndex;
   final int total;
   final bool Function(int index) isAnswered;
+  final QuizProgressCellTone Function(int index) cellTone;
   final int correctCount;
   final int wrongCount;
   final int unansweredCount;
@@ -869,17 +873,17 @@ class _QuizSheetProgressPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _neutralColor),
         boxShadow: const [
           BoxShadow(
             color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            blurRadius: 6,
+            offset: Offset(0, 1),
           ),
         ],
       ),
@@ -890,11 +894,13 @@ class _QuizSheetProgressPanel extends StatelessWidget {
             currentIndex: currentIndex,
             total: total,
             isAnswered: isAnswered,
+            cellTone: cellTone,
+            compact: true,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Wrap(
-            spacing: 8,
-            runSpacing: 6,
+            spacing: 6,
+            runSpacing: 4,
             children: [
               _StatChip(
                 label: 'Corrette',
@@ -939,7 +945,7 @@ class _StatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
@@ -947,7 +953,7 @@ class _StatChip extends StatelessWidget {
       ),
       child: Text(
         '$label: $value',
-        style: textTheme.labelMedium?.copyWith(
+        style: textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w800,
         ),
@@ -999,10 +1005,10 @@ class _AnswerOptionTile extends StatelessWidget {
           ),
           child: Padding(
             padding: EdgeInsets.fromLTRB(
-              compact ? 12 : 14,
-              compact ? 12 : 14,
               compact ? 10 : 12,
-              compact ? 12 : 14,
+              compact ? 10 : 12,
+              compact ? 8 : 10,
+              compact ? 10 : 12,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1139,53 +1145,6 @@ class _AttemptSaveStatusCard extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryStatRow extends StatelessWidget {
-  const _SummaryStatRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _neutralColor = AppVisual.chipFill;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _neutralColor),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: textTheme.bodyLarge?.copyWith(color: _textPrimaryColor),
-            ),
-          ),
-          Text(
-            value,
-            style: textTheme.titleMedium?.copyWith(
-              color: valueColor ?? _textPrimaryColor,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
         ],
       ),
     );

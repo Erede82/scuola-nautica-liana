@@ -145,7 +145,13 @@ void main() {
     testWidgets('contiene 15 domande e strip progressivo 1/15', (tester) async {
       await _pumpD1Player(tester);
       expect(find.byType(QuizQuestionProgressStrip), findsOneWidget);
-      expect(find.byType(AspectRatio), findsNWidgets(15));
+      expect(
+        find.descendant(
+          of: find.byType(QuizQuestionProgressStrip),
+          matching: find.byType(DecoratedBox),
+        ),
+        findsNWidgets(15),
+      );
       expect(find.text('1/15'), findsOneWidget);
     });
 

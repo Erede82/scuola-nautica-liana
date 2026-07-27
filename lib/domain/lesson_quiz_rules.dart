@@ -76,3 +76,36 @@ bool lessonQuizWithinErrorThreshold({
   );
   return errors <= rules.maxErrors;
 }
+
+/// Etichetta esito scheda: `PROMOSSO` / `BOCCIATO` (null se categoria non supportata).
+String? lessonQuizOutcomeLabel({
+  required LicenseCategoryId categoryId,
+  required int wrongCount,
+  required int unansweredCount,
+}) {
+  final rules = lessonQuizRulesForCategory(categoryId);
+  if (rules == null) return null;
+  final passed = lessonQuizWithinErrorThreshold(
+    categoryId: categoryId,
+    wrongCount: wrongCount,
+    unansweredCount: unansweredCount,
+  );
+  return passed ? 'PROMOSSO' : 'BOCCIATO';
+}
+
+/// Dettaglio soglia, es. `12 errori conteggiati · massimo 3`.
+String? lessonQuizOutcomeDetail({
+  required LicenseCategoryId categoryId,
+  required int wrongCount,
+  required int unansweredCount,
+}) {
+  final rules = lessonQuizRulesForCategory(categoryId);
+  if (rules == null) return null;
+  final errors = lessonQuizErrorCountForResult(
+    categoryId: categoryId,
+    wrongCount: wrongCount,
+    unansweredCount: unansweredCount,
+  );
+  final unit = errors == 1 ? 'errore conteggiato' : 'errori conteggiati';
+  return '$errors $unit · massimo ${rules.maxErrors}';
+}

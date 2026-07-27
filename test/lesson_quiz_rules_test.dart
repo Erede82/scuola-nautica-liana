@@ -135,4 +135,47 @@ void main() {
       );
     });
   });
+
+  group('lessonQuizOutcomeLabel / detail', () {
+    test('D1 bocciato 1+11 → BOCCIATO e 12 errori', () {
+      expect(
+        lessonQuizOutcomeLabel(
+          categoryId: LicenseCategoryId.d1,
+          wrongCount: 1,
+          unansweredCount: 11,
+        ),
+        'BOCCIATO',
+      );
+      expect(
+        lessonQuizOutcomeDetail(
+          categoryId: LicenseCategoryId.d1,
+          wrongCount: 1,
+          unansweredCount: 11,
+        ),
+        '12 errori conteggiati · massimo 3',
+      );
+    });
+
+    test('singolare 1 errore conteggiato', () {
+      expect(
+        lessonQuizOutcomeDetail(
+          categoryId: LicenseCategoryId.d1,
+          wrongCount: 1,
+          unansweredCount: 0,
+        ),
+        '1 errore conteggiato · massimo 3',
+      );
+    });
+
+    test('A12 promosso ignora non risposte', () {
+      expect(
+        lessonQuizOutcomeLabel(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 4,
+          unansweredCount: 14,
+        ),
+        'PROMOSSO',
+      );
+    });
+  });
 }

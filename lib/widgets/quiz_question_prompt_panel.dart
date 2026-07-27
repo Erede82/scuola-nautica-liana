@@ -26,15 +26,15 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
   static double stackedImageBoxHeight(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 600) return 132;
-    if (width < 900) return 148;
-    return 156;
+    if (width < 600) return 112;
+    if (width < 900) return 124;
+    return 132;
   }
 
   static double sideImageBoxHeight(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 700) return 156;
-    return 168;
+    if (width < 700) return 128;
+    return 140;
   }
 
   bool _hasImage(String? path) {

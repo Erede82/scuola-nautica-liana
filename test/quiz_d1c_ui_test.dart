@@ -121,7 +121,13 @@ void main() {
       await _pumpExamPlayer(tester, questionCount: 20);
 
       expect(find.byType(QuizQuestionProgressStrip), findsOneWidget);
-      expect(find.byType(AspectRatio), findsNWidgets(20));
+      expect(
+        find.descendant(
+          of: find.byType(QuizQuestionProgressStrip),
+          matching: find.byType(DecoratedBox),
+        ),
+        findsNWidgets(20),
+      );
     });
 
     testWidgets('freccia destra disabilitata sull’ultima domanda', (
