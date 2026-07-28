@@ -12,6 +12,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     required this.prompt,
     this.imagePath,
     this.compact = false,
+    this.dense = false,
     this.labelColor = AppVisual.logoBlue,
     this.textColor = QuizPlayerVisual.ink,
   });
@@ -20,6 +21,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
   final String prompt;
   final String? imagePath;
   final bool compact;
+  final bool dense;
   final Color labelColor;
   final Color textColor;
 
@@ -50,6 +52,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     final hasImage = _hasImage(imagePath);
     final useCompact = compact || QuizPlayerVisual.isCompact(context);
     final sideLayout = hasImage && !useCompact && width >= _sideLayoutMinWidth;
+    final labelGap = dense ? 6.0 : (useCompact ? 8.0 : 10.0);
 
     final labelStyle = textTheme.labelLarge?.copyWith(
       color: labelColor,
@@ -67,7 +70,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Domanda $questionNumber', style: labelStyle),
-          SizedBox(height: useCompact ? 8 : 10),
+          SizedBox(height: labelGap),
           promptWidget,
         ],
       );
@@ -79,7 +82,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Domanda $questionNumber', style: labelStyle),
-          const SizedBox(height: 10),
+          SizedBox(height: labelGap),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -106,7 +109,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Domanda $questionNumber', style: labelStyle),
-        SizedBox(height: useCompact ? 8 : 10),
+        SizedBox(height: labelGap),
         SizedBox(
           height: imageHeight,
           width: double.infinity,
@@ -115,7 +118,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
             maxHeight: imageHeight,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: dense ? 8 : 10),
         promptWidget,
       ],
     );

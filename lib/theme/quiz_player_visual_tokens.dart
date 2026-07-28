@@ -39,12 +39,22 @@ abstract final class QuizPlayerVisual {
   static const double answerFontMobile = 16.0;
 
   static const double answerMinHeight = 52;
+  static const double answerMinHeightDense = 45;
   static const double cardRadius = 14;
   static const double cardPadding = 14;
+  static const double cardPaddingDense = 10;
   static const double sectionSpacing = 10;
+  static const double sectionSpacingDense = 6;
   static const double answerSpacing = 8;
+  static const double answerSpacingDense = 5;
 
   static const EdgeInsets answerPadding = EdgeInsets.fromLTRB(12, 12, 10, 12);
+  static const EdgeInsets answerPaddingDense = EdgeInsets.fromLTRB(
+    12,
+    8,
+    10,
+    8,
+  );
   static const EdgeInsets bodyPadding = EdgeInsets.fromLTRB(16, 10, 16, 16);
   static const EdgeInsets progressPanelMargin = EdgeInsets.fromLTRB(
     16,

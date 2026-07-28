@@ -216,99 +216,159 @@ class AdminHomePage extends StatelessWidget {
               );
             },
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final viewportW = constraints.maxWidth;
-              final contentW = _contentWidth(viewportW);
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final viewportW = constraints.maxWidth;
+                final contentW = _contentWidth(viewportW);
 
-              final moduleColumns = contentW >= 980
-                  ? 4
-                  : contentW >= 620
-                  ? 2
-                  : 1;
-              const actionSpacing = 16.0;
-              final actionItemWidth = _itemWidth(
-                totalWidth: contentW,
-                columns: moduleColumns,
-                spacing: actionSpacing,
-              );
+                final moduleColumns = contentW >= 980
+                    ? 4
+                    : contentW >= 620
+                    ? 2
+                    : 1;
+                const actionSpacing = 16.0;
+                final isNarrow = moduleColumns == 1;
+                final actionItemWidth = _itemWidth(
+                  totalWidth: contentW,
+                  columns: moduleColumns,
+                  spacing: actionSpacing,
+                );
 
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  _pageHorizontalPadding,
-                  18,
-                  _pageHorizontalPadding,
-                  22,
-                ),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: contentW),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Moduli gestionali',
-                                    style: textTheme.titleLarge?.copyWith(
-                                      color: _textPrimaryColor,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Accesso rapido alle aree operative della scuola.',
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: _textSecondaryColor,
-                                      height: 1.25,
-                                    ),
-                                  ),
-                                ],
+                final header = isNarrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Moduli gestionali',
+                            style: textTheme.titleLarge?.copyWith(
+                              color: _textPrimaryColor,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Accesso rapido alle aree operative della scuola.',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: _textSecondaryColor,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _onNewPracticeFromDashboard(context),
+                              icon: const Icon(
+                                Icons.add_circle_outline_rounded,
+                                size: 20,
+                              ),
+                              label: const Text('Nuova pratica'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppVisual.logoBlue,
+                                foregroundColor: Colors.white,
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: FilledButton.icon(
-                                onPressed: () =>
-                                    _onNewPracticeFromDashboard(context),
-                                icon: const Icon(
-                                  Icons.add_circle_outline_rounded,
-                                  size: 20,
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Moduli gestionali',
+                                  style: textTheme.titleLarge?.copyWith(
+                                    color: _textPrimaryColor,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
-                                label: const Text('Nuova pratica'),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppVisual.logoBlue,
-                                  foregroundColor: Colors.white,
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Accesso rapido alle aree operative della scuola.',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: _textSecondaryColor,
+                                    height: 1.25,
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _onNewPracticeFromDashboard(context),
+                              icon: const Icon(
+                                Icons.add_circle_outline_rounded,
+                                size: 20,
+                              ),
+                              label: const Text('Nuova pratica'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppVisual.logoBlue,
+                                foregroundColor: Colors.white,
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, inner) {
-                              final rowCount =
-                                  (_managementModules.length / moduleColumns)
-                                      .ceil();
-                              final rawH = rowCount > 0
-                                  ? (inner.maxHeight -
-                                            actionSpacing * (rowCount - 1)) /
-                                        rowCount
-                                  : inner.maxHeight;
-                              final cardHeight = rawH.clamp(168.0, 260.0);
-                              return Column(
-                                children: [
-                                  const Spacer(),
-                                  Align(
-                                    alignment: Alignment.center,
+                          ),
+                        ],
+                      );
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _pageHorizontalPadding,
+                  ),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: contentW),
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
+                            sliver: SliverToBoxAdapter(child: header),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(0, 18, 0, 28),
+                            sliver: isNarrow
+                                ? SliverToBoxAdapter(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        for (
+                                          var index = 0;
+                                          index < _managementModules.length;
+                                          index++
+                                        ) ...[
+                                          KeyedSubtree(
+                                            key: ValueKey<String>(
+                                              'admin-module-${_managementModules[index].kind.name}',
+                                            ),
+                                            child: _ManagementModuleCard(
+                                              module: _managementModules[index],
+                                              onTap: () =>
+                                                  _openManagementModule(
+                                                    context,
+                                                    _managementModules[index]
+                                                        .kind,
+                                                  ),
+                                            ),
+                                          ),
+                                          if (index <
+                                              _managementModules.length - 1)
+                                            const SizedBox(
+                                              height: actionSpacing,
+                                            ),
+                                        ],
+                                      ],
+                                    ),
+                                  )
+                                : SliverToBoxAdapter(
                                     child: Wrap(
                                       spacing: actionSpacing,
                                       runSpacing: actionSpacing,
@@ -318,30 +378,31 @@ class AdminHomePage extends StatelessWidget {
                                       ) {
                                         return SizedBox(
                                           width: actionItemWidth,
-                                          height: cardHeight,
-                                          child: _ManagementModuleCard(
-                                            module: module,
-                                            onTap: () => _openManagementModule(
-                                              context,
-                                              module.kind,
+                                          child: KeyedSubtree(
+                                            key: ValueKey<String>(
+                                              'admin-module-${module.kind.name}',
+                                            ),
+                                            child: _ManagementModuleCard(
+                                              module: module,
+                                              onTap: () =>
+                                                  _openManagementModule(
+                                                    context,
+                                                    module.kind,
+                                                  ),
                                             ),
                                           ),
                                         );
                                       }).toList(),
                                     ),
                                   ),
-                                  const Spacer(),
-                                ],
-                              );
-                            },
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },
@@ -471,7 +532,8 @@ class _ManagementModuleCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: SizedBox.expand(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 108),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
@@ -499,13 +561,14 @@ class _ManagementModuleCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               module.title,
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.titleMedium?.copyWith(
                                 color: AdminHomePage._textPrimaryColor,
@@ -521,8 +584,6 @@ class _ManagementModuleCard extends StatelessWidget {
                       const SizedBox(height: 7),
                       Text(
                         module.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                         style: textTheme.bodyMedium?.copyWith(
                           color: AdminHomePage._textSecondaryColor,
                           height: 1.28,

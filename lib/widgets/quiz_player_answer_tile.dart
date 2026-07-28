@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import 'nautical_answer_marker.dart';
 
@@ -14,6 +15,7 @@ class QuizPlayerAnswerTile extends StatelessWidget {
     this.backgroundColor = QuizPlayerVisual.cardSurface,
     this.borderColor = QuizPlayerVisual.cardBorder,
     this.borderWidth = 1.2,
+    this.density = QuizPlayerContentDensity.standard,
   });
 
   final int answerNumber;
@@ -23,12 +25,13 @@ class QuizPlayerAnswerTile extends StatelessWidget {
   final Color backgroundColor;
   final Color borderColor;
   final double borderWidth;
+  final QuizPlayerContentDensity density;
 
-  /// Padding effettivo della tile (allineato a [QuizPlayerVisual.answerPadding]).
-  EdgeInsets get contentPadding => QuizPlayerVisual.answerPadding;
+  /// Padding effettivo della tile.
+  EdgeInsets get contentPadding => QuizPlayerDensity.answerPadding(density);
 
   /// Altezza minima effettiva della tile.
-  double get minHeight => QuizPlayerVisual.answerMinHeight;
+  double get minHeight => QuizPlayerDensity.answerMinHeight(density);
 
   /// Border radius effettivo della tile.
   double get cardRadius => QuizPlayerVisual.cardRadius;
@@ -37,6 +40,8 @@ class QuizPlayerAnswerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = QuizPlayerVisual.isCompact(context);
     final answerStyle = QuizPlayerVisual.answerStyle(context);
+    final padding = QuizPlayerDensity.answerPadding(density);
+    final minH = QuizPlayerDensity.answerMinHeight(density);
 
     return Material(
       color: Colors.transparent,
@@ -50,11 +55,9 @@ class QuizPlayerAnswerTile extends StatelessWidget {
             border: Border.all(color: borderColor, width: borderWidth),
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: QuizPlayerVisual.answerMinHeight,
-            ),
+            constraints: BoxConstraints(minHeight: minH),
             child: Padding(
-              padding: QuizPlayerVisual.answerPadding,
+              padding: padding,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
