@@ -4,26 +4,35 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_visual_tokens.dart';
 
-/// Barra orizzontale di sezioni con frecce e fade quando il contenuto overflowa.
+/// Barra orizzontale di sezioni con frecce di navigazione e fade in overflow.
 ///
-/// Su desktop, se tutte le voci rientrano, frecce e fade restano nascosti.
+/// Le frecce cambiano la sezione attiva (non solo lo scroll). Lo swipe manuale
+/// sposta la barra senza cambiare modulo. Su desktop, se tutte le voci
+/// rientrano, frecce e fade restano nascosti.
 class BackofficeHorizontalSectionBar extends StatefulWidget {
   const BackofficeHorizontalSectionBar({
     super.key,
     required this.itemCount,
     required this.itemBuilder,
     this.selectedIndex,
+    this.onNavigateToIndex,
+    this.itemLabels,
     this.height = 58,
     this.backgroundColor = AppVisual.ivory,
-    this.scrollStep = 180,
   });
 
   final int itemCount;
   final NullableIndexedWidgetBuilder itemBuilder;
   final int? selectedIndex;
+
+  /// Navigazione reale al modulo/indice richiesto (tap frecce).
+  final ValueChanged<int>? onNavigateToIndex;
+
+  /// Etichette usate nei tooltip/semantics delle frecce (stesso ordine degli item).
+  final List<String>? itemLabels;
+
   final double height;
   final Color backgroundColor;
-  final double scrollStep;
 
   @override
   State<BackofficeHorizontalSectionBar> createState() =>
@@ -36,6 +45,9 @@ class _BackofficeHorizontalSectionBarState
   bool _canScrollLeft = false;
   bool _canScrollRight = false;
   bool _overflows = false;
+  bool _centering = false;
+  bool _disposed = false;
+  Size? _lastViewportSize;
 
   final Map<int, BuildContext> _itemContexts = {};
 
@@ -43,10 +55,17 @@ class _BackofficeHorizontalSectionBarState
   void initState() {
     super.initState();
     _controller.addListener(_syncScrollState);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncScrollState();
-      _ensureSelectedVisible();
-    });
+    _scheduleCenterSelected(animate: false);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final size = MediaQuery.sizeOf(context);
+    if (_lastViewportSize != size) {
+      _lastViewportSize = size;
+      _scheduleCenterSelected();
+    }
   }
 
   @override
@@ -54,22 +73,28 @@ class _BackofficeHorizontalSectionBarState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedIndex != widget.selectedIndex ||
         oldWidget.itemCount != widget.itemCount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _syncScrollState();
-        _ensureSelectedVisible();
-      });
+      _scheduleCenterSelected();
     }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _controller.removeListener(_syncScrollState);
     _controller.dispose();
     super.dispose();
   }
 
+  void _scheduleCenterSelected({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed || !mounted) return;
+      _centerSelected(animate: animate);
+      _syncScrollState();
+    });
+  }
+
   void _syncScrollState() {
-    if (!_controller.hasClients) return;
+    if (_disposed || !_controller.hasClients) return;
     final position = _controller.position;
     final overflows = position.maxScrollExtent > 1.0;
     final left = overflows && position.pixels > 1.0;
@@ -86,31 +111,99 @@ class _BackofficeHorizontalSectionBarState
     });
   }
 
-  Future<void> _scrollBy(double delta) async {
-    if (!_controller.hasClients) return;
-    final target = (_controller.offset + delta).clamp(
-      0.0,
-      _controller.position.maxScrollExtent,
-    );
-    await _controller.animateTo(
-      target,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
-    _syncScrollState();
-  }
-
-  void _ensureSelectedVisible() {
+  /// Centro geometrico della voce selezionata nel viewport, clampato.
+  void _centerSelected({bool animate = true}) {
+    if (_disposed || _centering) return;
     final index = widget.selectedIndex;
     if (index == null || index < 0 || index >= widget.itemCount) return;
+    if (!_controller.hasClients) return;
+
     final ctx = _itemContexts[index];
     if (ctx == null || !ctx.mounted) return;
-    Scrollable.ensureVisible(
-      ctx,
-      alignment: 0.35,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
+    final itemRender = ctx.findRenderObject();
+    if (itemRender is! RenderBox || !itemRender.hasSize) return;
+
+    final position = _controller.position;
+    final viewportContext = position.context.notificationContext;
+    if (viewportContext == null) return;
+    final viewportRender = viewportContext.findRenderObject();
+    if (viewportRender is! RenderBox || !viewportRender.hasSize) return;
+
+    final itemOffset = itemRender.localToGlobal(
+      Offset.zero,
+      ancestor: viewportRender,
     );
+    final itemCenter = itemOffset.dx + itemRender.size.width / 2;
+    final viewportCenter = viewportRender.size.width / 2;
+    final target = (position.pixels + (itemCenter - viewportCenter)).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+
+    if ((target - position.pixels).abs() < 0.5) return;
+
+    if (!animate) {
+      _controller.jumpTo(target);
+      return;
+    }
+
+    _centering = true;
+    _controller
+        .animateTo(
+          target,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        )
+        .whenComplete(() {
+          _centering = false;
+          if (!_disposed && mounted) {
+            _syncScrollState();
+          }
+        });
+  }
+
+  void _navigateBy(int delta) {
+    final current = widget.selectedIndex;
+    if (current == null) return;
+    final next = current + delta;
+    if (next < 0 || next >= widget.itemCount) return;
+    widget.onNavigateToIndex?.call(next);
+  }
+
+  String _arrowTooltip({required bool previous}) {
+    final selected = widget.selectedIndex;
+    if (selected == null) {
+      return previous
+          ? 'Apri la sezione precedente'
+          : 'Apri la sezione successiva';
+    }
+    final target = previous ? selected - 1 : selected + 1;
+    if (target < 0 || target >= widget.itemCount) {
+      return previous
+          ? 'Apri la sezione precedente'
+          : 'Apri la sezione successiva';
+    }
+    final labels = widget.itemLabels;
+    if (labels != null &&
+        target < labels.length &&
+        labels[target].trim().isNotEmpty) {
+      return 'Apri ${labels[target]}';
+    }
+    return previous
+        ? 'Apri la sezione precedente'
+        : 'Apri la sezione successiva';
+  }
+
+  bool get _canNavigatePrevious {
+    final selected = widget.selectedIndex;
+    return widget.onNavigateToIndex != null && selected != null && selected > 0;
+  }
+
+  bool get _canNavigateNext {
+    final selected = widget.selectedIndex;
+    return widget.onNavigateToIndex != null &&
+        selected != null &&
+        selected < widget.itemCount - 1;
   }
 
   Widget _buildArrow({
@@ -124,6 +217,7 @@ class _BackofficeHorizontalSectionBarState
     if (!show) return const SizedBox.shrink();
     return Semantics(
       button: true,
+      enabled: enabled,
       label: tooltip,
       child: IconButton(
         key: key,
@@ -149,11 +243,11 @@ class _BackofficeHorizontalSectionBarState
           children: [
             _buildArrow(
               show: _overflows,
-              enabled: _canScrollLeft,
+              enabled: _canNavigatePrevious,
               icon: Icons.chevron_left_rounded,
-              tooltip: 'Scorri sezioni a sinistra',
+              tooltip: _arrowTooltip(previous: true),
               key: const ValueKey('backoffice-section-scroll-left'),
-              onPressed: () => _scrollBy(-widget.scrollStep),
+              onPressed: () => _navigateBy(-1),
             ),
             Expanded(
               child: Stack(
@@ -202,11 +296,11 @@ class _BackofficeHorizontalSectionBarState
             ),
             _buildArrow(
               show: _overflows,
-              enabled: _canScrollRight,
+              enabled: _canNavigateNext,
               icon: Icons.chevron_right_rounded,
-              tooltip: 'Scorri sezioni a destra',
+              tooltip: _arrowTooltip(previous: false),
               key: const ValueKey('backoffice-section-scroll-right'),
-              onPressed: () => _scrollBy(widget.scrollStep),
+              onPressed: () => _navigateBy(1),
             ),
           ],
         ),

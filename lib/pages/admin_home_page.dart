@@ -784,6 +784,11 @@ class _ModuleSwitcher extends StatelessWidget {
     return BackofficeHorizontalSectionBar(
       itemCount: _managementModules.length,
       selectedIndex: selectedIndex < 0 ? null : selectedIndex,
+      itemLabels: [for (final module in _managementModules) module.title],
+      onNavigateToIndex: (index) {
+        if (index < 0 || index >= _managementModules.length) return;
+        onChanged(_managementModules[index].kind);
+      },
       itemBuilder: (context, index) {
         final module = _managementModules[index];
         final selected = module.kind == activeModule;

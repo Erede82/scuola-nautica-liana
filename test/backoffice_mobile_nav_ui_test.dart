@@ -76,7 +76,9 @@ void main() {
   });
 
   group('BO-MOBILE.2-A barra moduli', () {
-    testWidgets('390×844: frecce e scroll sezioni', (tester) async {
+    testWidgets('390×844: frecce presenti e swipe verso Impostazioni', (
+      tester,
+    ) async {
       await _pumpAdmin(tester, const Size(390, 844));
       await _openModuleFromDashboard(tester, moduleTitle: 'Allievi');
       expect(find.byType(BackofficeHorizontalSectionBar), findsOneWidget);
@@ -94,6 +96,14 @@ void main() {
       await tester.tap(right);
       await tester.pumpAndSettle();
       expect(tester.widget<IconButton>(left).onPressed, isNotNull);
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('admin-module-tab-practices')),
+            )
+            .selected,
+        isTrue,
+      );
 
       final settingsTab = find.byKey(
         const ValueKey('admin-module-tab-settings'),
