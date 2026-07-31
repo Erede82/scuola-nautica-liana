@@ -71,7 +71,6 @@ class _Student360DirectPageState extends State<Student360DirectPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final title = _view?.profile.displayName ?? 'Scheda allievo';
 
     return Scaffold(
       backgroundColor: AppVisual.canvas,
@@ -79,38 +78,41 @@ class _Student360DirectPageState extends State<Student360DirectPage> {
         backgroundColor: AppVisual.logoBlue,
         foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        title: Text(title),
+        title: const Text('Scheda 360'),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Impossibile caricare la Scheda 360.\n$_error',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _load,
-                      child: const Text('Riprova'),
-                    ),
-                  ],
+      body: SafeArea(
+        top: false,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Impossibile caricare la Scheda 360.\n$_error',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _load,
+                        child: const Text('Riprova'),
+                      ),
+                    ],
+                  ),
                 ),
+              )
+            : Student360DetailView(
+                view: _view!,
+                repository: backofficeRepository,
+                onRefreshDetail: _refreshDetail,
+                initialTabIndex: widget.initialTabIndex,
+                isStaffPreview: !SupabaseConfig.isConfigured,
               ),
-            )
-          : Student360DetailView(
-              view: _view!,
-              repository: backofficeRepository,
-              onRefreshDetail: _refreshDetail,
-              initialTabIndex: widget.initialTabIndex,
-              isStaffPreview: !SupabaseConfig.isConfigured,
-            ),
+      ),
     );
   }
 }

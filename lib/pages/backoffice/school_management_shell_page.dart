@@ -10,6 +10,7 @@ import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_new_practice_dialog.dart';
 import '../../widgets/backoffice/student_360_detail_view.dart';
 import '../../theme/app_visual_tokens.dart';
+import 'student_360_direct_page.dart';
 
 /// Shell desktop-oriented per gestione interna allievi.
 ///
@@ -92,10 +93,39 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
     super.dispose();
   }
 
+  bool get _isNarrowLayout => MediaQuery.sizeOf(context).width < 880;
+
+  /// Apre la Scheda 360 a schermo intero (mobile / tablet stretto).
+  Future<void> _openStudent360Route(
+    StudentId id, {
+    int initialTabIndex = Student360DetailView.tabIndexScheda,
+  }) async {
+    if (_selectedStudentId != null ||
+        _detailView != null ||
+        _detailLoading ||
+        _detailError != null) {
+      setState(() {
+        _selectedStudentId = null;
+        _detailView = null;
+        _detailLoading = false;
+        _detailError = null;
+      });
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => Student360DirectPage(
+          studentId: id,
+          initialTabIndex: initialTabIndex,
+        ),
+      ),
+    );
+  }
+
   /// Dopo creazione o deep-link da altre card: ricarica elenco e apre la scheda.
   ///
   /// Su layout desktop, [collapseListAfter] nasconde la colonna elenco per dare
   /// più spazio alla 360 (es. da Pratiche o Guide / Agenda).
+  /// Su mobile apre [Student360DirectPage] senza selezione inline.
   Future<void> openStudentAfterCreate(
     StudentId id, {
     bool collapseListAfter = false,
@@ -104,6 +134,7 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
     _pendingSelectAfterListLoad = id;
     await _loadProfiles();
     if (!mounted) return;
+    if (_isNarrowLayout) return;
     // Ricarica esplicita la 360 per l’ID richiesto (evita race con initState).
     if (_selectedStudentId == id) {
       await _loadDetail(id);
@@ -132,7 +163,8 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
       final pending = _pendingSelectAfterListLoad;
       _pendingSelectAfterListLoad = null;
 
-      var nextSel = _ensureSelectionStillValid(_selectedStudentId, list);
+      StudentId? nextSel = _ensureSelectionStillValid(_selectedStudentId, list);
+      var bootstrapMatched = false;
       if (pending != null && list.any((p) => p.id == pending)) {
         nextSel = pending;
       } else if (!_bootstrapFocusConsumed &&
@@ -140,8 +172,27 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
         final b = widget.bootstrapSelectStudentId!;
         if (list.any((p) => p.id == b)) {
           nextSel = b;
+          bootstrapMatched = true;
         }
         _bootstrapFocusConsumed = true;
+      }
+
+      final narrow = MediaQuery.sizeOf(context).width < 880;
+      if (narrow) {
+        final pushId = (pending != null || bootstrapMatched) ? nextSel : null;
+        _selectedStudentId = null;
+        _detailView = null;
+        _detailError = null;
+        _detailLoading = false;
+        _pendingCollapseListAfterOpen = false;
+        setState(() {
+          _profiles = list;
+          _listLoading = false;
+        });
+        if (pushId != null && mounted && gen == _profilesLoadGen) {
+          await _openStudent360Route(pushId);
+        }
+        return;
       }
 
       _selectedStudentId = nextSel;
@@ -155,11 +206,10 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
       }
       if (!mounted || gen != _profilesLoadGen) return;
       if (_pendingCollapseListAfterOpen) {
-        final narrow = MediaQuery.sizeOf(context).width < 880;
         final collapseRequested = _pendingCollapseListAfterOpen;
         _pendingCollapseListAfterOpen = false;
         final deepLinkedOk = pending != null && _selectedStudentId == pending;
-        if (collapseRequested && !narrow && deepLinkedOk) {
+        if (collapseRequested && deepLinkedOk) {
           setState(() => _listPaneVisible = false);
         }
       }
@@ -426,6 +476,11 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
                 alpha: 0.06,
               ),
               onTap: () {
+                final narrow = MediaQuery.sizeOf(context).width < 880;
+                if (narrow) {
+                  _openStudent360Route(p.id);
+                  return;
+                }
                 setState(() => _selectedStudentId = p.id);
                 _loadDetail(p.id);
               },
@@ -819,47 +874,25 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
         return LayoutBuilder(
           builder: (context, c) {
             final narrow = c.maxWidth < 880;
+            if (narrow) {
+              // Mobile / tablet stretto: solo lista. La 360 si apre in route dedicata.
+              return ColoredBox(
+                color: SchoolManagementShellPage.background,
+                child: _buildLeftPanel(compact: true),
+              );
+            }
+
             final mq = MediaQuery.sizeOf(context);
             final listMaxHeight = c.maxHeight.isFinite
                 ? c.maxHeight
                 : mq.height.clamp(480.0, 920.0);
-            final basis = c.maxHeight.isFinite ? c.maxHeight : mq.height;
-            final mobileListHeight = (basis * 0.58)
-                .clamp(420.0, 560.0)
-                .toDouble();
-            final listPane = narrow
-                ? SizedBox(
-                    height: mobileListHeight,
-                    child: _buildLeftPanel(compact: true),
-                  )
-                : SizedBox(
-                    width: _listPaneWidth,
-                    height: listMaxHeight,
-                    child: _buildLeftPanel(compact: false),
-                  );
+            final listPane = SizedBox(
+              width: _listPaneWidth,
+              height: listMaxHeight,
+              child: _buildLeftPanel(compact: false),
+            );
             final detail = Expanded(child: _buildDetailPanel());
 
-            if (narrow) {
-              // Su mobile senza selezione: solo lista a tutta altezza (niente empty state).
-              if (_selectedStudentId == null) {
-                return ColoredBox(
-                  color: SchoolManagementShellPage.background,
-                  child: _buildLeftPanel(compact: true),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  listPane,
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: AppVisual.border.withValues(alpha: 0.65),
-                  ),
-                  detail,
-                ],
-              );
-            }
             if (!_listPaneVisible) {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

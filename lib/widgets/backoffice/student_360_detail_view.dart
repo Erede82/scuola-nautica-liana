@@ -67,96 +67,74 @@ class Student360DetailView extends StatelessWidget {
             LayoutBuilder(
               builder: (context, c) {
                 final compact = c.maxWidth < 720;
+                final stackBadge = c.maxWidth < 420;
+                final pathBadge = Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 8 : 10,
+                    vertical: compact ? 3 : 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _neutral),
+                  ),
+                  child: Text(
+                    BackofficeFormatters.enrollmentCoursePath(
+                      view.profile.enrolledCoursePath,
+                    ),
+                    style: textTheme.labelMedium?.copyWith(
+                      color: _primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: compact ? 11 : 12,
+                    ),
+                  ),
+                );
+                final name = Text(
+                  view.profile.displayName,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: _text,
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 17 : 20,
+                    height: 1.2,
+                  ),
+                );
                 return Padding(
                   padding: EdgeInsets.fromLTRB(
-                    compact ? 12 : 16,
-                    compact ? 8 : 10,
-                    compact ? 12 : 16,
-                    compact ? 4 : 6,
+                    compact ? 10 : 16,
+                    compact ? 6 : 10,
+                    compact ? 10 : 16,
+                    compact ? 2 : 6,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              view.profile.displayName,
-                              style: textTheme.titleMedium?.copyWith(
-                                color: _text,
-                                fontWeight: FontWeight.w800,
-                                fontSize: compact ? 18 : 20,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: compact ? 8 : 10,
-                              vertical: compact ? 3 : 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _accent.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _neutral),
-                            ),
-                            child: Text(
-                              BackofficeFormatters.enrollmentCoursePath(
-                                view.profile.enrolledCoursePath,
-                              ),
-                              style: textTheme.labelMedium?.copyWith(
-                                color: _primary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: compact ? 11 : 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: stackBadge
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            name,
+                            const SizedBox(height: 6),
+                            pathBadge,
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: name),
+                            const SizedBox(width: 8),
+                            pathBadge,
+                          ],
+                        ),
                 );
               },
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.sizeOf(context).width < 720 ? 10 : 16,
+                0,
+                MediaQuery.sizeOf(context).width < 720 ? 10 : 16,
+                2,
+              ),
               child: _SummaryCardsRow(view: view),
             ),
-            const SizedBox(height: 4),
-            Material(
-              color: const Color(0xFFE8EDF5),
-              elevation: 0,
-              child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                labelColor: _primary,
-                unselectedLabelColor: _text.withValues(alpha: 0.55),
-                indicatorColor: _primary,
-                indicatorWeight: 2.5,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-                unselectedLabelStyle: textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                overlayColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.hovered) ||
-                      states.contains(WidgetState.pressed)) {
-                    return _primary.withValues(alpha: 0.08);
-                  }
-                  return null;
-                }),
-                tabs: const [
-                  Tab(text: 'Scheda'),
-                  Tab(text: 'Documenti'),
-                  Tab(text: 'Studio'),
-                  Tab(text: 'Guide'),
-                  Tab(text: 'Esami'),
-                  Tab(text: 'Contabilità'),
-                ],
-              ),
-            ),
+            const SizedBox(height: 2),
+            const _Student360ScrollableTabBar(),
             Expanded(
               child: TabBarView(
                 children: [
@@ -283,20 +261,24 @@ class _SummaryCardsRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
+        // Mobile tipico 390–430: griglia 2×2; solo sotto ~340 una colonna.
         final count = w > 1100
             ? 4
-            : w > 700
+            : w > 340
             ? 2
             : 1;
-        final tileW = (w - (count - 1) * 12) / count;
+        final gap = 8.0;
+        final tileW = (w - (count - 1) * gap) / count;
+        final uniformH = count == 2 ? 74.0 : null;
 
         return Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: gap,
+          runSpacing: gap,
           children: cards
               .map(
                 (c) => SizedBox(
-                  width: tileW.clamp(150, 400),
+                  width: tileW.clamp(140, 400),
+                  height: uniformH,
                   child: _SummaryCard(
                     title: c.$1,
                     value: c.$2,
@@ -308,6 +290,140 @@ class _SummaryCardsRow extends StatelessWidget {
               .toList(),
         );
       },
+    );
+  }
+}
+
+/// TabBar scorrevole con fade laterali quando il contenuto overflowa.
+class _Student360ScrollableTabBar extends StatefulWidget {
+  const _Student360ScrollableTabBar();
+
+  @override
+  State<_Student360ScrollableTabBar> createState() =>
+      _Student360ScrollableTabBarState();
+}
+
+class _Student360ScrollableTabBarState
+    extends State<_Student360ScrollableTabBar> {
+  bool _canScrollLeft = false;
+  bool _canScrollRight = false;
+  bool _overflows = false;
+
+  void _sync(ScrollMetrics metrics) {
+    if (metrics.axis != Axis.horizontal) return;
+    final overflows = metrics.maxScrollExtent > 1;
+    final left = overflows && metrics.pixels > 1;
+    final right = overflows && metrics.pixels < metrics.maxScrollExtent - 1;
+    if (left == _canScrollLeft &&
+        right == _canScrollRight &&
+        overflows == _overflows) {
+      return;
+    }
+    setState(() {
+      _overflows = overflows;
+      _canScrollLeft = left;
+      _canScrollRight = right;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    const primary = AppVisual.logoBlue;
+    const text = AppVisual.ink;
+
+    return Material(
+      color: const Color(0xFFE8EDF5),
+      elevation: 0,
+      child: SizedBox(
+        height: 46,
+        child: Stack(
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                _sync(notification.metrics);
+                return false;
+              },
+              child: NotificationListener<ScrollMetricsNotification>(
+                onNotification: (notification) {
+                  _sync(notification.metrics);
+                  return false;
+                },
+                child: TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  labelColor: primary,
+                  unselectedLabelColor: text.withValues(alpha: 0.55),
+                  indicatorColor: primary,
+                  indicatorWeight: 2.5,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  labelStyle: textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                  unselectedLabelStyle: textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overlayColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.hovered) ||
+                        states.contains(WidgetState.pressed)) {
+                      return primary.withValues(alpha: 0.08);
+                    }
+                    return null;
+                  }),
+                  tabs: const [
+                    Tab(text: 'Scheda'),
+                    Tab(text: 'Documenti'),
+                    Tab(text: 'Studio'),
+                    Tab(text: 'Guide'),
+                    Tab(text: 'Esami'),
+                    Tab(text: 'Contabilità'),
+                  ],
+                ),
+              ),
+            ),
+            if (_overflows && _canScrollLeft)
+              const Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: _TabEdgeFade(left: true),
+              ),
+            if (_overflows && _canScrollRight)
+              const Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: _TabEdgeFade(left: false),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TabEdgeFade extends StatelessWidget {
+  const _TabEdgeFade({required this.left});
+
+  final bool left;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Semantics(
+        label: left ? 'Scorri sezioni a sinistra' : 'Scorri sezioni a destra',
+        child: Container(
+          width: 20,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: left ? Alignment.centerLeft : Alignment.centerRight,
+              end: left ? Alignment.centerRight : Alignment.centerLeft,
+              colors: const [Color(0xFFE8EDF5), Color(0x00E8EDF5)],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
