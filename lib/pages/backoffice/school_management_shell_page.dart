@@ -840,6 +840,13 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
             final detail = Expanded(child: _buildDetailPanel());
 
             if (narrow) {
+              // Su mobile senza selezione: solo lista a tutta altezza (niente empty state).
+              if (_selectedStudentId == null) {
+                return ColoredBox(
+                  color: SchoolManagementShellPage.background,
+                  child: _buildLeftPanel(compact: true),
+                );
+              }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

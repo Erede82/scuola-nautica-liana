@@ -101,18 +101,7 @@ class OnlinePaymentsAdminPage extends StatelessWidget {
                     color: BackofficeUiTokens.text,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Ordini online, link pagamento, privatisti e sblocchi videocorsi '
-                  'separati dalla Contabilità',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: BackofficeUiTokens.textMuted,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const _SeparationInfoBanner(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 Text(
                   'Riepilogo',
                   style: textTheme.labelLarge?.copyWith(
@@ -143,47 +132,6 @@ class OnlinePaymentsAdminPage extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SeparationInfoBanner extends StatelessWidget {
-  const _SeparationInfoBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppVisual.logoBlue.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppVisual.logoBlue.withValues(alpha: 0.22),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 22,
-            color: AppVisual.logoBlue.withValues(alpha: 0.9),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Questa sezione non modifica Contabilità, registro pagamenti, '
-              'Scheda 360 o record_payment',
-              style: textTheme.bodyMedium?.copyWith(
-                color: BackofficeUiTokens.text,
-                fontWeight: FontWeight.w600,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

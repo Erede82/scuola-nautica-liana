@@ -103,9 +103,7 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e is StateError
-                ? e.message
-                : 'Eliminazione fallita: $e',
+            e is StateError ? e.message : 'Eliminazione fallita: $e',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -146,147 +144,252 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
 
     return ColoredBox(
       color: AppVisual.canvas,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!widget.embedded)
-            Material(
-              color: AppVisual.logoBlue,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                child: Text(
-                  'Impostazioni',
-                  style: textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 960;
+            return CustomScrollView(
+              slivers: [
+                if (!widget.embedded)
+                  SliverToBoxAdapter(
+                    child: Material(
+                      color: AppVisual.logoBlue,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        child: Text(
+                          'Impostazioni',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Impostazioni',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: BackofficeUiTokens.text,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Parametri gestionali della scuola nautica',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: BackofficeUiTokens.text.withValues(alpha: 0.72),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Prestazioni preimpostate',
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: BackofficeUiTokens.text,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Impostazioni',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: BackofficeUiTokens.text,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Parametri gestionali della scuola nautica',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: BackofficeUiTokens.text.withValues(
+                              alpha: 0.72,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                FilterChip(
-                  label: const Text('Mostra non attive'),
-                  selected: _showInactive,
-                  onSelected: (v) async {
-                    setState(() => _showInactive = v);
-                    await _load();
-                  },
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: narrow
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Prestazioni preimpostate',
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: BackofficeUiTokens.text,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: FilterChip(
+                                  label: const Text('Mostra non attive'),
+                                  selected: _showInactive,
+                                  onSelected: (v) async {
+                                    setState(() => _showInactive = v);
+                                    await _load();
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  IconButton.filledTonal(
+                                    onPressed: _loading ? null : _load,
+                                    icon: const Icon(Icons.refresh_rounded),
+                                    tooltip: 'Aggiorna elenco',
+                                  ),
+                                  FilledButton.icon(
+                                    onPressed: _loading
+                                        ? null
+                                        : () => _openForm(),
+                                    icon: const Icon(Icons.add_rounded),
+                                    label: const Text('Nuova prestazione'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Prestazioni preimpostate',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: BackofficeUiTokens.text,
+                                  ),
+                                ),
+                              ),
+                              FilterChip(
+                                label: const Text('Mostra non attive'),
+                                selected: _showInactive,
+                                onSelected: (v) async {
+                                  setState(() => _showInactive = v);
+                                  await _load();
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton.filledTonal(
+                                onPressed: _loading ? null : _load,
+                                icon: const Icon(Icons.refresh_rounded),
+                                tooltip: 'Aggiorna elenco',
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton.icon(
+                                onPressed: _loading ? null : () => _openForm(),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('Nuova prestazione'),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: 'Aggiorna elenco',
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _loading ? null : () => _openForm(),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Nuova prestazione'),
-                ),
+                ..._buildBodySlivers(textTheme, constraints.maxWidth),
               ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(child: _buildBody(textTheme)),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildBody(TextTheme textTheme) {
+  List<Widget> _buildBodySlivers(TextTheme textTheme, double width) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
     }
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Impossibile caricare le prestazioni.', style: textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Text('$_error', textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: _load, child: const Text('Riprova')),
-            ],
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Impossibile caricare le prestazioni.',
+                    style: textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text('$_error', textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: _load, child: const Text('Riprova')),
+                ],
+              ),
+            ),
           ),
         ),
-      );
-    }
-    final items = _items ?? const <PracticeServiceTemplate>[];
-    if (items.isEmpty) {
-      return Center(
-        child: Text(
-          'Nessuna prestazione configurata.',
-          style: textTheme.bodyLarge?.copyWith(
-            color: BackofficeUiTokens.text.withValues(alpha: 0.65),
-          ),
-        ),
-      );
+      ];
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns = _gridColumnCount(width);
-        final pad = width >= 900 ? 16.0 : 12.0;
-        return GridView.builder(
-          padding: EdgeInsets.fromLTRB(pad, 0, pad, 16),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            mainAxisExtent: 340,
+    final items = _items ?? const <PracticeServiceTemplate>[];
+    if (items.isEmpty) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Text(
+              'Nessuna prestazione configurata.',
+              style: textTheme.bodyLarge?.copyWith(
+                color: BackofficeUiTokens.text.withValues(alpha: 0.65),
+              ),
+            ),
           ),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return _TemplateCard(
-              item: item,
-              onEdit: () => _openForm(existing: item),
-              onToggleActive: () => _toggleActive(item),
-              onDelete: () => _confirmDelete(item),
-            );
-          },
-        );
-      },
-    );
+        ),
+      ];
+    }
+
+    final columns = _gridColumnCount(width);
+    final pad = width >= 900 ? 16.0 : 12.0;
+    final usable = (width - pad * 2).clamp(0.0, width);
+    final itemWidth = columns == 1
+        ? usable
+        : (usable - 12.0 * (columns - 1)) / columns;
+
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(pad, 0, pad, 28),
+        sliver: SliverToBoxAdapter(
+          child: columns == 1
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < items.length; index++) ...[
+                      KeyedSubtree(
+                        key: ValueKey<String>(
+                          'settings-template-${items[index].id}',
+                        ),
+                        child: _TemplateCard(
+                          item: items[index],
+                          onEdit: () => _openForm(existing: items[index]),
+                          onToggleActive: () => _toggleActive(items[index]),
+                          onDelete: () => _confirmDelete(items[index]),
+                        ),
+                      ),
+                      if (index < items.length - 1) const SizedBox(height: 12),
+                    ],
+                  ],
+                )
+              : Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in items)
+                      SizedBox(
+                        width: itemWidth,
+                        child: KeyedSubtree(
+                          key: ValueKey<String>('settings-template-${item.id}'),
+                          child: _TemplateCard(
+                            item: item,
+                            onEdit: () => _openForm(existing: item),
+                            onToggleActive: () => _toggleActive(item),
+                            onDelete: () => _confirmDelete(item),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    ];
   }
 
   static int _gridColumnCount(double width) {
@@ -325,6 +428,7 @@ class _TemplateCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               item.title,
@@ -332,10 +436,9 @@ class _TemplateCard extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 color: BackofficeUiTokens.text,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-            if (item.description != null && item.description!.trim().isNotEmpty) ...[
+            if (item.description != null &&
+                item.description!.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
                 item.description!.trim(),
@@ -348,46 +451,46 @@ class _TemplateCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 10),
-            Expanded(
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _MetaChip(
-                    label: 'Tipo',
-                    value: BackofficeFormatters.practiceServiceType(item.practiceType),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _MetaChip(
+                  label: 'Tipo',
+                  value: BackofficeFormatters.practiceServiceType(
+                    item.practiceType,
                   ),
-                  _MetaChip(
-                    label: 'Percorso',
-                    value: BackofficeFormatters.enrolledCoursePathStorage(
-                      item.enrolledCoursePath,
-                    ),
+                ),
+                _MetaChip(
+                  label: 'Percorso',
+                  value: BackofficeFormatters.enrolledCoursePathStorage(
+                    item.enrolledCoursePath,
                   ),
-                  _MetaChip(
-                    label: 'Categoria',
-                    value: BackofficeFormatters.enrolledLicenseCategory(
-                      item.enrolledLicenseCategory,
-                    ),
+                ),
+                _MetaChip(
+                  label: 'Categoria',
+                  value: BackofficeFormatters.enrolledLicenseCategory(
+                    item.enrolledLicenseCategory,
                   ),
-                  _MetaChip(
-                    label: 'Costo',
-                    value: BackofficeFormatters.moneyEur(
-                      item.defaultRegistrationFeeCents,
-                    ),
+                ),
+                _MetaChip(
+                  label: 'Costo',
+                  value: BackofficeFormatters.moneyEur(
+                    item.defaultRegistrationFeeCents,
                   ),
-                  _MetaChip(
-                    label: 'Acconto',
-                    value: BackofficeFormatters.moneyEur(
-                      item.suggestedDepositCents,
-                    ),
+                ),
+                _MetaChip(
+                  label: 'Acconto',
+                  value: BackofficeFormatters.moneyEur(
+                    item.suggestedDepositCents,
                   ),
-                  _MetaChip(
-                    label: 'Stato',
-                    value: item.active ? 'Attiva' : 'Non attiva',
-                    highlight: item.active,
-                  ),
-                ],
-              ),
+                ),
+                _MetaChip(
+                  label: 'Stato',
+                  value: item.active ? 'Attiva' : 'Non attiva',
+                  highlight: item.active,
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -413,9 +516,9 @@ class _TemplateCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
                     side: BorderSide(
-                      color: Theme.of(context).colorScheme.error.withValues(
-                        alpha: 0.45,
-                      ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.error.withValues(alpha: 0.45),
                     ),
                   ),
                   onPressed: onDelete,
@@ -560,11 +663,26 @@ class _PracticeServiceTemplateDialogState
   static String _slugify(String raw) {
     var s = raw.trim().toLowerCase();
     const map = {
-      'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a',
-      'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
-      'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
-      'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o',
-      'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+      'à': 'a',
+      'á': 'a',
+      'â': 'a',
+      'ä': 'a',
+      'è': 'e',
+      'é': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'ì': 'i',
+      'í': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ò': 'o',
+      'ó': 'o',
+      'ô': 'o',
+      'ö': 'o',
+      'ù': 'u',
+      'ú': 'u',
+      'û': 'u',
+      'ü': 'u',
     };
     final buf = StringBuffer();
     for (final ch in s.split('')) {
@@ -577,7 +695,11 @@ class _PracticeServiceTemplateDialogState
   }
 
   int _parseEuroCents(String raw, String fieldLabel) {
-    final t = raw.trim().replaceAll('€', '').replaceAll(' ', '').replaceAll(',', '.');
+    final t = raw
+        .trim()
+        .replaceAll('€', '')
+        .replaceAll(' ', '')
+        .replaceAll(',', '.');
     if (t.isEmpty) return 0;
     final v = double.tryParse(t);
     if (v == null || v < 0) {
@@ -601,9 +723,14 @@ class _PracticeServiceTemplateDialogState
         practiceType: _practiceType,
         enrolledCoursePath: _coursePath,
         enrolledLicenseCategory: _licenseCategory,
-        defaultRegistrationFeeCents: _parseEuroCents(_feeCtrl.text, 'Costo totale'),
-        suggestedDepositCents:
-            _parseEuroCents(_depositCtrl.text, 'Acconto consigliato'),
+        defaultRegistrationFeeCents: _parseEuroCents(
+          _feeCtrl.text,
+          'Costo totale',
+        ),
+        suggestedDepositCents: _parseEuroCents(
+          _depositCtrl.text,
+          'Acconto consigliato',
+        ),
         internalNotes: _notesCtrl.text.trim(),
         active: _active,
         sortOrder: sort,
@@ -652,9 +779,9 @@ class _PracticeServiceTemplateDialogState
                 alignment: Alignment.centerLeft,
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -672,7 +799,9 @@ class _PracticeServiceTemplateDialogState
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     child: const Text('Annulla'),
                   ),
                   const SizedBox(width: 8),
@@ -743,7 +872,10 @@ class _PracticeServiceTemplateDialogState
               border: OutlineInputBorder(),
             ),
             items: const [
-              DropdownMenuItem(value: 'new_license', child: Text('Nuova patente')),
+              DropdownMenuItem(
+                value: 'new_license',
+                child: Text('Nuova patente'),
+              ),
               DropdownMenuItem(value: 'renewal', child: Text('Rinnovo')),
               DropdownMenuItem(value: 'duplicate', child: Text('Duplicato')),
               DropdownMenuItem(value: 'other', child: Text('Altro')),
@@ -791,8 +923,9 @@ class _PracticeServiceTemplateDialogState
               DropdownMenuItem(value: 'vela', child: Text('Vela')),
               DropdownMenuItem(value: 'd1', child: Text('D1')),
             ],
-            onChanged:
-                _busy ? null : (v) => setState(() => _licenseCategory = v),
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _licenseCategory = v),
           ),
           const SizedBox(height: 12),
           Row(

@@ -10,6 +10,7 @@ import '../services/auth_logout_navigation.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/staff_access_service.dart';
 import '../utils/admin_access_utils.dart';
+import '../widgets/backoffice/backoffice_horizontal_section_bar.dart';
 import '../widgets/backoffice/backoffice_new_practice_dialog.dart';
 import '../widgets/branded_app_bar_title.dart';
 import '../widgets/staff/staff_access_gate.dart';
@@ -777,48 +778,37 @@ class _ModuleSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppVisual.ivory,
-      child: Container(
-        height: 58,
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppVisual.border)),
-        ),
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          itemCount: _managementModules.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            final module = _managementModules[index];
-            final selected = module.kind == activeModule;
-            return ChoiceChip(
-              selected: selected,
-              onSelected: (_) => onChanged(module.kind),
-              avatar: Icon(
-                module.icon,
-                size: 18,
-                color: selected ? Colors.white : AdminHomePage._primaryColor,
-              ),
-              label: Text(module.title),
-              labelStyle: TextStyle(
-                color: selected
-                    ? Colors.white
-                    : AdminHomePage._textPrimaryColor,
-                fontWeight: FontWeight.w800,
-              ),
-              selectedColor: AdminHomePage._primaryColor,
-              backgroundColor: Colors.white,
-              side: BorderSide(
-                color: selected
-                    ? AdminHomePage._primaryColor
-                    : AppVisual.border,
-              ),
-              showCheckmark: false,
-            );
-          },
-        ),
-      ),
+    final selectedIndex = _managementModules.indexWhere(
+      (m) => m.kind == activeModule,
+    );
+    return BackofficeHorizontalSectionBar(
+      itemCount: _managementModules.length,
+      selectedIndex: selectedIndex < 0 ? null : selectedIndex,
+      itemBuilder: (context, index) {
+        final module = _managementModules[index];
+        final selected = module.kind == activeModule;
+        return ChoiceChip(
+          key: ValueKey<String>('admin-module-tab-${module.kind.name}'),
+          selected: selected,
+          onSelected: (_) => onChanged(module.kind),
+          avatar: Icon(
+            module.icon,
+            size: 18,
+            color: selected ? Colors.white : AdminHomePage._primaryColor,
+          ),
+          label: Text(module.title),
+          labelStyle: TextStyle(
+            color: selected ? Colors.white : AdminHomePage._textPrimaryColor,
+            fontWeight: FontWeight.w800,
+          ),
+          selectedColor: AdminHomePage._primaryColor,
+          backgroundColor: Colors.white,
+          side: BorderSide(
+            color: selected ? AdminHomePage._primaryColor : AppVisual.border,
+          ),
+          showCheckmark: false,
+        );
+      },
     );
   }
 }
@@ -969,11 +959,6 @@ class _AdminDrawer extends StatelessWidget {
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: AppVisual.border.withValues(alpha: 0.5),
-          ),
           ValueListenableBuilder<StaffAccessSnapshot>(
             valueListenable: staffAccessNotifier,
             builder: (context, staffSnap, _) {
@@ -982,24 +967,57 @@ class _AdminDrawer extends StatelessWidget {
                 builder: (context, sess, _) {
                   final canLogout = staffSnap.hasAuthSession || sess != null;
 
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: _DrawerItem(
-                      icon: Icons.logout_rounded,
-                      label: 'Esci',
-                      onTap: () async {
-                        if (!canLogout) {
-                          onOpenPlaceholder(
-                            'Esci',
-                            'Non risulti collegato con un account attivo in questa sessione.',
-                            Icons.logout_rounded,
-                          );
-                          return;
-                        }
+                  return SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: AppVisual.border.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 14),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 280),
+                              child: OutlinedButton.icon(
+                                key: const ValueKey('admin-drawer-logout'),
+                                onPressed: () async {
+                                  if (!canLogout) {
+                                    onOpenPlaceholder(
+                                      'Esci',
+                                      'Non risulti collegato con un account attivo in questa sessione.',
+                                      Icons.logout_rounded,
+                                    );
+                                    return;
+                                  }
 
-                        Navigator.of(context).pop();
-                        await signOutAndReturnToWelcome();
-                      },
+                                  Navigator.of(context).pop();
+                                  await signOutAndReturnToWelcome();
+                                },
+                                icon: const Icon(Icons.logout_rounded),
+                                label: const Text('Esci'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: _primaryColor,
+                                  side: BorderSide(
+                                    color: _primaryColor.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  minimumSize: const Size(160, 44),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
