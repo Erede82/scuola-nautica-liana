@@ -20,6 +20,7 @@ abstract class BackofficeRepository {
     required String firstName,
     required String lastName,
     String? phone,
+    String? phoneCountryIso2,
     String? email,
     String? fiscalCode,
     DateTime? birthDate,
@@ -54,6 +55,13 @@ abstract class BackofficeRepository {
     required StudentId studentId,
     required String email,
     required String temporaryPassword,
+  });
+
+  /// Aggiorna cellulare allievo (E.164 + ISO2). Policy staff esistenti.
+  Future<void> updateStudentPhone({
+    required StudentId studentId,
+    required String phoneE164,
+    required String phoneCountryIso2,
   });
 
   /// Vista aggregata 360° (stesso significato di [StudentAdmin360View] nel dominio).

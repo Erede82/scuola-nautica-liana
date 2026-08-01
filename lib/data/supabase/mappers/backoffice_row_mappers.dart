@@ -1,6 +1,7 @@
 import '../../../domain/backoffice/backoffice.dart';
 import '../../../domain/course_taxonomy.dart';
 import '../../../domain/enrollment_content_mapping.dart';
+import '../../../domain/international_phone.dart';
 import '../../../models/license_models.dart';
 import '../dto/backoffice_rows.dart';
 
@@ -24,11 +25,21 @@ StudentProfile mapStudentRowToProfile(StudentRow r) {
         legacyCategory,
       );
 
+  final phoneIso = () {
+    final raw = r.phoneCountryIso2?.trim().toUpperCase();
+    if (raw != null && raw.isNotEmpty) return raw;
+    // Compatibilità lettura: deriva ISO2 da E.164 / nazionale IT se possibile.
+    final parsed = InternationalPhoneRules.parseStored(phone: r.phone);
+    if (parsed.isValid) return parsed.value?.countryIso2;
+    return null;
+  }();
+
   return StudentProfile(
     id: r.id,
     firstName: r.firstName,
     lastName: r.lastName,
     phone: r.phone,
+    phoneCountryIso2: phoneIso,
     email: r.email,
     birthDate: r.birthDate,
     taxCode: r.fiscalCode,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants/backoffice_payment_methods.dart';
 import '../../domain/backoffice/backoffice.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
@@ -34,7 +35,7 @@ class AccountingPaymentsDirectoryPage extends StatefulWidget {
 
   /// Apre Scheda 360; dalla directory Contabilità si passa [Student360DetailView.tabIndexContabilita].
   final Future<void> Function(StudentId studentId, {int initialTabIndex})
-      onOpenStudent360;
+  onOpenStudent360;
 
   @override
   State<AccountingPaymentsDirectoryPage> createState() =>
@@ -201,19 +202,24 @@ class _AccountingPaymentsDirectoryPageState
   }
 
   bool _matchesSearch(AccountingPaymentListItem p) {
-    final q = _unifiedSearchCtrl.text.trim().toLowerCase();
+    final q = _unifiedSearchCtrl.text.trim();
     if (q.isEmpty) return true;
-    final hay = [
-      p.studentFullName,
-      p.studentEmail ?? '',
-      p.studentPhone ?? '',
+    final otherHay = [
       p.receiptReference ?? '',
       p.fiscalReceiptNumber ?? '',
       p.notes ?? '',
     ].join(' ').toLowerCase();
     for (final token in q.split(RegExp(r'\s+'))) {
       if (token.isEmpty) continue;
-      if (!hay.contains(token)) return false;
+      final personOk = InternationalPhoneRules.matchesSearch(
+        query: token,
+        displayName: p.studentFullName,
+        email: p.studentEmail,
+        phone: p.studentPhone,
+      );
+      if (!personOk && !otherHay.contains(token.toLowerCase())) {
+        return false;
+      }
     }
     return true;
   }
@@ -400,9 +406,7 @@ class _AccountingPaymentsDirectoryPageState
     }
   }
 
-  Iterable<NauticalExpense> _filteredExpenses(
-    List<NauticalExpense> raw,
-  ) sync* {
+  Iterable<NauticalExpense> _filteredExpenses(List<NauticalExpense> raw) sync* {
     for (final e in raw) {
       final day = _localDateOnly(e.expenseDate);
       if (!_matchesQuick(day)) continue;
@@ -487,9 +491,12 @@ class _AccountingPaymentsDirectoryPageState
     final dateFiltersActive = _dateFiltersActive();
     final anyFiltersActive = _anyFiltersActive();
     final expenseRaw = _expenses ?? const <NauticalExpense>[];
-    final dateFilteredExpenses =
-        _filteredExpensesByDate(expenseRaw).toList(growable: false);
-    final filteredExpenses = _filteredExpenses(expenseRaw).toList(growable: false);
+    final dateFilteredExpenses = _filteredExpensesByDate(
+      expenseRaw,
+    ).toList(growable: false);
+    final filteredExpenses = _filteredExpenses(
+      expenseRaw,
+    ).toList(growable: false);
     final expenseSummary = _expenseSummaryFor(filteredExpenses);
     final netToday = summary.sumToday - expenseSummary.sumToday;
     final netMonth = summary.sumMonth - expenseSummary.sumMonth;
@@ -552,44 +559,44 @@ class _AccountingPaymentsDirectoryPageState
               ),
             ),
           ] else ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: _AccountingSummaryRow(
-              sumToday: summary.sumToday,
-              sumMonth: summary.sumMonth,
-              sumFiltered: summary.sumFiltered,
-              count: summary.count,
-              paymentFiltersActive: paymentFiltersActive,
-              expenseFiltersActive: expenseFiltersActive,
-              dateFiltersActive: dateFiltersActive,
-              anyFiltersActive: anyFiltersActive,
-              sumExpensesMonth: expenseSummary.sumMonth,
-              sumExpensesToday: expenseSummary.sumToday,
-              sumExpensesFiltered: expenseSummary.sumFiltered,
-              netToday: netToday,
-              netMonth: netMonth,
-              netFiltered: netFiltered,
-              expensesLoading: _loading && _expenses == null,
-              loading: _loading && raw == null,
-              onRefresh: _load,
-              refreshDisabled: _loading,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: _AccountingSummaryRow(
+                sumToday: summary.sumToday,
+                sumMonth: summary.sumMonth,
+                sumFiltered: summary.sumFiltered,
+                count: summary.count,
+                paymentFiltersActive: paymentFiltersActive,
+                expenseFiltersActive: expenseFiltersActive,
+                dateFiltersActive: dateFiltersActive,
+                anyFiltersActive: anyFiltersActive,
+                sumExpensesMonth: expenseSummary.sumMonth,
+                sumExpensesToday: expenseSummary.sumToday,
+                sumExpensesFiltered: expenseSummary.sumFiltered,
+                netToday: netToday,
+                netMonth: netMonth,
+                netFiltered: netFiltered,
+                expensesLoading: _loading && _expenses == null,
+                loading: _loading && raw == null,
+                onRefresh: _load,
+                refreshDisabled: _loading,
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: _buildFiltersPanel(context),
-          ),
-          Expanded(
-            child: _buildBody(
-              textTheme,
-              filteredPayments: filtered,
-              filteredExpenses: filteredExpenses,
-              dateFilteredExpenses: dateFilteredExpenses,
-              expenseFiltersActive: expenseFiltersActive,
-              categoryById: categoryById,
-              paymentsRawEmpty: raw?.isEmpty ?? true,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: _buildFiltersPanel(context),
             ),
-          ),
+            Expanded(
+              child: _buildBody(
+                textTheme,
+                filteredPayments: filtered,
+                filteredExpenses: filteredExpenses,
+                dateFilteredExpenses: dateFilteredExpenses,
+                expenseFiltersActive: expenseFiltersActive,
+                categoryById: categoryById,
+                paymentsRawEmpty: raw?.isEmpty ?? true,
+              ),
+            ),
           ],
         ],
       ),
@@ -657,7 +664,8 @@ class _AccountingPaymentsDirectoryPageState
                 label: 'Categoria uscite',
                 displayText: expenseCategoryLabel(),
                 expanded:
-                    _expandedFilter == _ExpandedAccountingFilter.expenseCategory,
+                    _expandedFilter ==
+                    _ExpandedAccountingFilter.expenseCategory,
                 onToggle: () => _toggleExpandedFilter(
                   _ExpandedAccountingFilter.expenseCategory,
                 ),
@@ -667,10 +675,8 @@ class _AccountingPaymentsDirectoryPageState
                     label: 'Tutte',
                   ),
                   ...sortedCategories.map(
-                    (cat) => _FilterDropdownOption(
-                      value: cat.id,
-                      label: cat.name,
-                    ),
+                    (cat) =>
+                        _FilterDropdownOption(value: cat.id, label: cat.name),
                   ),
                 ],
                 isSelected: (v) => _expenseCategoryFilter == v,
@@ -732,10 +738,7 @@ class _AccountingPaymentsDirectoryPageState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FilterPanelSection(
-          title: 'Filtri',
-          child: compactSelectRow(),
-        ),
+        _FilterPanelSection(title: 'Filtri', child: compactSelectRow()),
         const SizedBox(height: 8),
         _FilterPanelSection(
           title: 'Periodo',
@@ -749,8 +752,9 @@ class _AccountingPaymentsDirectoryPageState
                 visualDensity: VisualDensity.compact,
                 selected: _quick == _AccountingQuickFilter.today,
                 onSelected: (v) => setState(() {
-                  _quick =
-                      v ? _AccountingQuickFilter.today : _AccountingQuickFilter.none;
+                  _quick = v
+                      ? _AccountingQuickFilter.today
+                      : _AccountingQuickFilter.none;
                 }),
               ),
               FilterChip(
@@ -776,7 +780,10 @@ class _AccountingPaymentsDirectoryPageState
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                 ),
                 onPressed: () async {
                   final d = await showDatePicker(
@@ -797,7 +804,10 @@ class _AccountingPaymentsDirectoryPageState
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                 ),
                 onPressed: () async {
                   final d = await showDatePicker(
@@ -921,7 +931,9 @@ class _AccountingPaymentsDirectoryPageState
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _loading ? null : () => _openRegisterExpense(context),
+                  onPressed: _loading
+                      ? null
+                      : () => _openRegisterExpense(context),
                   icon: const Icon(Icons.add_circle_outline, size: 18),
                   label: const Text('Registra uscita'),
                 ),
@@ -1046,12 +1058,8 @@ class _AccountingSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final todayValue = loading
-        ? '—'
-        : BackofficeFormatters.moneyEur(sumToday);
-    final monthValue = loading
-        ? '—'
-        : BackofficeFormatters.moneyEur(sumMonth);
+    final todayValue = loading ? '—' : BackofficeFormatters.moneyEur(sumToday);
+    final monthValue = loading ? '—' : BackofficeFormatters.moneyEur(sumMonth);
     final countValue = loading ? '—' : '$count';
     final filteredValue = loading
         ? '—'
@@ -1073,8 +1081,9 @@ class _AccountingSummaryRow extends StatelessWidget {
     final expensesTodayValue = expensesLoading
         ? '—'
         : BackofficeFormatters.moneyEur(sumExpensesToday);
-    final expensesTitle =
-        expenseSummaryUsesFiltered ? 'Totale uscite' : 'Uscite nel mese';
+    final expensesTitle = expenseSummaryUsesFiltered
+        ? 'Totale uscite'
+        : 'Uscite nel mese';
     final expensesSubtitle = _expenseAggregateSubtitle(
       loading: expensesLoading,
       expenseFiltersActive: expenseFiltersActive,
@@ -1116,124 +1125,124 @@ class _AccountingSummaryRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-          const _SummarySectionMark(title: 'Incassi'),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Incassato oggi',
-              value: todayValue,
-              icon: Icons.today_outlined,
-              subtitle: incomeFilterHint,
+            const _SummarySectionMark(title: 'Incassi'),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Incassato oggi',
+                value: todayValue,
+                icon: Icons.today_outlined,
+                subtitle: incomeFilterHint,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Incassato nel mese',
-              value: monthValue,
-              icon: Icons.calendar_month_outlined,
-              subtitle: incomeFilterHint,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Movimenti',
-              value: countValue,
-              icon: Icons.view_list_outlined,
-              subtitle: incomeFilterHint,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Totale filtrato',
-              value: filteredValue,
-              icon: Icons.filter_alt_outlined,
-              subtitle: filteredSubtitle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const _SummarySectionMark(title: 'Uscite'),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Uscite oggi',
-              value: expensesTodayValue,
-              icon: Icons.today_outlined,
-              subtitle: expensesTodaySubtitle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: expensesTitle,
-              value: expensesValue,
-              icon: Icons.arrow_outward_rounded,
-              subtitle: expensesSubtitle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const _SummarySectionMark(title: 'Saldo netto'),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Saldo oggi',
-              value: netTodayDisplay.value,
-              icon: Icons.account_balance_wallet_outlined,
-              valueColor: netTodayDisplay.valueColor,
-              subtitle: netTodayDisplay.subtitle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: _tileWidth,
-            height: _summaryTileHeight,
-            child: _SummaryTile(
-              title: 'Saldo mese',
-              value: netMonthDisplay.value,
-              icon: Icons.savings_outlined,
-              valueColor: netMonthDisplay.valueColor,
-              subtitle: netMonthDisplay.subtitle,
-            ),
-          ),
-          if (anyFiltersActive) ...[
             const SizedBox(width: 8),
             SizedBox(
               width: _tileWidth,
               height: _summaryTileHeight,
               child: _SummaryTile(
-                title: 'Saldo filtrato',
-                value: netFilteredDisplay.value,
-                icon: Icons.balance_outlined,
-                valueColor: netFilteredDisplay.valueColor,
-                subtitle: netFilteredDisplay.subtitle,
+                title: 'Incassato nel mese',
+                value: monthValue,
+                icon: Icons.calendar_month_outlined,
+                subtitle: incomeFilterHint,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Movimenti',
+                value: countValue,
+                icon: Icons.view_list_outlined,
+                subtitle: incomeFilterHint,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Totale filtrato',
+                value: filteredValue,
+                icon: Icons.filter_alt_outlined,
+                subtitle: filteredSubtitle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const _SummarySectionMark(title: 'Uscite'),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Uscite oggi',
+                value: expensesTodayValue,
+                icon: Icons.today_outlined,
+                subtitle: expensesTodaySubtitle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: expensesTitle,
+                value: expensesValue,
+                icon: Icons.arrow_outward_rounded,
+                subtitle: expensesSubtitle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const _SummarySectionMark(title: 'Saldo netto'),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Saldo oggi',
+                value: netTodayDisplay.value,
+                icon: Icons.account_balance_wallet_outlined,
+                valueColor: netTodayDisplay.valueColor,
+                subtitle: netTodayDisplay.subtitle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: _tileWidth,
+              height: _summaryTileHeight,
+              child: _SummaryTile(
+                title: 'Saldo mese',
+                value: netMonthDisplay.value,
+                icon: Icons.savings_outlined,
+                valueColor: netMonthDisplay.valueColor,
+                subtitle: netMonthDisplay.subtitle,
+              ),
+            ),
+            if (anyFiltersActive) ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: _tileWidth,
+                height: _summaryTileHeight,
+                child: _SummaryTile(
+                  title: 'Saldo filtrato',
+                  value: netFilteredDisplay.value,
+                  icon: Icons.balance_outlined,
+                  valueColor: netFilteredDisplay.valueColor,
+                  subtitle: netFilteredDisplay.subtitle,
+                ),
+              ),
+            ],
+            const SizedBox(width: 6),
+            SizedBox(
+              height: _summaryTileHeight,
+              child: Center(
+                child: IconButton.filledTonal(
+                  onPressed: refreshDisabled ? null : onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'Aggiorna elenco',
+                ),
               ),
             ),
           ],
-          const SizedBox(width: 6),
-          SizedBox(
-            height: _summaryTileHeight,
-            child: Center(
-              child: IconButton.filledTonal(
-                onPressed: refreshDisabled ? null : onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Aggiorna elenco',
-              ),
-            ),
-          ),
-        ],
         ),
       ),
     );
@@ -1296,10 +1305,7 @@ class _SummarySectionMark extends StatelessWidget {
 }
 
 class _FilterPanelSection extends StatelessWidget {
-  const _FilterPanelSection({
-    required this.title,
-    required this.child,
-  });
+  const _FilterPanelSection({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -1452,9 +1458,9 @@ class _InlineAccountingFilter<T> extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: _panelMaxHeight),
                 child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context).copyWith(
-                    scrollbars: true,
-                  ),
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: true),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Column(
@@ -1644,7 +1650,11 @@ class _SummaryTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, size: 20, color: AppVisual.logoBlue.withValues(alpha: 0.85)),
+            Icon(
+              icon,
+              size: 20,
+              color: AppVisual.logoBlue.withValues(alpha: 0.85),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -1748,7 +1758,7 @@ class _PaymentRowCard extends StatelessWidget {
       if (item.studentEmail != null && item.studentEmail!.trim().isNotEmpty)
         item.studentEmail,
       if (item.studentPhone != null && item.studentPhone!.trim().isNotEmpty)
-        item.studentPhone,
+        InternationalPhoneRules.formatForDisplay(item.studentPhone),
     ].join(' · ');
     final receiptLine = _receiptLine();
     final notes = item.notes?.trim();
@@ -1777,7 +1787,9 @@ class _PaymentRowCard extends StatelessWidget {
                       child: Text(
                         BackofficeFormatters.dateUi(item.receivedAt),
                         style: textTheme.labelSmall?.copyWith(
-                          color: BackofficeUiTokens.text.withValues(alpha: 0.72),
+                          color: BackofficeUiTokens.text.withValues(
+                            alpha: 0.72,
+                          ),
                           fontWeight: FontWeight.w700,
                           height: 1.25,
                         ),
@@ -1935,7 +1947,9 @@ class _PaymentRowCard extends StatelessWidget {
                         child: Text(
                           notes,
                           style: textTheme.bodySmall?.copyWith(
-                            color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                            color: BackofficeUiTokens.text.withValues(
+                              alpha: 0.68,
+                            ),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -2191,7 +2205,9 @@ class _ExpenseRowCard extends StatelessWidget {
                       child: Text(
                         notes,
                         style: textTheme.bodySmall?.copyWith(
-                          color: BackofficeUiTokens.text.withValues(alpha: 0.68),
+                          color: BackofficeUiTokens.text.withValues(
+                            alpha: 0.68,
+                          ),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

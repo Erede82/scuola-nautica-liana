@@ -13,6 +13,7 @@ class StudentRow {
     required this.firstName,
     required this.lastName,
     this.phone,
+    this.phoneCountryIso2,
     this.email,
     this.birthDate,
     this.fiscalCode,
@@ -48,6 +49,9 @@ class StudentRow {
   final String firstName;
   final String lastName;
   final String? phone;
+
+  /// Colonna `phone_country_iso2` (assente su remoto pre-migration → null).
+  final String? phoneCountryIso2;
   final String? email;
   final DateTime? birthDate;
   final String? fiscalCode;
@@ -102,6 +106,12 @@ class StudentRow {
       firstName: j['first_name'] as String,
       lastName: j['last_name'] as String,
       phone: j['phone'] as String?,
+      phoneCountryIso2: () {
+        final raw = j['phone_country_iso2'];
+        if (raw is! String) return null;
+        final t = raw.trim().toUpperCase();
+        return t.isEmpty ? null : t;
+      }(),
       email: j['email'] as String?,
       birthDate: _parseDate(j['birth_date']),
       fiscalCode: fc,

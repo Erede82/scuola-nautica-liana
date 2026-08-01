@@ -14,9 +14,9 @@ import '../services/staff_access_service.dart';
 import '../services/student_study_access_sync.dart';
 import 'student_auth_repository.dart';
 
-/// Implementazione Supabase Auth + tabella `students` + RPC `register_student_app`.
+/// Implementazione Supabase Auth + tabella `students` + RPC `register_student_app_e164`.
 ///
-/// Richiede [SupabaseConfig.initialize] e migrazione `register_student_app`.
+/// Richiede [SupabaseConfig.initialize] e migrazione telefono E.164.
 class StudentAuthRepositorySupabase implements StudentAuthRepository {
   StudentAuthRepositorySupabase._();
 
@@ -70,13 +70,16 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
       }
 
       try {
-        _regLog('3 rpc register_student_app start');
+        _regLog('3 rpc register_student_app_e164 start');
         await _client.rpc(
-          'register_student_app',
+          'register_student_app_e164',
           params: {
             'p_first_name': request.firstName.trim(),
             'p_last_name': request.lastName.trim(),
-            'p_phone': request.phone.trim(),
+            'p_phone_e164': request.phone.trim(),
+            'p_phone_country_iso2': request.phoneCountryIso2
+                .trim()
+                .toUpperCase(),
             'p_email': email,
             'p_enrolled_course_path': EnrollmentCoursePathStorage.toStorage(
               request.enrolledCoursePath,
@@ -87,7 +90,7 @@ class StudentAuthRepositorySupabase implements StudentAuthRepository {
                 ).name,
           },
         );
-        _regLog('3 rpc register_student_app ok');
+        _regLog('3 rpc register_student_app_e164 ok');
       } catch (e, st) {
         _regLog('3 rpc FAILED', '$e\n$st');
         await _safeSignOut();

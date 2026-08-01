@@ -10,9 +10,11 @@ import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/anagrafica/comune_catastale.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../theme/app_visual_tokens.dart';
+import '../international_phone_field.dart';
 import 'backoffice_formatters.dart';
 
 enum _BackofficePracticeCategory { entro12Motore, d1, oltre12VelaMotore }
@@ -195,18 +197,6 @@ String _generateReadablePassword() {
   return List.generate(14, (_) => chars[r.nextInt(chars.length)]).join();
 }
 
-String _normalizePhone(String raw) => raw.replaceAll(RegExp(r'\s'), '');
-
-/// Estrae le sole cifre nazionali (rimuove spazi e prefisso +39 se presente).
-String _phoneNationalDigits(String raw) {
-  final normalized = _normalizePhone(raw);
-  var digits = normalized.startsWith('+') ? normalized.substring(1) : normalized;
-  if (digits.startsWith('39') && digits.length == 12) {
-    digits = digits.substring(2);
-  }
-  return digits;
-}
-
 String? _validateBirthProvince(String raw) {
   final p = raw.trim().toUpperCase();
   if (p.isEmpty) {
@@ -214,21 +204,6 @@ String? _validateBirthProvince(String raw) {
   }
   if (!RegExp(r'^[A-Z]{2}$').hasMatch(p)) {
     return 'La provincia di nascita deve essere una sigla di 2 lettere (es. NA, SA, RM).';
-  }
-  return null;
-}
-
-String? _validatePhone(String raw) {
-  final normalized = _normalizePhone(raw);
-  if (normalized.isEmpty) {
-    return 'Inserisci il telefono.';
-  }
-  if (!RegExp(r'^\+?[0-9]+$').hasMatch(normalized)) {
-    return 'Il telefono può contenere solo cifre e un prefisso internazionale (+).';
-  }
-  final digits = _phoneNationalDigits(raw);
-  if (digits.length != 10) {
-    return 'Il telefono deve avere 10 cifre (es. 333 1234567, anche con prefisso +39).';
   }
   return null;
 }
@@ -247,7 +222,7 @@ String? _validateItalianCap(String raw) {
 String? _validateNewPracticeFields({
   required String lastName,
   required String firstName,
-  required String phone,
+  required InternationalPhoneValue? phoneValue,
   required String email,
   required bool createAppAccess,
   required String accessPasswordDraft,
@@ -309,9 +284,8 @@ String? _validateNewPracticeFields({
   if (capErr != null) {
     return capErr;
   }
-  final phoneErr = _validatePhone(phone);
-  if (phoneErr != null) {
-    return phoneErr;
+  if (phoneValue == null) {
+    return InternationalPhoneValidationResult.emptyMessage;
   }
   if (usesGlasses == null) {
     return 'Indica se l’allievo usa occhiali o lenti.';
@@ -382,10 +356,10 @@ class _BackofficeNewPracticeDialogBodyState
   final _cityCtrl = TextEditingController();
   final _provinceCtrl = TextEditingController();
   final _capCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _birthPlaceCtrl = TextEditingController();
   final _emailAppCtrl = TextEditingController();
   final _passwordTempCtrl = TextEditingController();
+  InternationalPhoneValue? _phoneValue;
 
   _BackofficePracticeCategory? _categoryChip =
       _BackofficePracticeCategory.entro12Motore;
@@ -442,7 +416,9 @@ class _BackofficeNewPracticeDialogBodyState
       return;
     }
     if (_birthDate == null) {
-      _showCfSnack('Seleziona la data di nascita per calcolare il codice fiscale.');
+      _showCfSnack(
+        'Seleziona la data di nascita per calcolare il codice fiscale.',
+      );
       return;
     }
     try {
@@ -454,8 +430,10 @@ class _BackofficeNewPracticeDialogBodyState
         codiceCatastale: comune.codiceCatastale,
       );
       setState(() => _fiscalCtrl.text = cf);
-      _showCfSnack('Codice fiscale calcolato: $cf. Resta modificabile: '
-          'verificalo dal documento.');
+      _showCfSnack(
+        'Codice fiscale calcolato: $cf. Resta modificabile: '
+        'verificalo dal documento.',
+      );
     } catch (e) {
       _showCfSnack('Impossibile calcolare il codice fiscale: $e');
     }
@@ -529,10 +507,7 @@ class _BackofficeNewPracticeDialogBodyState
           child: Material(
             elevation: 4,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: 240,
-                maxWidth: 360,
-              ),
+              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 360),
               child: ListView.builder(
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
@@ -552,25 +527,26 @@ class _BackofficeNewPracticeDialogBodyState
           ),
         );
       },
-      fieldViewBuilder: (context, fieldController, focusNode, onFieldSubmitted) {
-        return TextField(
-          controller: fieldController,
-          focusNode: focusNode,
-          enabled: !_busy,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(
-            hintText: hintWithDataset,
-            border: const OutlineInputBorder(),
-          ),
-          onChanged: (v) {
-            controller.text = v;
-            if (selectedComune != null &&
-                selectedComune.nomeNormalizzato != v.trim().toUpperCase()) {
-              setState(() => onSelectedComuneChanged(null));
-            }
+      fieldViewBuilder:
+          (context, fieldController, focusNode, onFieldSubmitted) {
+            return TextField(
+              controller: fieldController,
+              focusNode: focusNode,
+              enabled: !_busy,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                hintText: hintWithDataset,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (v) {
+                controller.text = v;
+                if (selectedComune != null &&
+                    selectedComune.nomeNormalizzato != v.trim().toUpperCase()) {
+                  setState(() => onSelectedComuneChanged(null));
+                }
+              },
+            );
           },
-        );
-      },
     );
   }
 
@@ -725,7 +701,6 @@ class _BackofficeNewPracticeDialogBodyState
     _cityCtrl.dispose();
     _provinceCtrl.dispose();
     _capCtrl.dispose();
-    _phoneCtrl.dispose();
     _birthPlaceCtrl.dispose();
     _emailAppCtrl.dispose();
     _passwordTempCtrl.dispose();
@@ -764,7 +739,7 @@ class _BackofficeNewPracticeDialogBodyState
     final err = _validateNewPracticeFields(
       lastName: _lastNameCtrl.text,
       firstName: _firstNameCtrl.text,
-      phone: _phoneCtrl.text,
+      phoneValue: _phoneValue,
       email: _emailAppCtrl.text,
       createAppAccess: _createAppAccess,
       accessPasswordDraft: _passwordTempCtrl.text,
@@ -802,7 +777,7 @@ class _BackofficeNewPracticeDialogBodyState
           ? licenseRaw
           : (licenseRaw != null && licenseRaw.isNotEmpty ? licenseRaw : null);
       final birthProvince = _birthProvinceCtrl.text.trim().toUpperCase();
-      final phone = _phoneNationalDigits(_phoneCtrl.text);
+      final phone = _phoneValue!;
       final cap = _capCtrl.text.replaceAll(RegExp(r'\s'), '');
       final templateNotes = composeNewPracticeTemplateNotes(_selectedTemplate);
       final mergedNotes = _composeInternalNotes(
@@ -814,7 +789,8 @@ class _BackofficeNewPracticeDialogBodyState
       final outcome = await widget.repository.createBackofficeStudent(
         firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
         lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
-        phone: phone,
+        phone: phone.e164,
+        phoneCountryIso2: phone.countryIso2,
         email: _emailAppCtrl.text.trim().isEmpty
             ? null
             : _emailAppCtrl.text.trim(),
@@ -833,8 +809,9 @@ class _BackofficeNewPracticeDialogBodyState
         practiceType: _createPracticeDossierForSubmit
             ? _registryPracticeType.dbValue
             : null,
-        registrationDate:
-            _createPracticeDossierForSubmit ? _registrationDate : null,
+        registrationDate: _createPracticeDossierForSubmit
+            ? _registrationDate
+            : null,
         assignRegistryNumber: _assignRegistryForSubmit,
       );
 
@@ -1195,9 +1172,10 @@ class _BackofficeNewPracticeDialogBodyState
                   inputFormatters: [
                     TextInputFormatter.withFunction((oldValue, newValue) {
                       return newValue.copyWith(
-                        text: newValue.text
-                            .toUpperCase()
-                            .replaceAll(RegExp(r'\s'), ''),
+                        text: newValue.text.toUpperCase().replaceAll(
+                          RegExp(r'\s'),
+                          '',
+                        ),
                         selection: newValue.selection,
                         composing: TextRange.empty,
                       );
@@ -1216,8 +1194,8 @@ class _BackofficeNewPracticeDialogBodyState
                   message: !_comuniDatasetAvailable
                       ? 'Dataset Comuni non disponibile: inserisci il CF a mano.'
                       : _selectedBirthComune == null
-                          ? 'Seleziona prima il Comune di nascita dall’elenco.'
-                          : 'Calcola il codice fiscale dai dati anagrafici.',
+                      ? 'Seleziona prima il Comune di nascita dall’elenco.'
+                      : 'Calcola il codice fiscale dai dati anagrafici.',
                   child: OutlinedButton.icon(
                     onPressed: _canCalcolaCf ? _calcolaCodiceFiscale : null,
                     icon: const Icon(Icons.calculate_outlined, size: 18),
@@ -1288,7 +1266,9 @@ class _BackofficeNewPracticeDialogBodyState
                         textCapitalization: TextCapitalization.characters,
                         maxLength: 2,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z]')),
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[A-Za-z]'),
+                          ),
                           TextInputFormatter.withFunction((oldValue, newValue) {
                             return newValue.copyWith(
                               text: newValue.text.toUpperCase(),
@@ -1375,7 +1355,9 @@ class _BackofficeNewPracticeDialogBodyState
                         ),
                       )
                     : DropdownButtonFormField<String?>(
-                        key: ValueKey('practice-template-${_selectedTemplate?.id}'),
+                        key: ValueKey(
+                          'practice-template-${_selectedTemplate?.id}',
+                        ),
                         initialValue: _selectedTemplate?.id,
                         isExpanded: true,
                         decoration: const InputDecoration(
@@ -1472,15 +1454,11 @@ class _BackofficeNewPracticeDialogBodyState
               ],
               const SizedBox(height: 12),
               _labeledField(
-                'Telefono *',
-                child: TextField(
-                  controller: _phoneCtrl,
+                'Cellulare *',
+                child: InternationalPhoneField(
                   enabled: !_busy,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    hintText: '10 cifre (es. 333 1234567)',
-                    border: OutlineInputBorder(),
-                  ),
+                  requiredField: true,
+                  onValidChanged: (value) => _phoneValue = value,
                 ),
               ),
               const SizedBox(height: 12),
@@ -1499,7 +1477,9 @@ class _BackofficeNewPracticeDialogBodyState
                       border: Border.all(color: AppVisual.border),
                     ),
                     child: Text(
-                      practiceServiceTemplateEnrollmentLabel(_selectedTemplate!),
+                      practiceServiceTemplateEnrollmentLabel(
+                        _selectedTemplate!,
+                      ),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -1639,10 +1619,11 @@ class _BackofficeNewPracticeDialogBodyState
                         child: Text(
                           'Registro D1 in stand-by: per questa prestazione non '
                           'viene generato automaticamente il numero di registro.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppVisual.inkMuted,
-                            height: 1.35,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppVisual.inkMuted,
+                                height: 1.35,
+                              ),
                         ),
                       ),
                     ],
@@ -1672,10 +1653,11 @@ class _BackofficeNewPracticeDialogBodyState
                         child: Text(
                           'Questa prestazione non genera dossier pratica né numero '
                           'registro. L’anagrafica verrà creata senza iscrizione al registro.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppVisual.inkMuted,
-                            height: 1.35,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppVisual.inkMuted,
+                                height: 1.35,
+                              ),
                         ),
                       ),
                     ],
@@ -1699,9 +1681,8 @@ class _BackofficeNewPracticeDialogBodyState
                           _isD1RegistryStandby
                               ? 'Registro D1 in stand-by — numerazione non automatica.'
                               : 'Non disponibile per questa prestazione.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppVisual.inkMuted,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppVisual.inkMuted),
                         )
                       : null,
                   controlAffinity: ListTileControlAffinity.leading,
@@ -1745,9 +1726,9 @@ class _BackofficeNewPracticeDialogBodyState
                   Text(
                     'Rinnovo/duplicato: il fascicolo viene creato ma non viene '
                     'assegnato alcun numero di registro automatico.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppVisual.inkMuted,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
                   ),
                 ],
                 const SizedBox(height: 12),

@@ -8,6 +8,7 @@ import 'pages/forgot_password_page.dart';
 import 'pages/login_page.dart';
 import 'pages/student_registration_page.dart';
 import 'theme/app_visual_tokens.dart';
+import 'widgets/international_phone_field.dart';
 
 class ScuolaNauticaLianaApp extends StatelessWidget {
   const ScuolaNauticaLianaApp({super.key});
@@ -139,21 +140,22 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
       ),
     );
 
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppVisual.logoBlue,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: AppVisual.logoBlue,
-      onPrimary: Colors.white,
-      secondary: AppVisual.brandAzure,
-      onSecondary: Colors.white,
-      surface: AppVisual.surface,
-      onSurface: AppVisual.ink,
-      error: AppVisual.error,
-      onError: Colors.white,
-      outline: AppVisual.border,
-      outlineVariant: AppVisual.chipFill,
-    );
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: AppVisual.logoBlue,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: AppVisual.logoBlue,
+          onPrimary: Colors.white,
+          secondary: AppVisual.brandAzure,
+          onSecondary: Colors.white,
+          surface: AppVisual.surface,
+          onSurface: AppVisual.ink,
+          error: AppVisual.error,
+          onError: Colors.white,
+          outline: AppVisual.border,
+          outlineVariant: AppVisual.chipFill,
+        );
 
     final theme = ThemeData(
       useMaterial3: true,
@@ -162,7 +164,9 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
       scaffoldBackgroundColor: AppVisual.canvas,
       textTheme: appTextTheme,
       primaryTextTheme: appTextTheme,
-      dividerTheme: DividerThemeData(color: AppVisual.border.withValues(alpha: 0.65)),
+      dividerTheme: DividerThemeData(
+        color: AppVisual.border.withValues(alpha: 0.65),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppVisual.logoBlue,
         foregroundColor: Colors.white,
@@ -182,7 +186,10 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 6),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: AppVisual.border.withValues(alpha: 0.85), width: 1),
+          side: BorderSide(
+            color: AppVisual.border.withValues(alpha: 0.85),
+            width: 1,
+          ),
         ),
       ),
       drawerTheme: DrawerThemeData(
@@ -198,8 +205,14 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppVisual.ivory,
-        labelStyle: TextStyle(color: AppVisual.inkMuted, fontWeight: FontWeight.w600),
-        floatingLabelStyle: TextStyle(color: AppVisual.logoBlue, fontWeight: FontWeight.w700),
+        labelStyle: TextStyle(
+          color: AppVisual.inkMuted,
+          fontWeight: FontWeight.w600,
+        ),
+        floatingLabelStyle: TextStyle(
+          color: AppVisual.logoBlue,
+          fontWeight: FontWeight.w700,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: AppVisual.border),
@@ -214,7 +227,9 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppVisual.error.withValues(alpha: 0.85)),
+          borderSide: BorderSide(
+            color: AppVisual.error.withValues(alpha: 0.85),
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -281,10 +296,11 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
       title: 'Scuola Nautica Liana',
       locale: const Locale('it', 'IT'),
       supportedLocales: const [Locale('it', 'IT')],
-      localizationsDelegates: const [
+      localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
+        ...InternationalPhoneField.localizationsDelegates,
       ],
       theme: theme,
       routes: {

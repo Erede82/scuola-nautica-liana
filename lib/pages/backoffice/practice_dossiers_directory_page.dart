@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
@@ -16,25 +17,23 @@ class _PracticeFilterOption<T> {
 }
 
 /// Voci filtro avanzamento pratica (senza attesa documenti).
-const _practiceAdvancementFilterOptions = <_PracticeFilterOption<PracticeFileStatus?>>[
-  _PracticeFilterOption(value: null, label: 'Tutti'),
-  _PracticeFilterOption(
-    value: PracticeFileStatus.notOpen,
-    label: 'Non avviato',
-  ),
-  _PracticeFilterOption(
-    value: PracticeFileStatus.inProgress,
-    label: 'In lavorazione',
-  ),
-  _PracticeFilterOption(
-    value: PracticeFileStatus.submitted,
-    label: 'Inviata',
-  ),
-  _PracticeFilterOption(
-    value: PracticeFileStatus.closed,
-    label: 'Chiusa',
-  ),
-];
+const _practiceAdvancementFilterOptions =
+    <_PracticeFilterOption<PracticeFileStatus?>>[
+      _PracticeFilterOption(value: null, label: 'Tutti'),
+      _PracticeFilterOption(
+        value: PracticeFileStatus.notOpen,
+        label: 'Non avviato',
+      ),
+      _PracticeFilterOption(
+        value: PracticeFileStatus.inProgress,
+        label: 'In lavorazione',
+      ),
+      _PracticeFilterOption(
+        value: PracticeFileStatus.submitted,
+        label: 'Inviata',
+      ),
+      _PracticeFilterOption(value: PracticeFileStatus.closed, label: 'Chiusa'),
+    ];
 
 const _practiceTypeFilterOptions = <_PracticeFilterOption<String?>>[
   _PracticeFilterOption(value: null, label: 'Tutte'),
@@ -55,7 +54,7 @@ class PracticeDossiersDirectoryPage extends StatefulWidget {
 
   /// Apre Scheda 360; al ritorno la directory può ricaricare l’elenco.
   final Future<void> Function(StudentId studentId, {int initialTabIndex})
-      onOpenStudent360;
+  onOpenStudent360;
 
   @override
   State<PracticeDossiersDirectoryPage> createState() =>
@@ -103,10 +102,7 @@ class _PracticeDossiersDirectoryPageState
     StudentId studentId, {
     int initialTabIndex = Student360DetailView.tabIndexScheda,
   }) async {
-    await widget.onOpenStudent360(
-      studentId,
-      initialTabIndex: initialTabIndex,
-    );
+    await widget.onOpenStudent360(studentId, initialTabIndex: initialTabIndex);
     if (!mounted) return;
     await _load();
   }
@@ -151,7 +147,8 @@ class _PracticeDossiersDirectoryPageState
   Iterable<PracticeListItem> _filtered(List<PracticeListItem> raw) sync* {
     final q = _searchCtrl.text.trim().toLowerCase();
     for (final i in raw) {
-      if (_practiceTypeFilter != null && i.practiceType != _practiceTypeFilter) {
+      if (_practiceTypeFilter != null &&
+          i.practiceType != _practiceTypeFilter) {
         continue;
       }
       if (_practiceStatusFilter != null &&
@@ -163,10 +160,14 @@ class _PracticeDossiersDirectoryPageState
       if (q.isNotEmpty) {
         final regNum = i.registryNumber?.toString() ?? '';
         final regYear = i.registryYear?.toString() ?? '';
+        final qRaw = _searchCtrl.text.trim();
         final match =
-            i.studentFullName.toLowerCase().contains(q) ||
-            (i.studentEmail?.toLowerCase().contains(q) ?? false) ||
-            (i.studentPhone?.toLowerCase().contains(q) ?? false) ||
+            InternationalPhoneRules.matchesSearch(
+              query: qRaw,
+              displayName: i.studentFullName,
+              email: i.studentEmail,
+              phone: i.studentPhone,
+            ) ||
             (i.registryCode?.toLowerCase().contains(q) ?? false) ||
             regNum.contains(q) ||
             regYear.contains(q) ||
@@ -254,7 +255,9 @@ class _PracticeDossiersDirectoryPageState
                       crossAxisAlignment: WrapCrossAlignment.end,
                       children: [
                         _PracticeFilterField<String?>(
-                          key: ValueKey('ptype_${_practiceTypeFilter ?? 'all'}'),
+                          key: ValueKey(
+                            'ptype_${_practiceTypeFilter ?? 'all'}',
+                          ),
                           label: 'Tipo pratica',
                           width: w,
                           value: _practiceTypeFilter,
@@ -388,7 +391,7 @@ class _PracticeRowCard extends StatelessWidget {
       if (item.studentEmail != null && item.studentEmail!.trim().isNotEmpty)
         item.studentEmail,
       if (item.studentPhone != null && item.studentPhone!.trim().isNotEmpty)
-        item.studentPhone,
+        InternationalPhoneRules.formatForDisplay(item.studentPhone),
     ].join(' · ');
 
     return Material(

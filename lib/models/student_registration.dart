@@ -7,6 +7,7 @@ class StudentRegistrationRequest {
     required this.firstName,
     required this.lastName,
     required this.phone,
+    required this.phoneCountryIso2,
     required this.email,
     required this.password,
     required this.enrolledCoursePath,
@@ -14,7 +15,12 @@ class StudentRegistrationRequest {
 
   final String firstName;
   final String lastName;
+
+  /// Telefono già normalizzato E.164.
   final String phone;
+
+  /// ISO 3166-1 alpha-2 maiuscolo.
+  final String phoneCountryIso2;
   final String email;
   final String password;
   final EnrollmentCoursePath enrolledCoursePath;

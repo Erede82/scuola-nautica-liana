@@ -35,6 +35,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
     required String firstName,
     required String lastName,
     String? phone,
+    String? phoneCountryIso2,
     String? email,
     String? fiscalCode,
     DateTime? birthDate,
@@ -57,6 +58,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
         firstName: firstName,
         lastName: lastName,
         phone: phone,
+        phoneCountryIso2: phoneCountryIso2,
         email: email,
         fiscalCode: fiscalCode,
         birthDate: birthDate,
@@ -400,6 +402,19 @@ class BackofficeRepositoryMock implements BackofficeRepository {
       body: body,
       authorStaffName: authorStaffName,
       category: category,
+    );
+  }
+
+  @override
+  Future<void> updateStudentPhone({
+    required StudentId studentId,
+    required String phoneE164,
+    required String phoneCountryIso2,
+  }) async {
+    _store.updateStudentPhone(
+      studentId: studentId,
+      phoneE164: phoneE164,
+      phoneCountryIso2: phoneCountryIso2,
     );
   }
 

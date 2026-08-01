@@ -2,26 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
 import '../domain/course_taxonomy.dart';
+import '../domain/international_phone.dart';
 import '../models/student_registration.dart';
 import '../repositories/student_auth_registry.dart';
 import '../theme/app_visual_tokens.dart';
+import '../widgets/international_phone_field.dart';
 
 /// Onboarding: registrazione con scelta esplicita del percorso di iscrizione.
 class StudentRegistrationPage extends StatefulWidget {
   const StudentRegistrationPage({super.key});
 
   @override
-  State<StudentRegistrationPage> createState() => _StudentRegistrationPageState();
+  State<StudentRegistrationPage> createState() =>
+      _StudentRegistrationPageState();
 }
 
 class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
+  InternationalPhoneValue? _phoneValue;
 
   EnrollmentCoursePath? _selectedPath;
   bool _obscurePassword = true;
@@ -38,7 +41,6 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
   void dispose() {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
-    _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -64,10 +66,20 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
 
     setState(() => _submitting = true);
     try {
+      if (_phoneValue == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(InternationalPhoneValidationResult.emptyMessage),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       final req = StudentRegistrationRequest(
         firstName: _firstNameCtrl.text,
         lastName: _lastNameCtrl.text,
-        phone: _phoneCtrl.text,
+        phone: _phoneValue!.e164,
+        phoneCountryIso2: _phoneValue!.countryIso2,
         email: _emailCtrl.text,
         password: _passwordCtrl.text,
         enrolledCoursePath: _selectedPath!,
@@ -191,22 +203,17 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
               decoration: _fieldDecoration('Cognome'),
               textInputAction: TextInputAction.next,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Inserisci il cognome.';
+                if (v == null || v.trim().isEmpty) {
+                  return 'Inserisci il cognome.';
+                }
                 return null;
               },
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: _fieldDecoration('Telefono'),
-              textInputAction: TextInputAction.next,
-              validator: (v) {
-                if (v == null || v.trim().length < 8) {
-                  return 'Inserisci un numero di telefono valido.';
-                }
-                return null;
-              },
+            InternationalPhoneField(
+              requiredField: true,
+              decorationLabel: 'Cellulare',
+              onValidChanged: (value) => _phoneValue = value,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -218,7 +225,9 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
               validator: (v) {
                 final t = v?.trim() ?? '';
                 if (t.isEmpty) return 'Inserisci l’email.';
-                if (!_emailRegex.hasMatch(t)) return 'Inserisci un’email valida.';
+                if (!_emailRegex.hasMatch(t)) {
+                  return 'Inserisci un’email valida.';
+                }
                 return null;
               },
             ),
@@ -229,10 +238,13 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
               decoration: _fieldDecoration('Password').copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
-                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
                     color: _primaryColor.withValues(alpha: 0.7),
                   ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
               textInputAction: TextInputAction.next,
@@ -250,16 +262,21 @@ class _StudentRegistrationPageState extends State<StudentRegistrationPage> {
               decoration: _fieldDecoration('Conferma password').copyWith(
                 suffixIcon: IconButton(
                   icon: Icon(
-                    _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    _obscureConfirm
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
                     color: _primaryColor.withValues(alpha: 0.7),
                   ),
-                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
               ),
               textInputAction: TextInputAction.done,
               onFieldSubmitted: (_) => _submit(),
               validator: (v) {
-                if (v != _passwordCtrl.text) return 'Le password non coincidono.';
+                if (v != _passwordCtrl.text) {
+                  return 'Le password non coincidono.';
+                }
                 return null;
               },
             ),
@@ -390,10 +407,7 @@ class _EnrollmentPathSelectableCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: borderColor,
-              width: selected ? 2 : 1,
-            ),
+            border: Border.all(color: borderColor, width: selected ? 2 : 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -406,7 +420,9 @@ class _EnrollmentPathSelectableCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
                 color: selected ? _primaryColor : _neutralColor,
                 size: 26,
               ),

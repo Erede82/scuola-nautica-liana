@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../utils/guidance_appointment_validation.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
@@ -368,10 +369,14 @@ class _GuidanceAppointmentsDirectoryPageState
       if (_onlyPast && !i.isLessonInPast) continue;
       if (q.isNotEmpty) {
         final note = i.notes?.toLowerCase() ?? '';
+        final qRaw = _searchCtrl.text.trim();
         final match =
-            i.studentFullName.toLowerCase().contains(q) ||
-            (i.studentEmail?.toLowerCase().contains(q) ?? false) ||
-            (i.studentPhone?.toLowerCase().contains(q) ?? false) ||
+            InternationalPhoneRules.matchesSearch(
+              query: qRaw,
+              displayName: i.studentFullName,
+              email: i.studentEmail,
+              phone: i.studentPhone,
+            ) ||
             (i.instructorName?.toLowerCase().contains(q) ?? false) ||
             note.contains(q);
         if (!match) continue;
@@ -984,7 +989,7 @@ class _WeekAgendaGrid extends StatelessWidget {
       if (item.instructorName != null && item.instructorName!.trim().isNotEmpty)
         'Istruttore: ${item.instructorName!.trim()}',
       if (item.studentPhone != null && item.studentPhone!.trim().isNotEmpty)
-        'Tel: ${item.studentPhone!.trim()}',
+        'Tel: ${InternationalPhoneRules.formatForDisplay(item.studentPhone)}',
       if (item.notes != null && item.notes!.trim().isNotEmpty)
         item.notes!.trim(),
       'Esito: ${BackofficeFormatters.appointmentOutcome(item.completionOutcome)}',

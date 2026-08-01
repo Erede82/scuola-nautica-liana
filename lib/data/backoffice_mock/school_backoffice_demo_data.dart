@@ -27,8 +27,9 @@ abstract final class SchoolBackofficeDemoData {
   static BackofficeDemoSeed cloneSeedForMutableStore() {
     return BackofficeDemoSeed(
       profiles: List<StudentProfile>.from(_profiles),
-      progressBundles:
-          _progress.map(_copyStudyProgressBundle).toList(growable: true),
+      progressBundles: _progress
+          .map(_copyStudyProgressBundle)
+          .toList(growable: true),
       appointments: List<GuidanceAppointment>.from(_appointments),
       exams: List<ExamAttempt>.from(_exams),
       payments: List<PaymentReceived>.from(_payments),
@@ -46,10 +47,12 @@ abstract final class SchoolBackofficeDemoData {
       studentId: b.studentId,
       assignedLessons: b.assignedLessons.map(_copyAssignedLesson).toList(),
       sheetUnlocks: b.sheetUnlocks.map(_copySheetUnlock).toList(),
-      examAccessByCategory:
-          b.examAccessByCategory.map(_copyExamAccess).toList(),
-      errorReviewAssignments:
-          b.errorReviewAssignments.map(_copyErrorReview).toList(),
+      examAccessByCategory: b.examAccessByCategory
+          .map(_copyExamAccess)
+          .toList(),
+      errorReviewAssignments: b.errorReviewAssignments
+          .map(_copyErrorReview)
+          .toList(),
       globalProgressNotes: b.globalProgressNotes,
     );
   }
@@ -109,22 +112,26 @@ abstract final class SchoolBackofficeDemoData {
     if (profileMatch.isEmpty) return null;
     final profile = profileMatch.first;
 
-    final progMatch =
-        _progress.where((e) => e.studentId == studentId).toList();
+    final progMatch = _progress.where((e) => e.studentId == studentId).toList();
     if (progMatch.isEmpty) return null;
     final prog = progMatch.first;
 
-    final ap =
-        _appointments.where((e) => e.studentId == studentId).toList(growable: false);
-    final ex =
-        _exams.where((e) => e.studentId == studentId).toList(growable: false);
-    final pay =
-        _payments.where((e) => e.studentId == studentId).toList(growable: false);
+    final ap = _appointments
+        .where((e) => e.studentId == studentId)
+        .toList(growable: false);
+    final ex = _exams
+        .where((e) => e.studentId == studentId)
+        .toList(growable: false);
+    final pay = _payments
+        .where((e) => e.studentId == studentId)
+        .toList(growable: false);
 
-    final theory =
-        ex.where((e) => e.examType == ExamAttemptType.theory).toList();
-    final pract =
-        ex.where((e) => e.examType == ExamAttemptType.practical).toList();
+    final theory = ex
+        .where((e) => e.examType == ExamAttemptType.theory)
+        .toList();
+    final pract = ex
+        .where((e) => e.examType == ExamAttemptType.practical)
+        .toList();
 
     final fin = _financial[studentId];
     if (fin == null) return null;
@@ -151,7 +158,8 @@ abstract final class SchoolBackofficeDemoData {
       id: demoStudentLucia,
       firstName: 'Lucia',
       lastName: 'Bianchi',
-      phone: '+39 320 0000001',
+      phone: '+393200000001',
+      phoneCountryIso2: 'IT',
       email: 'lucia.bianchi@example.com',
       birthDate: DateTime(1998, 4, 12),
       taxCode: 'BNCLCU98D52F205X',
@@ -175,7 +183,8 @@ abstract final class SchoolBackofficeDemoData {
       id: demoStudentMarco,
       firstName: 'Marco',
       lastName: 'Verdi',
-      phone: '+39 333 0000002',
+      phone: '+393330000002',
+      phoneCountryIso2: 'IT',
       email: 'marco.verdi@example.com',
       birthDate: DateTime(1995, 11, 3),
       taxCode: 'VRDMRC95S03H501Y',
@@ -257,7 +266,8 @@ abstract final class SchoolBackofficeDemoData {
           updatedAt: DateTime(2025, 3, 3),
         ),
       ],
-      globalProgressNotes: 'Teoria avanzata ok; consolidare COLREG prima esame.',
+      globalProgressNotes:
+          'Teoria avanzata ok; consolidare COLREG prima esame.',
     ),
     StudentStudyProgressBundle(
       studentId: demoStudentMarco,
@@ -406,7 +416,8 @@ abstract final class SchoolBackofficeDemoData {
       licenseNumber: 'GE1234567',
       documentStatus: LicenseDocumentStatus.collected,
       practiceStatus: PracticeFileStatus.inProgress,
-      authorityNotes: 'Checklist demo rinnovo: patente presente, certificato in scadenza.',
+      authorityNotes:
+          'Checklist demo rinnovo: patente presente, certificato in scadenza.',
     ),
   };
 

@@ -11,7 +11,7 @@ import 'student_auth_repository.dart';
 /// Password tenuta solo in RAM per login mock; **non** usare in produzione così.
 class StudentAuthRepositoryMock implements StudentAuthRepository {
   StudentAuthRepositoryMock._({BackofficeDemoStore? store})
-      : _store = store ?? backofficeDemoStore;
+    : _store = store ?? backofficeDemoStore;
 
   static final StudentAuthRepositoryMock instance =
       StudentAuthRepositoryMock._();
@@ -38,7 +38,8 @@ class StudentAuthRepositoryMock implements StudentAuthRepository {
       id: studentId,
       firstName: _capitalizeWords(request.firstName.trim()),
       lastName: _capitalizeWords(request.lastName.trim()),
-      phone: _normalizePhone(request.phone.trim()),
+      phone: request.phone.trim(),
+      phoneCountryIso2: request.phoneCountryIso2.trim().toUpperCase(),
       email: email,
       enrolledCoursePath: request.enrolledCoursePath,
       registrationStatus: StudentRegistrationStatus.pending,
@@ -110,21 +111,17 @@ class StudentAuthRepositoryMock implements StudentAuthRepository {
 
   @override
   Future<void> signInWithGoogle() async {
-    throw UnsupportedError(
-      'Google OAuth non disponibile nel repository mock.',
-    );
-  }
-
-  String _normalizePhone(String raw) {
-    if (raw.isEmpty) return raw;
-    return raw;
+    throw UnsupportedError('Google OAuth non disponibile nel repository mock.');
   }
 
   String _capitalizeWords(String s) {
     if (s.isEmpty) return s;
-    return s.split(RegExp(r'\s+')).map((w) {
-      if (w.isEmpty) return w;
-      return '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}';
-    }).join(' ');
+    return s
+        .split(RegExp(r'\s+'))
+        .map((w) {
+          if (w.isEmpty) return w;
+          return '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}';
+        })
+        .join(' ');
   }
 }

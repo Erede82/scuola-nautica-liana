@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../data/extra_bundle_catalog.dart';
 import '../../domain/backoffice/backoffice.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repositories.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
@@ -53,14 +54,18 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
   }
 
   List<StudentProfile> get _filteredProfiles {
-    final q = _searchCtrl.text.trim().toLowerCase();
+    final q = _searchCtrl.text.trim();
     if (q.isEmpty) return _profiles;
-    return _profiles.where((p) {
-      if (p.displayName.toLowerCase().contains(q)) return true;
-      if (p.phone != null && p.phone!.toLowerCase().contains(q)) return true;
-      if (p.email != null && p.email!.toLowerCase().contains(q)) return true;
-      return false;
-    }).toList(growable: false);
+    return _profiles
+        .where(
+          (p) => InternationalPhoneRules.matchesSearch(
+            query: q,
+            displayName: p.displayName,
+            email: p.email,
+            phone: p.phone,
+          ),
+        )
+        .toList(growable: false);
   }
 
   StudentProfile? get _selectedAccessProfile {
@@ -346,7 +351,9 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
     }
     final products = _products ?? const <ExtraProduct>[];
     if (products.isEmpty) {
-      return const Center(child: Text('Nessun prodotto videocorso configurato.'));
+      return const Center(
+        child: Text('Nessun prodotto videocorso configurato.'),
+      );
     }
 
     return RefreshIndicator(
@@ -566,17 +573,13 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
                       )
                     : hasAccess
                     ? TextButton(
-                        onPressed: () => _revokeAccess(
-                          _accessStudentId!,
-                          product.id,
-                        ),
+                        onPressed: () =>
+                            _revokeAccess(_accessStudentId!, product.id),
                         child: const Text('Revoca'),
                       )
                     : FilledButton(
-                        onPressed: () => _grantAccess(
-                          _accessStudentId!,
-                          product.id,
-                        ),
+                        onPressed: () =>
+                            _grantAccess(_accessStudentId!, product.id),
                         child: const Text('Abilita'),
                       ),
               ),
@@ -722,14 +725,19 @@ class _VideoCoursesStudentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final contactParts = <String>[
       if (profile.phone != null && profile.phone!.trim().isNotEmpty)
-        profile.phone!.trim(),
+        InternationalPhoneRules.formatForDisplay(
+          profile.phone,
+          phoneCountryIso2: profile.phoneCountryIso2,
+        ),
       if (profile.email != null && profile.email!.trim().isNotEmpty)
         profile.email!.trim(),
     ];
-    final pathLabel =
-        BackofficeFormatters.enrollmentCoursePath(profile.enrolledCoursePath);
-    final categoryLabel =
-        BackofficeFormatters.categoryName(profile.enrolledLicenseCategory);
+    final pathLabel = BackofficeFormatters.enrollmentCoursePath(
+      profile.enrolledCoursePath,
+    );
+    final categoryLabel = BackofficeFormatters.categoryName(
+      profile.enrolledLicenseCategory,
+    );
 
     final borderColor = selected
         ? AppVisual.logoBlue.withValues(alpha: 0.55)
@@ -822,9 +830,7 @@ class _InfoChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppVisual.logoBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppVisual.logoBlue.withValues(alpha: 0.22),
-        ),
+        border: Border.all(color: AppVisual.logoBlue.withValues(alpha: 0.22)),
       ),
       child: Text(
         label,
@@ -872,8 +878,7 @@ class _ProductVideosPageState extends State<_ProductVideosPage> {
       if (_isBundle) {
         final sections =
             <({String title, String productId, List<ExtraVideoItem> videos})>[];
-        for (final sourceId
-            in ExtraBundleCatalog.bundleIncludedProductIds) {
+        for (final sourceId in ExtraBundleCatalog.bundleIncludedProductIds) {
           final list = await managementRepository.listExtraVideoItems(
             sourceId,
             includeInactive: true,
@@ -1039,113 +1044,120 @@ class _ProductVideosPageState extends State<_ProductVideosPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final canUpload = ExtraBundleCatalog.allowDirectVideoUpload(widget.product.id);
-    final bundleHasIncludedVideos =
-        _bundleSections.any((s) => s.videos.isNotEmpty);
+    final canUpload = ExtraBundleCatalog.allowDirectVideoUpload(
+      widget.product.id,
+    );
+    final bundleHasIncludedVideos = _bundleSections.any(
+      (s) => s.videos.isNotEmpty,
+    );
     final bundleHasContent =
         bundleHasIncludedVideos || _bundleDirectVideos.isNotEmpty;
 
     return Scaffold(
-        backgroundColor: AppVisual.canvas,
-        appBar: AppBar(
-          backgroundColor: AppVisual.logoBlue,
-          foregroundColor: Colors.white,
-          title: Text(widget.product.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          actions: [
-            if (canUpload)
-              IconButton(
-                tooltip: 'Aggiungi video',
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.add),
-              ),
-          ],
+      backgroundColor: AppVisual.canvas,
+      appBar: AppBar(
+        backgroundColor: AppVisual.logoBlue,
+        foregroundColor: Colors.white,
+        title: Text(
+          widget.product.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
+        actions: [
+          if (canUpload)
+            IconButton(
+              tooltip: 'Aggiungi video',
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add),
+            ),
+        ],
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _isBundle
+                  ? const Color(0xFFFFF8E8)
+                  : AppVisual.logoBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
                 color: _isBundle
-                    ? const Color(0xFFFFF8E8)
-                    : AppVisual.logoBlue.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _isBundle
-                      ? const Color(0xFFE8A317).withValues(alpha: 0.45)
-                      : AppVisual.logoBlue.withValues(alpha: 0.22),
+                    ? const Color(0xFFE8A317).withValues(alpha: 0.45)
+                    : AppVisual.logoBlue.withValues(alpha: 0.22),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prodotto: ${widget.product.title} · ID ${widget.product.id}',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: _isBundle
+                        ? const Color(0xFF9A6B00)
+                        : AppVisual.logoBlue,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Prodotto: ${widget.product.title} · ID ${widget.product.id}',
-                    style: textTheme.labelLarge?.copyWith(
-                      color: _isBundle
-                          ? const Color(0xFF9A6B00)
-                          : AppVisual.logoBlue,
-                      fontWeight: FontWeight.w800,
-                    ),
+                const SizedBox(height: 6),
+                Text(
+                  ExtraBundleCatalog.uploadGuidance(widget.product.id),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: _isBundle
+                        ? const Color(0xFF9A6B00)
+                        : BackofficeUiTokens.textMuted,
+                    height: 1.35,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    ExtraBundleCatalog.uploadGuidance(widget.product.id),
-                    style: textTheme.bodySmall?.copyWith(
-                      color: _isBundle
-                          ? const Color(0xFF9A6B00)
-                          : BackofficeUiTokens.textMuted,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                  ? _ErrorPanel(message: '$_error', onRetry: _load)
-                  : _isBundle
-                  ? _buildBundleBody(textTheme, bundleHasContent)
-                  : _videos.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.video_library_outlined, size: 48),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Nessun video per questo prodotto.',
-                              style: textTheme.titleSmall,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            FilledButton.icon(
-                              onPressed: () => _openForm(),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Aggiungi primo video'),
-                            ),
-                          ],
-                        ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? _ErrorPanel(message: '$_error', onRetry: _load)
+                : _isBundle
+                ? _buildBundleBody(textTheme, bundleHasContent)
+                : _videos.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.video_library_outlined, size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Nessun video per questo prodotto.',
+                            style: textTheme.titleSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: () => _openForm(),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Aggiungi primo video'),
+                          ),
+                        ],
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      itemCount: _videos.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) =>
-                          _buildEditableVideoTile(textTheme, _videos[index]),
                     ),
-            ),
-          ],
-        ),
-      );
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    itemCount: _videos.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) =>
+                        _buildEditableVideoTile(textTheme, _videos[index]),
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildBundleBody(TextTheme textTheme, bool bundleHasContent) {
@@ -1295,9 +1307,7 @@ class _ProductVideosPageState extends State<_ProductVideosPage> {
                 for (final targetId
                     in ExtraBundleCatalog.bundleIncludedProductIds)
                   OutlinedButton(
-                    onPressed: _moveBusy
-                        ? null
-                        : () => _moveVideo(v, targetId),
+                    onPressed: _moveBusy ? null : () => _moveVideo(v, targetId),
                     child: Text(ExtraBundleCatalog.moveTargetLabel(targetId)),
                   ),
               ],

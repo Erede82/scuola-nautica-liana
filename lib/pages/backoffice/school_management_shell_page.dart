@@ -4,6 +4,7 @@ import '../../config/supabase_config.dart';
 import '../../data/backoffice_mock/backoffice_demo_store.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../repositories/study_access_repository.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
@@ -298,7 +299,7 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
   List<StudentProfile> _filteredProfiles() {
     final all = _profiles;
     if (all == null) return [];
-    final q = _searchCtrl.text.trim().toLowerCase();
+    final q = _searchCtrl.text.trim();
     return all
         .where((p) {
           if (_pathFilter != null && p.enrolledCoursePath != _pathFilter) {
@@ -308,10 +309,12 @@ class SchoolManagementShellPageState extends State<SchoolManagementShellPage> {
             return false;
           }
           if (q.isEmpty) return true;
-          final fn = p.firstName.toLowerCase();
-          final ln = p.lastName.toLowerCase();
-          final em = (p.email ?? '').toLowerCase();
-          return fn.contains(q) || ln.contains(q) || em.contains(q);
+          return InternationalPhoneRules.matchesSearch(
+            query: q,
+            displayName: p.displayName,
+            email: p.email,
+            phone: p.phone,
+          );
         })
         .toList(growable: false)
       ..sort((a, b) {

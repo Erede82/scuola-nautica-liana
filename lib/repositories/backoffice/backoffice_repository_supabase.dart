@@ -81,7 +81,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
         .whereType<String>()
         .toList();
     final finMap = finRaw is Map ? Map<String, dynamic>.from(finRaw) : null;
-    final paymentTotalCents = payments.fold<int>(0, (s, p) => s + p.amountCents);
+    final paymentTotalCents = payments.fold<int>(
+      0,
+      (s, p) => s + p.amountCents,
+    );
     debugPrint(
       'getStudentAdmin360 DEBUG studentId=$studentId '
       'profile=${profile.firstName} ${profile.lastName} <${profile.email ?? 'no-email'}>',
@@ -235,6 +238,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     required String firstName,
     required String lastName,
     String? phone,
+    String? phoneCountryIso2,
     String? email,
     String? fiscalCode,
     DateTime? birthDate,
@@ -276,7 +280,9 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       }
       licenseCat = licRaw;
     } else if (pathEnum != null) {
-      licenseCat = EnrollmentContentMapping.primaryLicenseCategory(pathEnum).name;
+      licenseCat = EnrollmentContentMapping.primaryLicenseCategory(
+        pathEnum,
+      ).name;
     }
 
     void putNonEmpty(Map<String, dynamic> map, String key, String? v) {
@@ -302,6 +308,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       insertPayload['enrolled_license_category'] = licenseCat;
     }
     putNonEmpty(insertPayload, 'phone', phone);
+    putNonEmpty(insertPayload, 'phone_country_iso2', phoneCountryIso2);
     putNonEmpty(insertPayload, 'email', email);
     putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);
     putNonEmpty(insertPayload, 'notes', notes);
@@ -518,10 +525,13 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
   @override
   Future<List<PracticeListItem>> listPracticeDossiers() async {
-    final dossiersRes = await _client.from('practice_dossiers').select(
+    final dossiersRes = await _client
+        .from('practice_dossiers')
+        .select(
           'id, student_id, practice_type, registration_date, registry_year, '
           'registry_number, registry_code, practice_number, document_status, practice_status',
-        ).order('registration_date', ascending: false);
+        )
+        .order('registration_date', ascending: false);
 
     final rawList = dossiersRes as List<dynamic>;
     if (rawList.isEmpty) return [];
@@ -539,8 +549,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       }
     }
 
-    final studentIds =
-        dossierRows.map((d) => d.studentId).toSet().toList(growable: false);
+    final studentIds = dossierRows
+        .map((d) => d.studentId)
+        .toSet()
+        .toList(growable: false);
     final studentById = <String, StudentRow>{};
     if (studentIds.isNotEmpty) {
       final studentsRes = await _client
@@ -570,9 +582,11 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
     for (final d in dossierRows) {
       try {
-        final docs = documentsByStudent[d.studentId] ?? const <StudentDocument>[];
+        final docs =
+            documentsByStudent[d.studentId] ?? const <StudentDocument>[];
         final photos = photosByStudent[d.studentId] ?? const <StudentPhoto>[];
-        final waivers = waiversByDossier[d.id] ?? const <PracticeDocumentWaiver>[];
+        final waivers =
+            waiversByDossier[d.id] ?? const <PracticeDocumentWaiver>[];
         final checklist = evaluatePracticeDocumentChecklist(
           practiceType: d.practiceType,
           documents: docs,
@@ -596,9 +610,8 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     return out;
   }
 
-  Future<Map<String, List<PracticeDocumentWaiver>>> _loadDocumentWaiversByDossierIds(
-    List<String> dossierIds,
-  ) async {
+  Future<Map<String, List<PracticeDocumentWaiver>>>
+  _loadDocumentWaiversByDossierIds(List<String> dossierIds) async {
     if (dossierIds.isEmpty) return {};
     try {
       final res = await _client
@@ -692,10 +705,14 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
   @override
   Future<List<GuidanceListItem>> listGuidanceAppointments() async {
-    final res = await _client.from('guidance_appointments').select(
+    final res = await _client
+        .from('guidance_appointments')
+        .select(
           'id, student_id, lesson_date, start_time, end_time, instructor_name, '
           'instructor_staff_id, lesson_type, reminder_status, completion_outcome, notes',
-        ).order('lesson_date', ascending: false).order('start_time', ascending: false);
+        )
+        .order('lesson_date', ascending: false)
+        .order('start_time', ascending: false);
 
     final rawList = res as List<dynamic>;
     if (rawList.isEmpty) return [];
@@ -707,14 +724,14 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
           GuidanceAppointmentRow.fromJson(Map<String, dynamic>.from(e as Map)),
         );
       } catch (err, st) {
-        debugPrint(
-          'listGuidanceAppointments: riga non mappabile: $err\n$st',
-        );
+        debugPrint('listGuidanceAppointments: riga non mappabile: $err\n$st');
       }
     }
 
-    final studentIds =
-        rows.map((d) => d.studentId).toSet().toList(growable: false);
+    final studentIds = rows
+        .map((d) => d.studentId)
+        .toSet()
+        .toList(growable: false);
     final studentById = <String, StudentRow>{};
     if (studentIds.isNotEmpty) {
       final studentsRes = await _client
@@ -772,8 +789,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     }
     if (payRows.isEmpty) return [];
 
-    final studentIds =
-        payRows.map((p) => p.studentId).toSet().toList(growable: false);
+    final studentIds = payRows
+        .map((p) => p.studentId)
+        .toSet()
+        .toList(growable: false);
     final studentById = <String, StudentRow>{};
     if (studentIds.isNotEmpty) {
       final studentsRes = await _client
@@ -1036,8 +1055,8 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
           registrationFeeCents: financial.registrationFeeCents,
           currencyCode: financial.currencyCode,
           totalPaidCents: paidSum,
-          remainingBalanceCents:
-              (financial.registrationFeeCents - paidSum).clamp(0, 1 << 31),
+          remainingBalanceCents: (financial.registrationFeeCents - paidSum)
+              .clamp(0, 1 << 31),
           accountingNotes: financial.accountingNotes,
           lastUpdatedAt: financial.lastUpdatedAt,
         );
@@ -1289,10 +1308,9 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       'note': (trimmedNote == null || trimmedNote.isEmpty) ? null : trimmedNote,
       'waived_by_staff_id': _staffUserId,
     };
-    await _client.from('practice_document_waivers').upsert(
-      payload,
-      onConflict: 'practice_dossier_id,requirement_id',
-    );
+    await _client
+        .from('practice_document_waivers')
+        .upsert(payload, onConflict: 'practice_dossier_id,requirement_id');
 
     await _insertPracticeDocumentWaiverActivity(
       studentId: studentId,
@@ -1745,14 +1763,17 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     String? notes,
   }) async {
     final day = DateTime(lessonDate.year, lessonDate.month, lessonDate.day);
-    await _client.from('guidance_appointments').update({
-      'student_id': studentId,
-      'lesson_date': dateOnlyIso(day),
-      'start_time': startTime?.toUtc().toIso8601String(),
-      'end_time': endTime?.toUtc().toIso8601String(),
-      'instructor_name': instructorName,
-      'notes': notes,
-    }).eq('id', appointmentId);
+    await _client
+        .from('guidance_appointments')
+        .update({
+          'student_id': studentId,
+          'lesson_date': dateOnlyIso(day),
+          'start_time': startTime?.toUtc().toIso8601String(),
+          'end_time': endTime?.toUtc().toIso8601String(),
+          'instructor_name': instructorName,
+          'notes': notes,
+        })
+        .eq('id', appointmentId);
   }
 
   @override
@@ -1825,6 +1846,33 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       case StaffNoteCategory.exam:
         return 'Esami';
     }
+  }
+
+  @override
+  Future<void> updateStudentPhone({
+    required StudentId studentId,
+    required String phoneE164,
+    required String phoneCountryIso2,
+  }) async {
+    final phone = phoneE164.trim();
+    final iso2 = phoneCountryIso2.trim().toUpperCase();
+    if (phone.isEmpty || iso2.isEmpty) {
+      throw ArgumentError('Telefono e paese sono obbligatori.');
+    }
+    try {
+      await _client
+          .from('students')
+          .update(<String, dynamic>{'phone': phone, 'phone_country_iso2': iso2})
+          .eq('id', studentId);
+    } on PostgrestException catch (e) {
+      throw StateError(e.message);
+    }
+
+    await _insertActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.profileInternalNoteUpdated,
+      title: 'Cellulare aggiornato',
+    );
   }
 
   @override
@@ -2071,11 +2119,12 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     if (old == status) return;
 
     final logTitle = activityTitle ?? 'Onboarding aggiornato';
-    final logDescription = activityDescription ??
+    final logDescription =
+        activityDescription ??
         (activityTitle != null
             ? null
             : '${studentOnboardingStatusLabelIt(old)} → '
-                '${studentOnboardingStatusLabelIt(status)}');
+                  '${studentOnboardingStatusLabelIt(status)}');
 
     await _insertActivity(
       studentId: studentId,

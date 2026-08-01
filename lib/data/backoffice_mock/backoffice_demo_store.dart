@@ -25,7 +25,9 @@ class BackofficeDemoStore extends ChangeNotifier {
       _practice = Map<StudentId, PracticeLicenseDossier?>.from(seed.practice),
       _documents = List<StudentDocument>.from(seed.documents),
       _photos = List<StudentPhoto>.from(seed.photos),
-      _documentWaivers = List<PracticeDocumentWaiver>.from(seed.documentWaivers),
+      _documentWaivers = List<PracticeDocumentWaiver>.from(
+        seed.documentWaivers,
+      ),
       _staffNotes = <StaffInternalNote>[],
       _activityLog = <BackofficeActivityEvent>[];
 
@@ -132,6 +134,7 @@ class BackofficeDemoStore extends ChangeNotifier {
       firstName: p.firstName,
       lastName: p.lastName,
       phone: p.phone,
+      phoneCountryIso2: p.phoneCountryIso2,
       email: p.email,
       birthDate: p.birthDate,
       taxCode: p.taxCode,
@@ -419,6 +422,26 @@ class BackofficeDemoStore extends ChangeNotifier {
   }
 
   /// Aggiorna il campo testuale legacy [StudentProfile.internalNotes] (anagrafica).
+  void updateStudentPhone({
+    required StudentId studentId,
+    required String phoneE164,
+    required String phoneCountryIso2,
+  }) {
+    final i = _profiles.indexWhere((p) => p.id == studentId);
+    if (i < 0) return;
+    final p = _profiles[i];
+    _profiles[i] = p.copyWith(
+      phone: phoneE164.trim(),
+      phoneCountryIso2: phoneCountryIso2.trim().toUpperCase(),
+    );
+    _appendActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.profileInternalNoteUpdated,
+      title: 'Cellulare aggiornato',
+    );
+    notifyListeners();
+  }
+
   void updateProfileLegacyInternalNote({
     required StudentId studentId,
     String? internalNotes,
@@ -665,19 +688,16 @@ class BackofficeDemoStore extends ChangeNotifier {
       });
     }
 
-    _syncStudyAccessRepoIfDemoStudent(
-      studentId,
-      () {
-        for (var s = 1; s <= sheetCount; s++) {
-          studyAccessWritableRepository.applyLessonQuizSheetUnlock(
-            categoryId: categoryId,
-            lessonNumber: lessonNumber,
-            sheetNumber: s,
-            unlocked: unlocked,
-          );
-        }
-      },
-    );
+    _syncStudyAccessRepoIfDemoStudent(studentId, () {
+      for (var s = 1; s <= sheetCount; s++) {
+        studyAccessWritableRepository.applyLessonQuizSheetUnlock(
+          categoryId: categoryId,
+          lessonNumber: lessonNumber,
+          sheetNumber: s,
+          unlocked: unlocked,
+        );
+      }
+    });
     _appendActivity(
       studentId: studentId,
       type: BackofficeActivityType.studyAccessChanged,
@@ -1015,11 +1035,12 @@ class BackofficeDemoStore extends ChangeNotifier {
     );
     if (old != status) {
       final logTitle = activityTitle ?? 'Onboarding aggiornato';
-      final logDescription = activityDescription ??
+      final logDescription =
+          activityDescription ??
           (activityTitle != null
               ? null
               : '${studentOnboardingStatusLabelIt(old)} → '
-                  '${studentOnboardingStatusLabelIt(status)}');
+                    '${studentOnboardingStatusLabelIt(status)}');
       _appendActivity(
         studentId: studentId,
         type: BackofficeActivityType.onboardingStatusChanged,
@@ -1167,6 +1188,7 @@ class BackofficeDemoStore extends ChangeNotifier {
     required String firstName,
     required String lastName,
     String? phone,
+    String? phoneCountryIso2,
     String? email,
     String? fiscalCode,
     DateTime? birthDate,
@@ -1246,6 +1268,10 @@ class BackofficeDemoStore extends ChangeNotifier {
       firstName: fn,
       lastName: ln,
       phone: phone == null || phone.trim().isEmpty ? null : phone.trim(),
+      phoneCountryIso2:
+          phoneCountryIso2 == null || phoneCountryIso2.trim().isEmpty
+          ? null
+          : phoneCountryIso2.trim().toUpperCase(),
       email: email == null || email.trim().isEmpty ? null : email.trim(),
       birthDate: birthDate,
       taxCode: fiscalCode == null || fiscalCode.trim().isEmpty

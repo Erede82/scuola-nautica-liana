@@ -3,6 +3,7 @@ import 'package:postgrest/postgrest.dart';
 
 import '../data/license_catalog.dart';
 import '../domain/backoffice/backoffice.dart';
+import '../domain/international_phone.dart';
 import '../models/license_models.dart';
 import '../repositories/backoffice/backoffice_registry.dart';
 import '../theme/app_visual_tokens.dart';
@@ -177,7 +178,9 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
       _optimisticLessonUnlock[lessonNumber] = unlocked;
     });
     if (mounted) {
-      _snack(unlocked ? 'Sblocco lezione in corso…' : 'Blocco lezione in corso…');
+      _snack(
+        unlocked ? 'Sblocco lezione in corso…' : 'Blocco lezione in corso…',
+      );
     }
 
     try {
@@ -240,14 +243,18 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   }
 
   List<StudentProfile> get _filteredProfiles {
-    final q = _searchCtrl.text.trim().toLowerCase();
+    final q = _searchCtrl.text.trim();
     if (q.isEmpty) return _profiles;
-    return _profiles.where((p) {
-      if (p.displayName.toLowerCase().contains(q)) return true;
-      if (p.phone != null && p.phone!.toLowerCase().contains(q)) return true;
-      if (p.email != null && p.email!.toLowerCase().contains(q)) return true;
-      return false;
-    }).toList(growable: false);
+    return _profiles
+        .where(
+          (p) => InternationalPhoneRules.matchesSearch(
+            query: q,
+            displayName: p.displayName,
+            email: p.email,
+            phone: p.phone,
+          ),
+        )
+        .toList(growable: false);
   }
 
   StudentProfile? get _selectedProfile {
@@ -280,9 +287,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
             ),
       body: Column(
         children: [
-          if (widget.embedded &&
-              _selectedStudentId != null &&
-              _view != null)
+          if (widget.embedded && _selectedStudentId != null && _view != null)
             Material(
               color: StudyAccessAdminPage._primaryColor,
               child: _buildTabBar(),
@@ -300,8 +305,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
             onSelect: _selectStudent,
             onClearSelection: _clearStudentSelection,
           ),
-          if (_detailLoading)
-            const LinearProgressIndicator(minHeight: 2),
+          if (_detailLoading) const LinearProgressIndicator(minHeight: 2),
           if (_detailError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -503,7 +507,9 @@ class _StudentPickerSection extends StatelessWidget {
           children: [
             Text(
               'Impossibile caricare l’elenco allievi: $listError',
-              style: textTheme.bodySmall?.copyWith(color: const Color(0xFFC62828)),
+              style: textTheme.bodySmall?.copyWith(
+                color: const Color(0xFFC62828),
+              ),
             ),
             TextButton(onPressed: onRetryList, child: const Text('Riprova')),
           ],
@@ -538,7 +544,10 @@ class _StudentPickerSection extends StatelessWidget {
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: _cardColor,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
@@ -619,14 +628,19 @@ class _StudentAccessCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final contactParts = <String>[
       if (profile.phone != null && profile.phone!.trim().isNotEmpty)
-        profile.phone!.trim(),
+        InternationalPhoneRules.formatForDisplay(
+          profile.phone,
+          phoneCountryIso2: profile.phoneCountryIso2,
+        ),
       if (profile.email != null && profile.email!.trim().isNotEmpty)
         profile.email!.trim(),
     ];
-    final pathLabel =
-        BackofficeFormatters.enrollmentCoursePath(profile.enrolledCoursePath);
-    final categoryLabel =
-        BackofficeFormatters.categoryName(profile.enrolledLicenseCategory);
+    final pathLabel = BackofficeFormatters.enrollmentCoursePath(
+      profile.enrolledCoursePath,
+    );
+    final categoryLabel = BackofficeFormatters.categoryName(
+      profile.enrolledLicenseCategory,
+    );
 
     final borderColor = selected
         ? _primaryColor.withValues(alpha: 0.55)
@@ -703,9 +717,10 @@ class _StudentAccessCard extends StatelessWidget {
                         ),
                         if (profile.practiceDossierType != null)
                           _InfoChip(
-                            label: BackofficeFormatters.studentListPracticeBadge(
-                              profile,
-                            ),
+                            label:
+                                BackofficeFormatters.studentListPracticeBadge(
+                                  profile,
+                                ),
                             accent: const Color(0xFFC27C1C),
                             textTheme: textTheme,
                           ),
@@ -910,7 +925,8 @@ class _LessonSheetsTab extends StatelessWidget {
     required int lessonNumber,
     required int quizSheets,
     required bool unlocked,
-  }) onApplyWholeLesson;
+  })
+  onApplyWholeLesson;
 
   static const Color _textPrimaryColor = AppVisual.ink;
 
@@ -938,8 +954,9 @@ class _LessonSheetsTab extends StatelessWidget {
       );
     }
 
-    final lessons =
-        category.lessons.where((l) => l.quizSheets > 0).toList(growable: false);
+    final lessons = category.lessons
+        .where((l) => l.quizSheets > 0)
+        .toList(growable: false);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -1116,7 +1133,8 @@ class _ErrorReviewTab extends StatelessWidget {
     required int lessonNumber,
     required bool topicUnlocked,
     String? didacticNote,
-  }) onSetTopic;
+  })
+  onSetTopic;
   final VoidCallback onOpenDialog;
 
   static const Color _cardColor = AppVisual.ivory;
@@ -1231,8 +1249,8 @@ class _ErrorReviewTab extends StatelessWidget {
                     open
                         ? 'Materiale ripasso disponibile per lo studente'
                         : hasRow
-                            ? 'Assegnazione presente ma ripasso disattivato'
-                            : 'Nessuna assegnazione — attiva per abilitare il ripasso',
+                        ? 'Assegnazione presente ma ripasso disattivato'
+                        : 'Nessuna assegnazione — attiva per abilitare il ripasso',
                     style: textTheme.bodySmall?.copyWith(
                       color: open ? _successColor : _primaryColor,
                       fontWeight: FontWeight.w600,
@@ -1245,10 +1263,10 @@ class _ErrorReviewTab extends StatelessWidget {
               onChanged: actionBusy
                   ? null
                   : (v) => onSetTopic(
-                        lessonNumber: lesson.number,
-                        topicUnlocked: v,
-                        didacticNote: row?.didacticNote,
-                      ),
+                      lessonNumber: lesson.number,
+                      topicUnlocked: v,
+                      didacticNote: row?.didacticNote,
+                    ),
             ),
           );
         }),

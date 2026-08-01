@@ -4,6 +4,7 @@ import '../constants/app_branding.dart';
 import '../domain/staff/staff_school_role.dart';
 import '../domain/course_taxonomy.dart';
 import '../domain/enrollment_content_mapping.dart';
+import '../domain/international_phone.dart';
 import '../models/app_auth_summary.dart';
 import '../services/auth_identity.dart';
 import '../services/auth_logout_navigation.dart';
@@ -152,8 +153,11 @@ class AccountProfilePage extends StatelessWidget {
           final phone = isPreview
               ? '—'
               : hasStudent
-              ? (session!.phone ?? '+39 — —— —— ——')
-              : (summary.hasStaffAccess ? '—' : '+39 — —— —— ——');
+              ? InternationalPhoneRules.formatForDisplay(
+                  session!.phone,
+                  phoneCountryIso2: session.phoneCountryIso2,
+                )
+              : (summary.hasStaffAccess ? '—' : '—');
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),

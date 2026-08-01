@@ -19,6 +19,7 @@ class StudentProfile {
     required this.firstName,
     required this.lastName,
     this.phone,
+    this.phoneCountryIso2,
     this.email,
     this.birthDate,
 
@@ -46,7 +47,12 @@ class StudentProfile {
   final StudentId id;
   final String firstName;
   final String lastName;
+
+  /// Telefono canonico (preferibilmente E.164). Nullable se assente.
   final String? phone;
+
+  /// ISO 3166-1 alpha-2 del paese telefono. Nullable per dati storici.
+  final String? phoneCountryIso2;
   final String? email;
 
   /// Solo data (timezone locale scuola); in DB tipicamente `DATE`.
@@ -90,12 +96,20 @@ class StudentProfile {
 
   String get displayName => '$firstName $lastName'.trim();
 
-  StudentProfile copyWith({String? practiceDossierType}) {
+  StudentProfile copyWith({
+    String? practiceDossierType,
+    String? phone,
+    String? phoneCountryIso2,
+    bool clearPhoneCountryIso2 = false,
+  }) {
     return StudentProfile(
       id: id,
       firstName: firstName,
       lastName: lastName,
-      phone: phone,
+      phone: phone ?? this.phone,
+      phoneCountryIso2: clearPhoneCountryIso2
+          ? null
+          : (phoneCountryIso2 ?? this.phoneCountryIso2),
       email: email,
       birthDate: birthDate,
       taxCode: taxCode,

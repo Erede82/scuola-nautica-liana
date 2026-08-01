@@ -14,6 +14,7 @@ class StudentSession {
     required this.lastName,
     required this.email,
     this.phone,
+    this.phoneCountryIso2,
     required this.enrolledCoursePath,
     required this.registrationStatus,
   });
@@ -23,6 +24,7 @@ class StudentSession {
   final String lastName;
   final String email;
   final String? phone;
+  final String? phoneCountryIso2;
   final EnrollmentCoursePath enrolledCoursePath;
   final StudentRegistrationStatus registrationStatus;
 
@@ -35,6 +37,7 @@ class StudentSession {
       lastName: p.lastName,
       email: p.email ?? '',
       phone: p.phone,
+      phoneCountryIso2: p.phoneCountryIso2,
       enrolledCoursePath: p.enrolledCoursePath,
       registrationStatus: p.registrationStatus,
     );

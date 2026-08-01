@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
+import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../theme/app_visual_tokens.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
+import 'edit_student_phone_dialog.dart';
 import 'student_360_activity_log_section.dart';
 import 'student_360_photo_signature_section.dart';
 import 'student_360_section_layout.dart';
@@ -47,7 +50,68 @@ class Student360SchedaSection extends StatelessWidget {
     return BackofficeFormatters.documentStatus(d.documentStatus);
   }
 
+  Widget _phoneRow(
+    BuildContext context,
+    StudentProfile p,
+    TextTheme textTheme,
+    double kvLabel,
+    double kvPad,
+  ) {
+    final display = InternationalPhoneRules.formatForDisplay(
+      p.phone,
+      phoneCountryIso2: p.phoneCountryIso2,
+    );
+    return Padding(
+      padding: EdgeInsets.only(bottom: kvPad),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: kvLabel,
+            child: Text(
+              'Telefono',
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppVisual.inkMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              display,
+              key: const ValueKey('student-360-phone-value'),
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppVisual.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('student-360-edit-phone'),
+            tooltip: 'Modifica cellulare',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            onPressed: () async {
+              final ok = await showEditStudentPhoneDialog(
+                context: context,
+                repository: repository,
+                studentId: p.id,
+                currentPhone: p.phone,
+                currentPhoneCountryIso2: p.phoneCountryIso2,
+              );
+              if (ok) {
+                await onRefreshDetail();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _anagraficaColonna(
+    BuildContext context,
     StudentProfile p,
     PostalAddress? addr,
     TextTheme textTheme,
@@ -60,12 +124,27 @@ class Student360SchedaSection extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         student360SubsectionTitle('Dati personali', textTheme),
-        student360KvRow('Nome', p.firstName, textTheme,
-            labelWidth: kvLabel, bottomPadding: kvPad),
-        student360KvRow('Cognome', p.lastName, textTheme,
-            labelWidth: kvLabel, bottomPadding: kvPad),
-        student360KvRow('Codice fiscale', p.taxCode ?? '—', textTheme,
-            labelWidth: kvLabel, bottomPadding: kvPad),
+        student360KvRow(
+          'Nome',
+          p.firstName,
+          textTheme,
+          labelWidth: kvLabel,
+          bottomPadding: kvPad,
+        ),
+        student360KvRow(
+          'Cognome',
+          p.lastName,
+          textTheme,
+          labelWidth: kvLabel,
+          bottomPadding: kvPad,
+        ),
+        student360KvRow(
+          'Codice fiscale',
+          p.taxCode ?? '—',
+          textTheme,
+          labelWidth: kvLabel,
+          bottomPadding: kvPad,
+        ),
         student360KvRow(
           'Data di nascita',
           p.birthDate != null ? BackofficeFormatters.dateUi(p.birthDate) : '—',
@@ -82,14 +161,23 @@ class Student360SchedaSection extends StatelessWidget {
             bottomPadding: kvPad,
           ),
         if (p.gender != null && p.gender!.trim().isNotEmpty)
-          student360KvRow('Genere', p.gender!.trim(), textTheme,
-              labelWidth: kvLabel, bottomPadding: kvPad),
+          student360KvRow(
+            'Genere',
+            p.gender!.trim(),
+            textTheme,
+            labelWidth: kvLabel,
+            bottomPadding: kvPad,
+          ),
         const SizedBox(height: 8),
         student360SubsectionTitle('Contatti', textTheme),
-        student360KvRow('Telefono', p.phone ?? '—', textTheme,
-            labelWidth: kvLabel, bottomPadding: kvPad),
-        student360KvRow('Email', p.email ?? '—', textTheme,
-            labelWidth: kvLabel, bottomPadding: kvPad),
+        _phoneRow(context, p, textTheme, kvLabel, kvPad),
+        student360KvRow(
+          'Email',
+          p.email ?? '—',
+          textTheme,
+          labelWidth: kvLabel,
+          bottomPadding: kvPad,
+        ),
         const SizedBox(height: 8),
         student360SubsectionTitle('Residenza', textTheme),
         student360KvRow(
@@ -198,18 +286,18 @@ class Student360SchedaSection extends StatelessWidget {
             labelWidth: 140,
             bottomPadding: 8,
           ),
-          if (p.onboardingNotes != null && p.onboardingNotes!.trim().isNotEmpty)
-            ...[
-              const SizedBox(height: 4),
-              Text(
-                'Note onboarding',
-                style: textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+          if (p.onboardingNotes != null &&
+              p.onboardingNotes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Note onboarding',
+              style: textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
-              const SizedBox(height: 2),
-              SelectableText(p.onboardingNotes!, style: textTheme.bodySmall),
-            ],
+            ),
+            const SizedBox(height: 2),
+            SelectableText(p.onboardingNotes!, style: textTheme.bodySmall),
+          ],
         ],
       ),
     );
@@ -383,7 +471,7 @@ class Student360SchedaSection extends StatelessWidget {
                       onRefreshDetail: onRefreshDetail,
                       sidebarLayout: true,
                     ),
-                    right: _anagraficaColonna(p, addr, textTheme),
+                    right: _anagraficaColonna(context, p, addr, textTheme),
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -396,7 +484,7 @@ class Student360SchedaSection extends StatelessWidget {
                         sidebarLayout: true,
                       ),
                       const SizedBox(height: 16),
-                      _anagraficaColonna(p, addr, textTheme),
+                      _anagraficaColonna(context, p, addr, textTheme),
                     ],
                   ),
           );
