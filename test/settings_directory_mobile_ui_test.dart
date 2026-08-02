@@ -28,9 +28,16 @@ Future<void> _assertSettingsResponsive(WidgetTester tester) async {
   expect(titleRect.width, greaterThan(160));
   expect(titleRect.height, lessThan(48));
 
-  expect(find.text('Patente nautica D1'), findsOneWidget);
+  final mid = find.text('Patente nautica D1');
+  await tester.scrollUntilVisible(
+    mid,
+    240,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  expect(mid, findsOneWidget);
+
   final last = find.text('Altro servizio nautico');
-  expect(last, findsOneWidget);
   await tester.scrollUntilVisible(
     last,
     240,

@@ -339,64 +339,75 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
 
     final columns = _gridColumnCount(width);
     final pad = width >= 900 ? 16.0 : 12.0;
-    final usable = (width - pad * 2).clamp(0.0, width);
-    final itemWidth = columns == 1
-        ? usable
-        : (usable - 12.0 * (columns - 1)) / columns;
 
+    // Mobile: altezza naturale (no card eccessive). Desktop/tablet: griglia uniforme.
+    if (columns == 1) {
+      return [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(pad, 0, pad, 28),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final item = items[index];
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index < items.length - 1 ? 12 : 0,
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey<String>('settings-template-${item.id}'),
+                  child: _TemplateCard(
+                    item: item,
+                    expandToFill: false,
+                    onEdit: () => _openForm(existing: item),
+                    onToggleActive: () => _toggleActive(item),
+                    onDelete: () => _confirmDelete(item),
+                  ),
+                ),
+              );
+            }, childCount: items.length),
+          ),
+        ),
+      ];
+    }
+
+    final extent = _templateCardExtent(columns);
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(pad, 0, pad, 28),
-        sliver: SliverToBoxAdapter(
-          child: columns == 1
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var index = 0; index < items.length; index++) ...[
-                      KeyedSubtree(
-                        key: ValueKey<String>(
-                          'settings-template-${items[index].id}',
-                        ),
-                        child: _TemplateCard(
-                          item: items[index],
-                          onEdit: () => _openForm(existing: items[index]),
-                          onToggleActive: () => _toggleActive(items[index]),
-                          onDelete: () => _confirmDelete(items[index]),
-                        ),
-                      ),
-                      if (index < items.length - 1) const SizedBox(height: 12),
-                    ],
-                  ],
-                )
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final item in items)
-                      SizedBox(
-                        width: itemWidth,
-                        child: KeyedSubtree(
-                          key: ValueKey<String>('settings-template-${item.id}'),
-                          child: _TemplateCard(
-                            item: item,
-                            onEdit: () => _openForm(existing: item),
-                            onToggleActive: () => _toggleActive(item),
-                            onDelete: () => _confirmDelete(item),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: extent,
+          ),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final item = items[index];
+            return KeyedSubtree(
+              key: ValueKey<String>('settings-template-${item.id}'),
+              child: _TemplateCard(
+                item: item,
+                expandToFill: true,
+                onEdit: () => _openForm(existing: item),
+                onToggleActive: () => _toggleActive(item),
+                onDelete: () => _confirmDelete(item),
+              ),
+            );
+          }, childCount: items.length),
         ),
       ),
     ];
   }
 
+  /// Mobile 1 · tablet 2 · desktop 4.
   static int _gridColumnCount(double width) {
-    if (width >= 1200) return 4;
-    if (width >= 900) return 3;
+    if (width >= 1100) return 4;
     if (width >= 600) return 2;
     return 1;
+  }
+
+  static double _templateCardExtent(int columns) {
+    // Chip + azioni richiedono altezza generosa su griglia multi-colonna.
+    return columns >= 4 ? 320.0 : 300.0;
   }
 }
 
@@ -406,16 +417,92 @@ class _TemplateCard extends StatelessWidget {
     required this.onEdit,
     required this.onToggleActive,
     required this.onDelete,
+    this.expandToFill = false,
   });
 
   final PracticeServiceTemplate item;
   final VoidCallback onEdit;
   final VoidCallback onToggleActive;
   final VoidCallback onDelete;
+  final bool expandToFill;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final description = item.description?.trim() ?? '';
+
+    final chips = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _MetaChip(
+          label: 'Tipo',
+          value: BackofficeFormatters.practiceServiceType(item.practiceType),
+        ),
+        _MetaChip(
+          label: 'Percorso',
+          value: BackofficeFormatters.enrolledCoursePathStorage(
+            item.enrolledCoursePath,
+          ),
+        ),
+        _MetaChip(
+          label: 'Categoria',
+          value: BackofficeFormatters.enrolledLicenseCategory(
+            item.enrolledLicenseCategory,
+          ),
+        ),
+        _MetaChip(
+          label: 'Costo',
+          value: BackofficeFormatters.moneyEur(
+            item.defaultRegistrationFeeCents,
+          ),
+        ),
+        _MetaChip(
+          label: 'Acconto',
+          value: BackofficeFormatters.moneyEur(item.suggestedDepositCents),
+        ),
+        _MetaChip(
+          label: 'Stato',
+          value: item.active ? 'Attiva' : 'Non attiva',
+          highlight: item.active,
+        ),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        OutlinedButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined, size: 16),
+          label: const Text('Modifica'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onToggleActive,
+          icon: Icon(
+            item.active
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            size: 16,
+          ),
+          label: Text(item.active ? 'Disattiva' : 'Attiva'),
+        ),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+            side: BorderSide(
+              color: Theme.of(
+                context,
+              ).colorScheme.error.withValues(alpha: 0.45),
+            ),
+          ),
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline, size: 16),
+          label: const Text('Elimina'),
+        ),
+      ],
+    );
 
     return Material(
       color: AppVisual.surface,
@@ -428,20 +515,22 @@ class _TemplateCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: expandToFill ? MainAxisSize.max : MainAxisSize.min,
           children: [
             Text(
               item.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: BackofficeUiTokens.text,
               ),
             ),
-            if (item.description != null &&
-                item.description!.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                item.description!.trim(),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 36,
+              child: Text(
+                description.isEmpty ? ' ' : description,
                 style: textTheme.bodySmall?.copyWith(
                   color: BackofficeUiTokens.text.withValues(alpha: 0.72),
                   height: 1.3,
@@ -449,84 +538,16 @@ class _TemplateCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-            ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _MetaChip(
-                  label: 'Tipo',
-                  value: BackofficeFormatters.practiceServiceType(
-                    item.practiceType,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Percorso',
-                  value: BackofficeFormatters.enrolledCoursePathStorage(
-                    item.enrolledCoursePath,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Categoria',
-                  value: BackofficeFormatters.enrolledLicenseCategory(
-                    item.enrolledLicenseCategory,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Costo',
-                  value: BackofficeFormatters.moneyEur(
-                    item.defaultRegistrationFeeCents,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Acconto',
-                  value: BackofficeFormatters.moneyEur(
-                    item.suggestedDepositCents,
-                  ),
-                ),
-                _MetaChip(
-                  label: 'Stato',
-                  value: item.active ? 'Attiva' : 'Non attiva',
-                  highlight: item.active,
-                ),
-              ],
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Modifica'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onToggleActive,
-                  icon: Icon(
-                    item.active
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 16,
-                  ),
-                  label: Text(item.active ? 'Disattiva' : 'Attiva'),
-                ),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.error.withValues(alpha: 0.45),
-                    ),
-                  ),
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Elimina'),
-                ),
-              ],
-            ),
+            if (expandToFill)
+              Expanded(
+                child: Align(alignment: Alignment.topLeft, child: chips),
+              )
+            else
+              chips,
+            const SizedBox(height: 10),
+            actions,
           ],
         ),
       ),

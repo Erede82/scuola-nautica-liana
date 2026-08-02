@@ -182,10 +182,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nuova pratica'), findsOneWidget);
+    expect(find.byType(InternationalPhoneField), findsOneWidget);
+    expect(find.byType(PhoneFormField), findsOneWidget);
+    expect(find.byType(CountryButton), findsOneWidget);
+    expect(find.textContaining('39'), findsWidgets);
+    // Nessun TextField telefono legacy parallelo.
+    expect(find.widgetWithText(TextField, 'Telefono'), findsNothing);
+
     await _fillMinimalAnagrafica(tester);
 
     await tester.enterText(find.byType(PhoneFormField), '3331234567');
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('international-phone-digit-counter')),
+      findsOneWidget,
+    );
 
     final createBtn = find.text('Crea pratica');
     await tester.ensureVisible(createBtn);

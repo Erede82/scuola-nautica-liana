@@ -34,16 +34,16 @@ Future<void> _pumpAdmin(WidgetTester tester, Size viewport) async {
 }
 
 Future<void> _scrollLastModuleIntoView(WidgetTester tester) async {
-  final last = find.byKey(const ValueKey('admin-module-settings'));
-  expect(last, findsOneWidget);
+  // SliverGrid costruisce lazy: cerca per testo e scrolla finché compare.
+  final last = find.text('Impostazioni');
   await tester.scrollUntilVisible(
     last,
     240,
     scrollable: find.byType(Scrollable).first,
   );
   await tester.pumpAndSettle();
+  expect(find.byKey(const ValueKey('admin-module-settings')), findsOneWidget);
   expect(last.hitTestable(), findsOneWidget);
-  expect(find.text('Impostazioni'), findsOneWidget);
 }
 
 void main() {

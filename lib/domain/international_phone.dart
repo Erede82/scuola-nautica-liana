@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:phone_numbers_parser/metadata.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 /// Valore telefono internazionale canonico (indipendente da UI/Supabase).
@@ -116,6 +119,48 @@ abstract final class InternationalPhoneRules {
 
   static bool isItalianMobileNational(String nationalDigits) =>
       RegExp(r'^3[0-9]{9}$').hasMatch(nationalDigits);
+
+  /// Massimo cifre nazionali digitabili per il Paese (limite input, non sola UI).
+  ///
+  /// Italia: sempre 10 (cellulare). Altri Paesi: max lunghezza `mobile` dai
+  /// metadati `phone_numbers_parser`; se assente, max tra mobile/fixedLine;
+  /// fallback sicuro E.164 rispetto al calling code.
+  static int maxNationalDigits(String countryIso2) {
+    final iso = isoCodeFromString(countryIso2);
+    if (iso == IsoCode.IT) return 10;
+
+    final lengths = metadataLenghtsByIsoCode[iso];
+    if (lengths != null) {
+      final mobileMax = _maxOf(lengths.mobile);
+      if (mobileMax != null) return mobileMax;
+      final candidates = <int>[
+        ...lengths.mobile,
+        ...lengths.fixedLine,
+        ...lengths.general,
+        ...lengths.voip,
+      ];
+      final anyMax = _maxOf(candidates);
+      if (anyMax != null) return anyMax;
+    }
+
+    // Fallback: 15 cifre E.164 totali meno lunghezza calling code.
+    final calling = PhoneNumber(isoCode: iso, nsn: '').countryCode;
+    final maxNsn = 15 - calling.length;
+    return math.max(8, maxNsn);
+  }
+
+  static int? _maxOf(List<int> values) {
+    if (values.isEmpty) return null;
+    return values.reduce(math.max);
+  }
+
+  /// Trunca le sole cifre nazionali al limite del Paese.
+  static String clampNationalDigits(String raw, String countryIso2) {
+    final digits = _digitsOnly(raw) ?? '';
+    final max = maxNationalDigits(countryIso2);
+    if (digits.length <= max) return digits;
+    return digits.substring(0, max);
+  }
 
   static InternationalPhoneValue _fromParsed(PhoneNumber parsed) {
     final nsn = _digitsOnly(parsed.nsn) ?? parsed.nsn;

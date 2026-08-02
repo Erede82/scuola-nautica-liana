@@ -58,7 +58,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Italia 9 e 11 cifre → errore', (tester) async {
+  testWidgets('Italia 9 cifre e fisso → errore; 11ª cifra bloccata', (
+    tester,
+  ) async {
     InternationalPhoneValue? valid;
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() async {
@@ -70,6 +72,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byType(CountryButton), findsOneWidget);
+    expect(find.textContaining('39'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('international-phone-digit-counter')),
+      findsOneWidget,
+    );
+
     await _enterNsn(tester, '331123456');
     expect(valid, isNull);
     expect(
@@ -77,15 +86,111 @@ void main() {
       findsOneWidget,
     );
 
+    // 11 cifre: formatter trattiene solo 10 → numero valido.
     await _enterNsn(tester, '33312345678');
-    expect(valid, isNull);
-    expect(
-      find.text(InternationalPhoneValidationResult.italyMessage),
-      findsOneWidget,
-    );
+    final nsn = tester
+        .widget<PhoneFormField>(find.byType(PhoneFormField))
+        .controller!
+        .value
+        .nsn
+        .replaceAll(RegExp(r'\D'), '');
+    expect(nsn.length, 10);
+    expect(nsn, '3331234567');
+    expect(valid?.e164, '+393331234567');
+    expect(find.text('10/10'), findsOneWidget);
 
     await _enterNsn(tester, '0811234567');
     expect(valid, isNull);
+    expect(
+      find.text(InternationalPhoneValidationResult.italyMessage),
+      findsWidgets,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Italia: paste troppo lungo limitato a 10 cifre nazionali', (
+    tester,
+  ) async {
+    InternationalPhoneValue? valid;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(
+      _wrap(InternationalPhoneField(onValidChanged: (v) => valid = v)),
+    );
+    await tester.pumpAndSettle();
+
+    await _enterNsn(tester, '333123456789999');
+    final nsn = tester
+        .widget<PhoneFormField>(find.byType(PhoneFormField))
+        .controller!
+        .value
+        .nsn
+        .replaceAll(RegExp(r'\D'), '');
+    expect(nsn.length, 10);
+    expect(nsn, '3331234567');
+    expect(valid?.e164, '+393331234567');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FR: limite nazionale 9 cifre e E.164', (tester) async {
+    InternationalPhoneValue? valid;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(
+      _wrap(
+        InternationalPhoneField(
+          initialPhone: '+33612345678',
+          onValidChanged: (v) => valid = v,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(valid?.countryIso2, 'FR');
+    expect(valid?.e164, '+33612345678');
+    expect(InternationalPhoneRules.maxNationalDigits('FR'), 9);
+    expect(find.textContaining('9'), findsWidgets);
+
+    await _enterNsn(tester, '6123456789'); // 10 → clamp a 9
+    final nsn = tester
+        .widget<PhoneFormField>(find.byType(PhoneFormField))
+        .controller!
+        .value
+        .nsn
+        .replaceAll(RegExp(r'\D'), '');
+    expect(nsn.length, lessThanOrEqualTo(9));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cambio Paese IT → FR rivalida e limita', (tester) async {
+    InternationalPhoneValue? valid;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(
+      _wrap(
+        _PhoneSeedHost(
+          initialPhone: '+393331234567',
+          onValidChanged: (v) => valid = v,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(valid?.countryIso2, 'IT');
+
+    final host = tester.state<_PhoneSeedHostState>(find.byType(_PhoneSeedHost));
+    host.updateSeed('+33612345678');
+    await tester.pumpAndSettle();
+    expect(valid?.countryIso2, 'FR');
+    expect(valid?.e164, '+33612345678');
     expect(tester.takeException(), isNull);
   });
 

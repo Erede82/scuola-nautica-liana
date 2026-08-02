@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 
 import '../domain/international_phone.dart';
@@ -15,10 +16,11 @@ class InternationalPhoneField extends StatefulWidget {
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
     this.onChanged,
     this.onValidChanged,
-    this.decorationLabel = 'Cellulare',
+    this.decorationLabel = 'Numero nazionale',
     this.showAmbiguousHint = false,
     this.ambiguousHintText,
     this.focusNode,
+    this.showDigitCounter = true,
   });
 
   /// Valore iniziale grezzo (E.164, nazionale IT, o ambiguo).
@@ -42,6 +44,9 @@ class InternationalPhoneField extends StatefulWidget {
   final String? ambiguousHintText;
   final FocusNode? focusNode;
 
+  /// Contatore discreto `7/10`. Su layout molto stretti può essere nascosto.
+  final bool showDigitCounter;
+
   /// Delegates necessari a `phone_form_field` / country selector.
   static List<LocalizationsDelegate<dynamic>> get localizationsDelegates =>
       PhoneFieldLocalization.delegates.toList(growable: false);
@@ -56,6 +61,8 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
   String? _ambiguousBanner;
   bool _disposed = false;
   bool _applyingExternalValue = false;
+  late int _maxDigits;
+  int _digitCount = 0;
 
   static const _fill = Color(0xFFFBF8F3);
   static const _border = Color(0xFFD8C8B5);
@@ -69,6 +76,11 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
     );
     _controller = PhoneController(initialValue: seed.phoneNumber);
     _ambiguousBanner = seed.ambiguousMessage;
+    _maxDigits = InternationalPhoneRules.maxNationalDigits(
+      seed.phoneNumber.isoCode.name,
+    );
+    _digitCount = _digitsOf(seed.phoneNumber.nsn).length;
+    _controller.addListener(_onControllerTick);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed || !mounted) return;
       _emitFromController();
@@ -82,7 +94,6 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
     final isoChanged =
         oldWidget.initialCountryIso2 != widget.initialCountryIso2;
     if (!phoneChanged && !isoChanged) return;
-    // Aggiornare PhoneController durante build fa notificare il Form.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed || !mounted) return;
       _applyExternalSeed(emit: true);
@@ -92,9 +103,25 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
   @override
   void dispose() {
     _disposed = true;
+    _controller.removeListener(_onControllerTick);
     _controller.dispose();
     super.dispose();
   }
+
+  void _onControllerTick() {
+    if (_disposed || !mounted) return;
+    final iso = _controller.value.isoCode.name;
+    final max = InternationalPhoneRules.maxNationalDigits(iso);
+    final digits = _digitsOf(_controller.value.nsn);
+    if (max != _maxDigits || digits.length != _digitCount) {
+      setState(() {
+        _maxDigits = max;
+        _digitCount = digits.length;
+      });
+    }
+  }
+
+  static String _digitsOf(String raw) => raw.replaceAll(RegExp(r'\D'), '');
 
   ({PhoneNumber phoneNumber, String? ambiguousMessage}) _resolveSeed({
     required String? phone,
@@ -206,6 +233,25 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
     return true;
   }
 
+  /// Dopo cambio Paese, tronca eventuali cifre oltre il nuovo limite.
+  bool _clampNsnToCountryLimit(PhoneNumber number) {
+    final iso = number.isoCode.name;
+    final clamped = InternationalPhoneRules.clampNationalDigits(
+      number.nsn,
+      iso,
+    );
+    final currentDigits = _digitsOf(number.nsn);
+    if (clamped == currentDigits) return false;
+
+    _applyingExternalValue = true;
+    try {
+      _controller.value = PhoneNumber(isoCode: number.isoCode, nsn: clamped);
+    } finally {
+      _applyingExternalValue = false;
+    }
+    return true;
+  }
+
   void _emitFromController() {
     if (_disposed) return;
     final number = _controller.value;
@@ -243,7 +289,19 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
       if (!_disposed && mounted) _emitFromController();
       return;
     }
+    if (_clampNsnToCountryLimit(number)) {
+      if (!_disposed && mounted) _emitFromController();
+      return;
+    }
     _emitFromController();
+  }
+
+  List<TextInputFormatter> _inputFormattersFor(IsoCode iso) {
+    final max = InternationalPhoneRules.maxNationalDigits(iso.name);
+    return [
+      _PhoneNationalLimitFormatter(maxDigits: max),
+      FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s().-]')),
+    ];
   }
 
   @override
@@ -253,6 +311,7 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
         widget.showAmbiguousHint &&
         _ambiguousBanner != null &&
         _ambiguousBanner!.isNotEmpty;
+    final showCounter = widget.showDigitCounter;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -287,9 +346,17 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
           focusNode: widget.focusNode,
           enabled: widget.enabled,
           autovalidateMode: widget.autovalidateMode,
+          shouldLimitLengthByCountry: false,
+          inputFormatters: _inputFormattersFor(_controller.value.isoCode),
           countrySelectorNavigator:
               const CountrySelectorNavigator.draggableBottomSheet(
-                favorites: [IsoCode.IT, IsoCode.FR, IsoCode.DE, IsoCode.US],
+                favorites: [
+                  IsoCode.IT,
+                  IsoCode.FR,
+                  IsoCode.DE,
+                  IsoCode.GB,
+                  IsoCode.US,
+                ],
               ),
           isCountrySelectionEnabled: widget.enabled,
           isCountryButtonPersistent: true,
@@ -298,12 +365,12 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
             showDialCode: true,
             showDropdownIcon: true,
             showIsoCode: false,
-            flagSize: 22,
+            flagSize: 24,
             textStyle: textTheme.bodyMedium?.copyWith(
               color: AppVisual.ink,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
             ),
-            padding: const EdgeInsets.only(left: 4, right: 8),
+            padding: const EdgeInsets.only(left: 6, right: 10),
           ),
           style: textTheme.bodyLarge?.copyWith(
             color: AppVisual.ink,
@@ -348,7 +415,58 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
           validator: _formValidator,
           onChanged: _onPhoneChanged,
         ),
+        if (showCounter) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '$_digitCount/$_maxDigits',
+              key: const ValueKey('international-phone-digit-counter'),
+              style: textTheme.labelSmall?.copyWith(
+                color: AppVisual.inkMuted.withValues(alpha: 0.85),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// Limita le cifre nazionali; consente temporaneamente paste `+…` / `00…`.
+class _PhoneNationalLimitFormatter extends TextInputFormatter {
+  _PhoneNationalLimitFormatter({required this.maxDigits});
+
+  final int maxDigits;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final raw = newValue.text;
+    final trimmed = raw.trimLeft();
+    final looksInternational =
+        trimmed.startsWith('+') || RegExp(r'^00[1-9]').hasMatch(trimmed);
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+
+    if (looksInternational) {
+      // E.164 max 15 cifre (senza +).
+      if (digits.length <= 15) return newValue;
+      final kept = digits.substring(0, 15);
+      final withPlus = trimmed.startsWith('+') ? '+$kept' : '00$kept';
+      return TextEditingValue(
+        text: withPlus,
+        selection: TextSelection.collapsed(offset: withPlus.length),
+      );
+    }
+
+    if (digits.length <= maxDigits) return newValue;
+    final kept = digits.substring(0, maxDigits);
+    return TextEditingValue(
+      text: kept,
+      selection: TextSelection.collapsed(offset: kept.length),
     );
   }
 }

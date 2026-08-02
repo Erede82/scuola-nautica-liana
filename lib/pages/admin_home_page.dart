@@ -40,19 +40,31 @@ class AdminHomePage extends StatelessWidget {
   static const Color _textSecondaryColor = AppVisual.inkMuted;
 
   static const double _pageHorizontalPadding = 16;
-  static const double _maxContentWidth = 1180;
+  static const double _maxContentWidth = 1320;
+  static const double _moduleGridSpacing = 16;
 
   double _contentWidth(double viewportWidth) {
     final inner = viewportWidth - _pageHorizontalPadding * 2;
     return math.min(inner, _maxContentWidth);
   }
 
-  double _itemWidth({
-    required double totalWidth,
-    required int columns,
-    required double spacing,
-  }) {
-    return (totalWidth - (spacing * (columns - 1))) / columns;
+  /// Colonne moduli sulla larghezza reale della viewport (prima del padding).
+  /// `<620` → 1, `620–979` → 2, `≥980` → 4.
+  static int dashboardColumnCount(double viewportWidth) {
+    if (viewportWidth >= 980) return 4;
+    if (viewportWidth >= 620) return 2;
+    return 1;
+  }
+
+  static double moduleMainAxisExtent(int columns) {
+    switch (columns) {
+      case 4:
+        return 156;
+      case 2:
+        return 152;
+      default:
+        return 136;
+    }
   }
 
   void _openPlaceholder(
@@ -220,21 +232,12 @@ class AdminHomePage extends StatelessWidget {
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final viewportW = constraints.maxWidth;
-                final contentW = _contentWidth(viewportW);
+                final viewportWidth = constraints.maxWidth;
+                final contentWidth = _contentWidth(viewportWidth);
 
-                final moduleColumns = contentW >= 980
-                    ? 4
-                    : contentW >= 620
-                    ? 2
-                    : 1;
-                const actionSpacing = 16.0;
+                final moduleColumns = dashboardColumnCount(viewportWidth);
                 final isNarrow = moduleColumns == 1;
-                final actionItemWidth = _itemWidth(
-                  totalWidth: contentW,
-                  columns: moduleColumns,
-                  spacing: actionSpacing,
-                );
+                final moduleExtent = moduleMainAxisExtent(moduleColumns);
 
                 final header = isNarrow
                     ? Column(
@@ -326,7 +329,7 @@ class AdminHomePage extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: contentW),
+                      constraints: BoxConstraints(maxWidth: contentWidth),
                       child: CustomScrollView(
                         slivers: [
                           SliverPadding(
@@ -335,67 +338,33 @@ class AdminHomePage extends StatelessWidget {
                           ),
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(0, 18, 0, 28),
-                            sliver: isNarrow
-                                ? SliverToBoxAdapter(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        for (
-                                          var index = 0;
-                                          index < _managementModules.length;
-                                          index++
-                                        ) ...[
-                                          KeyedSubtree(
-                                            key: ValueKey<String>(
-                                              'admin-module-${_managementModules[index].kind.name}',
-                                            ),
-                                            child: _ManagementModuleCard(
-                                              module: _managementModules[index],
-                                              onTap: () =>
-                                                  _openManagementModule(
-                                                    context,
-                                                    _managementModules[index]
-                                                        .kind,
-                                                  ),
-                                            ),
-                                          ),
-                                          if (index <
-                                              _managementModules.length - 1)
-                                            const SizedBox(
-                                              height: actionSpacing,
-                                            ),
-                                        ],
-                                      ],
-                                    ),
-                                  )
-                                : SliverToBoxAdapter(
-                                    child: Wrap(
-                                      spacing: actionSpacing,
-                                      runSpacing: actionSpacing,
-                                      alignment: WrapAlignment.center,
-                                      children: _managementModules.map((
-                                        module,
-                                      ) {
-                                        return SizedBox(
-                                          width: actionItemWidth,
-                                          child: KeyedSubtree(
-                                            key: ValueKey<String>(
-                                              'admin-module-${module.kind.name}',
-                                            ),
-                                            child: _ManagementModuleCard(
-                                              module: module,
-                                              onTap: () =>
-                                                  _openManagementModule(
-                                                    context,
-                                                    module.kind,
-                                                  ),
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: moduleColumns,
+                                    mainAxisSpacing: _moduleGridSpacing,
+                                    crossAxisSpacing: _moduleGridSpacing,
+                                    mainAxisExtent: moduleExtent,
+                                  ),
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final module = _managementModules[index];
+                                return KeyedSubtree(
+                                  key: ValueKey<String>(
+                                    'admin-module-${module.kind.name}',
+                                  ),
+                                  child: _ManagementModuleCard(
+                                    module: module,
+                                    onTap: () => _openManagementModule(
+                                      context,
+                                      module.kind,
                                     ),
                                   ),
+                                );
+                              }, childCount: _managementModules.length),
+                            ),
                           ),
                         ],
                       ),
@@ -533,70 +502,69 @@ class _ManagementModuleCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 108),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppVisual.border),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppVisual.brandAzure.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    module.icon,
-                    size: 30,
-                    color: AdminHomePage._primaryColor,
-                  ),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppVisual.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppVisual.brandAzure.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              module.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleMedium?.copyWith(
-                                color: AdminHomePage._textPrimaryColor,
-                                fontWeight: FontWeight.w800,
-                                fontSize:
-                                    (textTheme.titleMedium?.fontSize ?? 16) + 1,
-                              ),
+                child: Icon(
+                  module.icon,
+                  size: 28,
+                  color: AdminHomePage._primaryColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            module.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: AdminHomePage._textPrimaryColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize:
+                                  (textTheme.titleMedium?.fontSize ?? 16) + 1,
                             ),
                           ),
-                          if (!module.available) const _ComingSoonBadge(),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        module.subtitle,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: AdminHomePage._textSecondaryColor,
-                          height: 1.28,
-                          fontSize:
-                              (textTheme.bodyMedium?.fontSize ?? 14) + 0.5,
                         ),
+                        if (!module.available) const _ComingSoonBadge(),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      module.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: AdminHomePage._textSecondaryColor,
+                        height: 1.25,
+                        fontSize: (textTheme.bodyMedium?.fontSize ?? 14) + 0.5,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

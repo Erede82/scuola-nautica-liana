@@ -2,6 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/domain/international_phone.dart';
 
 void main() {
+  group('InternationalPhoneRules limiti nazionali', () {
+    test('IT=10, FR=9, GB da metadata', () {
+      expect(InternationalPhoneRules.maxNationalDigits('IT'), 10);
+      expect(InternationalPhoneRules.maxNationalDigits('FR'), 9);
+      expect(
+        InternationalPhoneRules.maxNationalDigits('GB'),
+        greaterThanOrEqualTo(10),
+      );
+      expect(
+        InternationalPhoneRules.clampNationalDigits('333123456789999', 'IT'),
+        '3331234567',
+      );
+    });
+  });
+
   group('InternationalPhoneRules Italia', () {
     test('validi → E.164', () {
       for (final entry in [
