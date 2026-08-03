@@ -233,19 +233,19 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
     return true;
   }
 
-  /// Dopo cambio Paese, tronca eventuali cifre oltre il nuovo limite.
-  bool _clampNsnToCountryLimit(PhoneNumber number) {
+  /// Dopo cambio Paese, azzera l'NSN se supera il nuovo limite.
+  ///
+  /// Non tronca: un prefisso di un numero lungo può essere un altro cellulare
+  /// valido e verrebbe salvato silenziosamente (es. `393331234567` → IT).
+  bool _clearNsnIfOverCountryLimit(PhoneNumber number) {
     final iso = number.isoCode.name;
-    final clamped = InternationalPhoneRules.clampNationalDigits(
-      number.nsn,
-      iso,
-    );
     final currentDigits = _digitsOf(number.nsn);
-    if (clamped == currentDigits) return false;
+    final max = InternationalPhoneRules.maxNationalDigits(iso);
+    if (currentDigits.length <= max) return false;
 
     _applyingExternalValue = true;
     try {
-      _controller.value = PhoneNumber(isoCode: number.isoCode, nsn: clamped);
+      _controller.value = PhoneNumber(isoCode: number.isoCode, nsn: '');
     } finally {
       _applyingExternalValue = false;
     }
@@ -289,7 +289,7 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
       if (!_disposed && mounted) _emitFromController();
       return;
     }
-    if (_clampNsnToCountryLimit(number)) {
+    if (_clearNsnIfOverCountryLimit(number)) {
       if (!_disposed && mounted) _emitFromController();
       return;
     }
@@ -434,7 +434,11 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
   }
 }
 
-/// Limita le cifre nazionali; consente temporaneamente paste `+…` / `00…`.
+/// Limita le cifre nazionali rifiutando l'overflow (niente troncamento).
+///
+/// Consente temporaneamente paste `+…` / `00…` fino a 15 cifre E.164.
+/// Troncare un NSN troppo lungo può produrre un altro cellulare valido
+/// (es. `393331234567` → `3933312345`) e corrompere il contatto in salvataggio.
 class _PhoneNationalLimitFormatter extends TextInputFormatter {
   _PhoneNationalLimitFormatter({required this.maxDigits});
 
@@ -452,21 +456,12 @@ class _PhoneNationalLimitFormatter extends TextInputFormatter {
     final digits = raw.replaceAll(RegExp(r'\D'), '');
 
     if (looksInternational) {
-      // E.164 max 15 cifre (senza +).
+      // E.164 max 15 cifre (senza +): rifiuta oltre, non troncare.
       if (digits.length <= 15) return newValue;
-      final kept = digits.substring(0, 15);
-      final withPlus = trimmed.startsWith('+') ? '+$kept' : '00$kept';
-      return TextEditingValue(
-        text: withPlus,
-        selection: TextSelection.collapsed(offset: withPlus.length),
-      );
+      return oldValue;
     }
 
     if (digits.length <= maxDigits) return newValue;
-    final kept = digits.substring(0, maxDigits);
-    return TextEditingValue(
-      text: kept,
-      selection: TextSelection.collapsed(offset: kept.length),
-    );
+    return oldValue;
   }
 }
