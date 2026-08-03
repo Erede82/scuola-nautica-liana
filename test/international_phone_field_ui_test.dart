@@ -58,7 +58,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Italia 9 cifre e fisso → errore; 11ª cifra bloccata', (
+  testWidgets('Italia 9 cifre e fisso → errore; 11ª cifra rifiutata', (
     tester,
   ) async {
     InternationalPhoneValue? valid;
@@ -86,7 +86,11 @@ void main() {
       findsOneWidget,
     );
 
-    // 11 cifre: formatter trattiene solo 10 → numero valido.
+    // Valido a 10, poi 11ª cifra bloccata (resta il numero precedente).
+    await _enterNsn(tester, '3331234567');
+    expect(valid?.e164, '+393331234567');
+    expect(find.text('10/10'), findsOneWidget);
+
     await _enterNsn(tester, '33312345678');
     final nsn = tester
         .widget<PhoneFormField>(find.byType(PhoneFormField))
@@ -94,7 +98,6 @@ void main() {
         .value
         .nsn
         .replaceAll(RegExp(r'\D'), '');
-    expect(nsn.length, 10);
     expect(nsn, '3331234567');
     expect(valid?.e164, '+393331234567');
     expect(find.text('10/10'), findsOneWidget);
@@ -108,32 +111,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Italia: paste troppo lungo limitato a 10 cifre nazionali', (
-    tester,
-  ) async {
-    InternationalPhoneValue? valid;
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() async {
-      await tester.binding.setSurfaceSize(null);
-    });
+  testWidgets(
+    'Italia: paste troppo lungo rifiutato (niente troncamento a numero valido)',
+    (tester) async {
+      InternationalPhoneValue? valid;
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+      });
 
-    await tester.pumpWidget(
-      _wrap(InternationalPhoneField(onValidChanged: (v) => valid = v)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _wrap(InternationalPhoneField(onValidChanged: (v) => valid = v)),
+      );
+      await tester.pumpAndSettle();
 
-    await _enterNsn(tester, '333123456789999');
-    final nsn = tester
-        .widget<PhoneFormField>(find.byType(PhoneFormField))
-        .controller!
-        .value
-        .nsn
-        .replaceAll(RegExp(r'\D'), '');
-    expect(nsn.length, 10);
-    expect(nsn, '3331234567');
-    expect(valid?.e164, '+393331234567');
-    expect(tester.takeException(), isNull);
-  });
+      await _enterNsn(tester, '333123456789999');
+      final nsn = tester
+          .widget<PhoneFormField>(find.byType(PhoneFormField))
+          .controller!
+          .value
+          .nsn
+          .replaceAll(RegExp(r'\D'), '');
+      expect(nsn, isEmpty);
+      expect(valid, isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Italia: paste prefisso paese senza + non diventa altro cellulare',
+    (tester) async {
+      InternationalPhoneValue? valid;
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+      });
+
+      await tester.pumpWidget(
+        _wrap(InternationalPhoneField(onValidChanged: (v) => valid = v)),
+      );
+      await tester.pumpAndSettle();
+
+      // Comportamento tipico: utente incolla 39… senza +.
+      // Troncamento a 10 avrebbe prodotto +393933312345 (numero sbagliato).
+      await _enterNsn(tester, '393331234567');
+      final nsn = tester
+          .widget<PhoneFormField>(find.byType(PhoneFormField))
+          .controller!
+          .value
+          .nsn
+          .replaceAll(RegExp(r'\D'), '');
+      expect(nsn, isEmpty);
+      expect(valid, isNull);
+      expect(valid?.e164, isNot('+393933312345'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('FR: limite nazionale 9 cifre e E.164', (tester) async {
     InternationalPhoneValue? valid;
@@ -157,14 +190,16 @@ void main() {
     expect(InternationalPhoneRules.maxNationalDigits('FR'), 9);
     expect(find.textContaining('9'), findsWidgets);
 
-    await _enterNsn(tester, '6123456789'); // 10 → clamp a 9
+    // 10 cifre: rifiuta (resta il valore precedente valido), non tronca a 9.
+    await _enterNsn(tester, '6123456789');
     final nsn = tester
         .widget<PhoneFormField>(find.byType(PhoneFormField))
         .controller!
         .value
         .nsn
         .replaceAll(RegExp(r'\D'), '');
-    expect(nsn.length, lessThanOrEqualTo(9));
+    expect(nsn, '612345678');
+    expect(valid?.e164, '+33612345678');
     expect(tester.takeException(), isNull);
   });
 

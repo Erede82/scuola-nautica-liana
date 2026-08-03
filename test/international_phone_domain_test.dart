@@ -3,7 +3,7 @@ import 'package:scuola_nautica_liana/domain/international_phone.dart';
 
 void main() {
   group('InternationalPhoneRules limiti nazionali', () {
-    test('IT=10, FR=9, GB da metadata', () {
+    test('IT=10, FR=9, GB da metadata; overflow non troncato', () {
       expect(InternationalPhoneRules.maxNationalDigits('IT'), 10);
       expect(InternationalPhoneRules.maxNationalDigits('FR'), 9);
       expect(
@@ -11,8 +11,19 @@ void main() {
         greaterThanOrEqualTo(10),
       );
       expect(
-        InternationalPhoneRules.clampNationalDigits('333123456789999', 'IT'),
+        InternationalPhoneRules.nationalDigitsWithinLimit('3331234567', 'IT'),
         '3331234567',
+      );
+      expect(
+        InternationalPhoneRules.nationalDigitsWithinLimit(
+          '333123456789999',
+          'IT',
+        ),
+        isNull,
+      );
+      expect(
+        InternationalPhoneRules.fitsNationalDigitLimit('393331234567', 'IT'),
+        isFalse,
       );
     });
   });

@@ -154,13 +154,19 @@ abstract final class InternationalPhoneRules {
     return values.reduce(math.max);
   }
 
-  /// Trunca le sole cifre nazionali al limite del Paese.
-  static String clampNationalDigits(String raw, String countryIso2) {
+  /// Sole cifre nazionali se entro il limite del Paese; altrimenti `null`.
+  ///
+  /// Non tronca: un prefisso può essere un altro numero valido.
+  static String? nationalDigitsWithinLimit(String raw, String countryIso2) {
     final digits = _digitsOnly(raw) ?? '';
     final max = maxNationalDigits(countryIso2);
-    if (digits.length <= max) return digits;
-    return digits.substring(0, max);
+    if (digits.length > max) return null;
+    return digits;
   }
+
+  /// `true` se le cifre nazionali non superano il limite del Paese.
+  static bool fitsNationalDigitLimit(String raw, String countryIso2) =>
+      nationalDigitsWithinLimit(raw, countryIso2) != null;
 
   static InternationalPhoneValue _fromParsed(PhoneNumber parsed) {
     final nsn = _digitsOnly(parsed.nsn) ?? parsed.nsn;
