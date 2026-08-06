@@ -39,6 +39,7 @@ abstract final class ExamQuizAttemptErrorCode {
   static const questionCategoryMismatch = 'question_category_mismatch';
   static const invalidExamQuestion = 'invalid_exam_question';
   static const questionNotValidForExam = 'question_not_valid_for_exam';
+  static const invalidExamTopicQuotas = 'invalid_exam_topic_quotas';
   static const idempotencyConflict = 'idempotency_conflict';
   static const examSubmitConflict = 'exam_submit_conflict';
   static const attemptNotFound = 'attempt_not_found';
@@ -49,6 +50,7 @@ abstract final class ExamQuizAttemptErrorCode {
   /// Codici riconosciuti dall’estrattore (stringhe più lunghe prima).
   static const List<String> knownCodes = [
     questionNotValidForExam,
+    invalidExamTopicQuotas,
     questionCategoryMismatch,
     invalidClientAttemptToken,
     clientAttemptTokenRequired,
@@ -110,6 +112,8 @@ String examQuizAttemptErrorMessageIt(String code) {
     case ExamQuizAttemptErrorCode.invalidExamQuestion:
     case ExamQuizAttemptErrorCode.questionNotValidForExam:
       return 'Una domanda non è valida per la simulazione esame.';
+    case ExamQuizAttemptErrorCode.invalidExamTopicQuotas:
+      return 'La composizione delle domande non rispetta le quote d’esame.';
     case ExamQuizAttemptErrorCode.idempotencyConflict:
       return 'Il token tentativo è già stato usato con dati diversi.';
     case ExamQuizAttemptErrorCode.examSubmitConflict:
