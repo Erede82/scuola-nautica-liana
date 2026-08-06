@@ -381,11 +381,16 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
     return PopScope(
       canPop: _allowsImmediatePop,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop || _isSubmitting) return;
+        if (didPop || _isSubmitting || _submitSucceeded) return;
         final leave = await _confirmLeaveExam();
-        if (leave && context.mounted) {
-          Navigator.of(context).pop();
+        if (!leave || !context.mounted) return;
+        // Il timer può concludere l'esame mentre il dialog di uscita è aperto:
+        // non onorare una decisione stale che scarterebbe un submit in corso
+        // o un payload già pronto per il salvataggio.
+        if (_isSubmitting || _submitSucceeded || _pendingSubmission != null) {
+          return;
         }
+        Navigator.of(context).pop();
       },
       child: Scaffold(
         backgroundColor: _backgroundColor,
