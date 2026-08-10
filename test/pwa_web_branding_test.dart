@@ -1,0 +1,121 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+/// Verifica statica asset/manifest/index PWA (senza deploy).
+void main() {
+  final root = Directory.current;
+
+  File web(String relative) => File('${root.path}/web/$relative');
+
+  test('icone PWA presenti con dimensioni attese', () {
+    final expected = <String, (int, int)>{
+      'favicon.png': (32, 32),
+      'icons/Icon-192.png': (192, 192),
+      'icons/Icon-512.png': (512, 512),
+      'icons/Icon-maskable-192.png': (192, 192),
+      'icons/Icon-maskable-512.png': (512, 512),
+      'icons/apple-touch-icon.png': (180, 180),
+      'icons/Icon-1024.png': (1024, 1024),
+    };
+
+    for (final entry in expected.entries) {
+      final file = web(entry.key);
+      expect(file.existsSync(), isTrue, reason: entry.key);
+      final bytes = file.readAsBytesSync();
+      expect(_isPng(bytes), isTrue, reason: '${entry.key} non è PNG');
+      final size = _pngSize(bytes);
+      expect(
+        size,
+        entry.value,
+        reason: '${entry.key} size $size != ${entry.value}',
+      );
+    }
+  });
+
+  test('manifest.json valido e installabile standalone', () {
+    final raw = web('manifest.json').readAsStringSync();
+    final json = jsonDecode(raw) as Map<String, dynamic>;
+
+    expect(json['name'], 'Scuola Nautica Liana');
+    expect(json['short_name'], 'Nautica Liana');
+    expect(json['id'], '/');
+    expect(json['start_url'], '/');
+    expect(json['scope'], '/');
+    expect(json['display'], 'standalone');
+    expect(json['background_color'], '#F7F3ED');
+    expect(json['theme_color'], '#005E83');
+    expect(json.containsKey('orientation'), isFalse);
+
+    final icons = (json['icons'] as List).cast<Map<String, dynamic>>();
+    expect(icons, isNotEmpty);
+    for (final icon in icons) {
+      final src = icon['src'] as String;
+      expect(web(src).existsSync(), isTrue, reason: 'icon missing: $src');
+      expect(icon['type'], 'image/png');
+      expect(icon['purpose'], anyOf('any', 'maskable'));
+    }
+
+    final purposes = icons.map((i) => i['purpose']).toSet();
+    expect(purposes, containsAll(['any', 'maskable']));
+  });
+
+  test('index.html punta a branding Liana e meta iOS', () {
+    final html = web('index.html').readAsStringSync();
+    expect(html, contains('<title>Scuola Nautica Liana</title>'));
+    expect(
+      html,
+      contains('content="Scuola Nautica Liana — area studenti e gestionale."'),
+    );
+    expect(
+      html,
+      contains(
+        'name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"',
+      ),
+    );
+    expect(html, contains('name="theme-color" content="#005E83"'));
+    expect(html, contains('name="apple-mobile-web-app-capable" content="yes"'));
+    expect(
+      html,
+      contains(
+        'name="apple-mobile-web-app-status-bar-style" content="black-translucent"',
+      ),
+    );
+    expect(
+      html,
+      contains('name="apple-mobile-web-app-title" content="Nautica Liana"'),
+    );
+    expect(html, contains('href="icons/apple-touch-icon.png"'));
+    expect(html, contains('href="favicon.png"'));
+    expect(html, contains('href="manifest.json"'));
+    expect(html, isNot(contains('icons/Icon-192.png')));
+    expect(html.toLowerCase(), isNot(contains('flutter demo')));
+  });
+
+  test('nessun riferimento HTML alle icone Flutter template residue', () {
+    final html = web('index.html').readAsStringSync();
+    expect(html, isNot(contains('icons/Icon-192.png')));
+    // Favicon deve essere PNG Liana (non 16×16 Flutter): già verificato sopra.
+    final fav = web('favicon.png').readAsBytesSync();
+    expect(_pngSize(fav), (32, 32));
+  });
+}
+
+bool _isPng(List<int> bytes) {
+  const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  if (bytes.length < 24) return false;
+  for (var i = 0; i < sig.length; i++) {
+    if (bytes[i] != sig[i]) return false;
+  }
+  return true;
+}
+
+(int, int) _pngSize(List<int> bytes) {
+  // IHDR: width/height big-endian at offset 16/20.
+  final w =
+      (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+  final h =
+      (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+  return (w, h);
+}

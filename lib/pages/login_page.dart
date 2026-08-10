@@ -98,7 +98,8 @@ class _LoginPageState extends State<LoginPage> {
 
       final String msg;
       if (summary.hasStaffAccess && !summary.hasStudentProfile) {
-        msg = 'Accesso staff effettuato (nessun profilo allievo collegato a questo account).';
+        msg =
+            'Accesso staff effettuato (nessun profilo allievo collegato a questo account).';
       } else {
         msg = 'Accesso effettuato';
       }
@@ -145,15 +146,32 @@ class _LoginPageState extends State<LoginPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
           children: [
-            Text(
-              AppBranding.schoolName,
-              textAlign: TextAlign.center,
-              style: textTheme.titleLarge?.copyWith(
-                color: _textPrimaryColor,
-                fontWeight: FontWeight.w800,
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final logoWidth = (constraints.maxWidth * 0.55).clamp(
+                  150.0,
+                  210.0,
+                );
+                return Center(
+                  child: Image.asset(
+                    AppBranding.logoScuolaNauticaLianaBlue,
+                    width: logoWidth,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    semanticLabel: AppBranding.schoolName,
+                    errorBuilder: (context, error, stackTrace) => Text(
+                      AppBranding.schoolName,
+                      textAlign: TextAlign.center,
+                      style: textTheme.titleLarge?.copyWith(
+                        color: _textPrimaryColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               'Accedi con le credenziali usate in fase di registrazione.',
               textAlign: TextAlign.center,

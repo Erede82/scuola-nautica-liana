@@ -79,15 +79,24 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
           children: [
-            Text(
-              AppBranding.schoolName,
-              textAlign: TextAlign.center,
-              style: textTheme.titleLarge?.copyWith(
-                color: _textPrimaryColor,
-                fontWeight: FontWeight.w800,
+            Center(
+              child: Image.asset(
+                AppBranding.logoMarkBlue,
+                height: 64,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                semanticLabel: AppBranding.schoolName,
+                errorBuilder: (context, error, stackTrace) => Text(
+                  AppBranding.schoolName,
+                  textAlign: TextAlign.center,
+                  style: textTheme.titleLarge?.copyWith(
+                    color: _textPrimaryColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               'Inserisci l’email dell’account: riceverai un link per impostare una nuova password.',
               textAlign: TextAlign.center,
