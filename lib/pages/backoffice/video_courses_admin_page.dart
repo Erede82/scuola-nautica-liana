@@ -192,7 +192,7 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
       if (!mounted) return;
       setState(() {
         _studentPurchasedIds = Set<String>.from(_studentPurchasedIds)
-          ..add(productId);
+          ..addAll(ExtraBundleCatalog.productsToGrantOnAccess(productId));
         _accessBusy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -248,7 +248,7 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
       if (!mounted) return;
       setState(() {
         _studentPurchasedIds = Set<String>.from(_studentPurchasedIds)
-          ..remove(productId);
+          ..removeAll(ExtraBundleCatalog.productsToRevokeOnAccess(productId));
         _accessBusy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
