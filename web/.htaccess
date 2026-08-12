@@ -1,0 +1,30 @@
+# Scuola Nautica Liana — PWA cache policy (Hostinger / LiteSpeed)
+# Document root: public_html/app → https://app.autoscuolaliana.it/
+# Hash routing: no SPA rewrite required.
+# Compressione: lasciata al server/CDN (niente mod_deflate/Brotli qui).
+
+<IfModule mod_mime.c>
+  AddType application/wasm .wasm
+</IfModule>
+
+<IfModule mod_headers.c>
+  # --- Shell / entrypoint non hashati: revalidate sempre ---
+  # Browser/CDN può tenere una copia, ma deve validarla prima del riuso.
+  <FilesMatch "^(index\.html|main\.dart\.js|flutter_bootstrap\.js|flutter\.js|flutter_service_worker\.js|manifest\.json|version\.json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # --- Favicon: 7 giorni (senza cache permanente) ---
+  <FilesMatch "^favicon\.png$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+
+  # --- icons/ e assets/ (non fingerprinted in modo affidabile): 7 giorni ---
+  SetEnvIf Request_URI "^/icons/" LIANA_CACHE_WEEK
+  SetEnvIf Request_URI "^/assets/" LIANA_CACHE_WEEK
+  Header set Cache-Control "public, max-age=604800" env=LIANA_CACHE_WEEK
+
+  # --- canvaskit/: 30 giorni (senza cache permanente) ---
+  SetEnvIf Request_URI "^/canvaskit/" LIANA_CACHE_MONTH
+  Header set Cache-Control "public, max-age=2592000" env=LIANA_CACHE_MONTH
+</IfModule>
