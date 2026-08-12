@@ -540,7 +540,9 @@ class ManagementRepositoryMock implements ManagementRepository {
     required StudentId studentId,
     required String productId,
   }) async {
-    _purchasedExtraProductIds.remove(productId);
+    _purchasedExtraProductIds.removeAll(
+      ExtraBundleCatalog.productsToRevokeOnAccess(productId),
+    );
   }
 
   @override
