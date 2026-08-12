@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
@@ -40,12 +39,11 @@ class AdminHomePage extends StatelessWidget {
   static const Color _textSecondaryColor = AppVisual.inkMuted;
 
   static const double _pageHorizontalPadding = 16;
-  static const double _maxContentWidth = 1320;
   static const double _moduleGridSpacing = 16;
 
+  /// Larghezza utile della griglia: viewport meno padding laterale (no cap desktop).
   double _contentWidth(double viewportWidth) {
-    final inner = viewportWidth - _pageHorizontalPadding * 2;
-    return math.min(inner, _maxContentWidth);
+    return viewportWidth - _pageHorizontalPadding * 2;
   }
 
   /// Colonne moduli sulla larghezza reale della viewport (prima del padding).

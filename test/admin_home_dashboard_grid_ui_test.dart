@@ -15,6 +15,8 @@ const _moduleKeys = [
   'admin-module-settings',
 ];
 
+const _pageHorizontalPadding = 16.0;
+
 Future<void> _pumpAdmin(WidgetTester tester, Size viewport) async {
   staffAccessNotifier.value = StaffAccessSnapshot.initial().copyWith(
     isLoading: false,
@@ -100,6 +102,24 @@ void _expectFourByTwo(List<Rect> rects) {
   _expectUniformCardSizes(rects);
 }
 
+void _expectWideDesktopGrid(List<Rect> rects, Size size) {
+  _expectFourByTwo(rects);
+
+  final gridLeft = rects[0].left;
+  final gridRight = rects[3].right;
+  final gridWidth = gridRight - gridLeft;
+  final expectedInner = size.width - _pageHorizontalPadding * 2;
+  expect(gridWidth, closeTo(expectedInner, 2));
+
+  final leftMargin = gridLeft;
+  final rightMargin = size.width - gridRight;
+  expect((leftMargin - rightMargin).abs(), lessThan(2));
+  expect(gridWidth / size.width, greaterThan(0.88));
+
+  expect(rects.first.width, greaterThan(280));
+  expect(rects.first.height, greaterThan(120));
+}
+
 void main() {
   group('confini breakpoint viewport', () {
     for (final case_ in const [
@@ -119,7 +139,6 @@ void main() {
           expect(cols, expectedCols);
 
           if (expectedCols == 4) {
-            // A 980×900 entrambe le righe rientrano nel viewport senza scroll.
             final rects = _allModuleRects(tester);
             _expectFourByTwo(rects);
             expect(rects.first.width, greaterThan(190));
@@ -164,40 +183,27 @@ void main() {
         expect(_columnCountFromVisible(tester), 4);
 
         final rects = _allModuleRects(tester);
-        _expectFourByTwo(rects);
-
-        final row1Span = rects[3].right - rects[0].left;
-        expect(row1Span, greaterThan(size.width * 0.72));
-        expect(rects.first.width, greaterThan(180));
-        expect(rects.first.height, greaterThan(120));
+        _expectWideDesktopGrid(rects, size);
 
         expect(tester.takeException(), isNull);
       },
     );
   }
 
-  testWidgets('dashboard 1728×1117: 4×2 centrata ~1320', (tester) async {
-    const size = Size(1728, 1117);
-    await _pumpAdmin(tester, size);
-    expect(_columnCountFromVisible(tester), 4);
+  for (final size in const [Size(1728, 1117), Size(1920, 1080)]) {
+    testWidgets(
+      'dashboard wide desktop ${size.width.toInt()}×${size.height.toInt()}: griglia ampia 4×2',
+      (tester) async {
+        await _pumpAdmin(tester, size);
+        expect(_columnCountFromVisible(tester), 4);
 
-    final rects = _allModuleRects(tester);
-    _expectFourByTwo(rects);
+        final rects = _allModuleRects(tester);
+        _expectWideDesktopGrid(rects, size);
 
-    final gridLeft = rects[0].left;
-    final gridRight = rects[3].right;
-    final gridWidth = gridRight - gridLeft;
-    expect(gridWidth, closeTo(1320, 2));
-
-    final leftMargin = gridLeft;
-    final rightMargin = size.width - gridRight;
-    expect((leftMargin - rightMargin).abs(), lessThan(2));
-    expect(gridWidth / size.width, greaterThan(0.75));
-
-    expect(rects.first.width, greaterThan(280));
-    expect(rects.first.height, greaterThan(120));
-    expect(tester.takeException(), isNull);
-  });
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('dashboard tablet: 2 colonne', (tester) async {
     await _pumpAdmin(tester, const Size(768, 1024));
