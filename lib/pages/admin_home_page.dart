@@ -41,6 +41,19 @@ class AdminHomePage extends StatelessWidget {
   static const double _pageHorizontalPadding = 16;
   static const double _moduleGridSpacing = 16;
 
+  /// Padding verticali desktop (header + griglia) usati per l'altezza dinamica.
+  static const double _desktopHeaderTopPad = 14;
+  static const double _desktopHeaderToGridGap = 14;
+  static const double _desktopGridBottomPad = 20;
+
+  /// Stima altezza blocco titolo + "Nuova pratica" (riga desktop).
+  static const double _desktopHeaderEstimate = 56;
+
+  static const double _minDesktopCardExtent = 156;
+
+  /// Cap di sicurezza alto: sui desktop testati la viewport guida l'altezza.
+  static const double _maxDesktopCardExtent = 480;
+
   /// Larghezza utile della griglia: viewport meno padding laterale (no cap desktop).
   double _contentWidth(double viewportWidth) {
     return viewportWidth - _pageHorizontalPadding * 2;
@@ -54,10 +67,26 @@ class AdminHomePage extends StatelessWidget {
     return 1;
   }
 
-  static double moduleMainAxisExtent(int columns) {
+  /// Altezza card: fissa su mobile/tablet; su desktop (4 col) adattiva al body.
+  ///
+  /// Formula desktop:
+  /// `available = bodyHeight - headerPads - headerEstimate - gridBottom - rowGap`
+  /// `cardHeight = (available / 2).clamp(156, 480)`
+  static double moduleMainAxisExtent({
+    required int columns,
+    required double bodyHeight,
+  }) {
     switch (columns) {
       case 4:
-        return 156;
+        final overhead =
+            _desktopHeaderTopPad +
+            _desktopHeaderEstimate +
+            _desktopHeaderToGridGap +
+            _desktopGridBottomPad +
+            _moduleGridSpacing;
+        final available = bodyHeight - overhead;
+        final raw = available / 2;
+        return raw.clamp(_minDesktopCardExtent, _maxDesktopCardExtent);
       case 2:
         return 152;
       default:
@@ -231,11 +260,25 @@ class AdminHomePage extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final viewportWidth = constraints.maxWidth;
+                final bodyHeight = constraints.maxHeight;
                 final contentWidth = _contentWidth(viewportWidth);
 
                 final moduleColumns = dashboardColumnCount(viewportWidth);
                 final isNarrow = moduleColumns == 1;
-                final moduleExtent = moduleMainAxisExtent(moduleColumns);
+                final isDesktopGrid = moduleColumns == 4;
+                final moduleExtent = moduleMainAxisExtent(
+                  columns: moduleColumns,
+                  bodyHeight: bodyHeight,
+                );
+                final headerTopPad = isDesktopGrid
+                    ? _desktopHeaderTopPad
+                    : 18.0;
+                final gridTopGap = isDesktopGrid
+                    ? _desktopHeaderToGridGap
+                    : 18.0;
+                final gridBottomPad = isDesktopGrid
+                    ? _desktopGridBottomPad
+                    : 28.0;
 
                 final header = isNarrow
                     ? Column(
@@ -331,11 +374,16 @@ class AdminHomePage extends StatelessWidget {
                       child: CustomScrollView(
                         slivers: [
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(0, 18, 0, 0),
+                            padding: EdgeInsets.fromLTRB(0, headerTopPad, 0, 0),
                             sliver: SliverToBoxAdapter(child: header),
                           ),
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(0, 18, 0, 28),
+                            padding: EdgeInsets.fromLTRB(
+                              0,
+                              gridTopGap,
+                              0,
+                              gridBottomPad,
+                            ),
                             sliver: SliverGrid(
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
@@ -355,6 +403,10 @@ class AdminHomePage extends StatelessWidget {
                                   ),
                                   child: _ManagementModuleCard(
                                     module: module,
+                                    tallDesktop:
+                                        isDesktopGrid &&
+                                        moduleExtent >= 200 &&
+                                        viewportWidth >= 1200,
                                     onTap: () => _openManagementModule(
                                       context,
                                       module.kind,
@@ -486,14 +538,23 @@ _ManagementModule _moduleByKind(_ManagementModuleKind kind) {
 }
 
 class _ManagementModuleCard extends StatelessWidget {
-  const _ManagementModuleCard({required this.module, required this.onTap});
+  const _ManagementModuleCard({
+    required this.module,
+    required this.onTap,
+    this.tallDesktop = false,
+  });
 
   final _ManagementModule module;
   final VoidCallback onTap;
+  final bool tallDesktop;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final iconBox = tallDesktop ? 60.0 : 52.0;
+    final iconSize = tallDesktop ? 30.0 : 28.0;
+    final hPad = tallDesktop ? 18.0 : 14.0;
+    final vPad = tallDesktop ? 18.0 : 14.0;
     return Material(
       color: AdminHomePage._cardColor,
       borderRadius: BorderRadius.circular(14),
@@ -503,7 +564,7 @@ class _ManagementModuleCard extends StatelessWidget {
         child: Container(
           width: double.infinity,
           height: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppVisual.border),
@@ -512,19 +573,19 @@ class _ManagementModuleCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: iconBox,
+                height: iconBox,
                 decoration: BoxDecoration(
                   color: AppVisual.brandAzure.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   module.icon,
-                  size: 28,
+                  size: iconSize,
                   color: AdminHomePage._primaryColor,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: tallDesktop ? 14 : 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,14 +602,15 @@ class _ManagementModuleCard extends StatelessWidget {
                               color: AdminHomePage._textPrimaryColor,
                               fontWeight: FontWeight.w800,
                               fontSize:
-                                  (textTheme.titleMedium?.fontSize ?? 16) + 1,
+                                  (textTheme.titleMedium?.fontSize ?? 16) +
+                                  (tallDesktop ? 2 : 1),
                             ),
                           ),
                         ),
                         if (!module.available) const _ComingSoonBadge(),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: tallDesktop ? 8 : 6),
                     Text(
                       module.subtitle,
                       maxLines: 2,
@@ -556,7 +618,9 @@ class _ManagementModuleCard extends StatelessWidget {
                       style: textTheme.bodyMedium?.copyWith(
                         color: AdminHomePage._textSecondaryColor,
                         height: 1.25,
-                        fontSize: (textTheme.bodyMedium?.fontSize ?? 14) + 0.5,
+                        fontSize:
+                            (textTheme.bodyMedium?.fontSize ?? 14) +
+                            (tallDesktop ? 1 : 0.5),
                       ),
                     ),
                   ],

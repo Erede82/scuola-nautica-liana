@@ -117,7 +117,40 @@ void _expectWideDesktopGrid(List<Rect> rects, Size size) {
   expect(gridWidth / size.width, greaterThan(0.88));
 
   expect(rects.first.width, greaterThan(280));
-  expect(rects.first.height, greaterThan(120));
+  expect(rects.first.height, greaterThan(155));
+}
+
+/// Griglia che usa gran parte dell'altezza viewport: fondo griglia alto,
+/// spazio residuo sotto contenuto ridotto (<= ~70 px).
+void _expectTallDesktopFill(List<Rect> rects, Size size) {
+  _expectWideDesktopGrid(rects, size);
+
+  final cardH = rects.first.height;
+  final bodyHeight = size.height - kToolbarHeight;
+  final expectedCard = AdminHomePage.moduleMainAxisExtent(
+    columns: 4,
+    bodyHeight: bodyHeight,
+  );
+  expect(cardH, closeTo(expectedCard, 4));
+  expect(cardH, greaterThan(180));
+  expect(cardH, lessThanOrEqualTo(482));
+
+  final gridBottom = rects[4].bottom;
+  final unusedBelow = size.height - gridBottom;
+
+  expect(
+    gridBottom / size.height,
+    greaterThan(0.88),
+    reason: 'grid bottom troppo basso rispetto alla viewport',
+  );
+  expect(
+    unusedBelow,
+    lessThanOrEqualTo(70),
+    reason: 'troppo spazio vuoto sotto la griglia ($unusedBelow px)',
+  );
+
+  expect(find.text('Nuova pratica'), findsOneWidget);
+  expect(find.text('Moduli gestionali'), findsOneWidget);
 }
 
 void main() {
@@ -175,37 +208,28 @@ void main() {
     }
   });
 
-  for (final size in const [Size(1366, 768), Size(1440, 900)]) {
+  for (final size in const [
+    Size(1366, 768),
+    Size(1440, 900),
+    Size(1512, 982),
+    Size(1728, 1117),
+    Size(1920, 1080),
+  ]) {
     testWidgets(
-      'dashboard desktop ${size.width.toInt()}×${size.height.toInt()}: 4×2 griglia uniforme',
+      'dashboard desktop ${size.width.toInt()}×${size.height.toInt()}: 4×2 ampia e alta',
       (tester) async {
         await _pumpAdmin(tester, size);
         expect(_columnCountFromVisible(tester), 4);
 
         final rects = _allModuleRects(tester);
-        _expectWideDesktopGrid(rects, size);
+        _expectTallDesktopFill(rects, size);
 
         expect(tester.takeException(), isNull);
       },
     );
   }
 
-  for (final size in const [Size(1728, 1117), Size(1920, 1080)]) {
-    testWidgets(
-      'dashboard wide desktop ${size.width.toInt()}×${size.height.toInt()}: griglia ampia 4×2',
-      (tester) async {
-        await _pumpAdmin(tester, size);
-        expect(_columnCountFromVisible(tester), 4);
-
-        final rects = _allModuleRects(tester);
-        _expectWideDesktopGrid(rects, size);
-
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
-  testWidgets('dashboard tablet: 2 colonne', (tester) async {
+  testWidgets('dashboard tablet: 2 colonne altezza compatta', (tester) async {
     await _pumpAdmin(tester, const Size(768, 1024));
     expect(_columnCountFromVisible(tester), 2);
     final r0 = tester.getRect(
@@ -215,6 +239,7 @@ void main() {
       find.byKey(const ValueKey('admin-module-practices')),
     );
     expect((r0.top - r1.top).abs(), lessThan(1.5));
+    expect(r0.height, lessThan(180));
     final r2 = tester.getRect(
       find.byKey(const ValueKey('admin-module-agenda')),
     );
@@ -223,7 +248,7 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(430, 932)]) {
-    testWidgets('dashboard mobile ${size.width.toInt()}: 1 colonna', (
+    testWidgets('dashboard mobile ${size.width.toInt()}: 1 colonna compatta', (
       tester,
     ) async {
       await _pumpAdmin(tester, size);
@@ -235,7 +260,39 @@ void main() {
         find.byKey(const ValueKey('admin-module-practices')),
       );
       expect(r1.top, greaterThan(r0.top + 40));
+      // Non metà schermo: altezza naturale/compatta.
+      expect(r0.height, lessThan(size.height * 0.28));
       expect(tester.takeException(), isNull);
     });
   }
+
+  test('formula altezza desktop: clamp 156–480 e cresce col body', () {
+    final short = AdminHomePage.moduleMainAxisExtent(
+      columns: 4,
+      bodyHeight: 500,
+    );
+    final mid = AdminHomePage.moduleMainAxisExtent(columns: 4, bodyHeight: 700);
+    final tall = AdminHomePage.moduleMainAxisExtent(
+      columns: 4,
+      bodyHeight: 1200,
+    );
+    expect(short, greaterThanOrEqualTo(156));
+    expect(mid, greaterThan(short));
+    expect(tall, greaterThan(mid));
+    expect(tall, lessThanOrEqualTo(480));
+    // Desktop alti tipici (≈1080 body≈1024) non devono essere bloccati a 310.
+    final fullHdBody = AdminHomePage.moduleMainAxisExtent(
+      columns: 4,
+      bodyHeight: 1024,
+    );
+    expect(fullHdBody, greaterThan(400));
+    expect(
+      AdminHomePage.moduleMainAxisExtent(columns: 2, bodyHeight: 900),
+      152,
+    );
+    expect(
+      AdminHomePage.moduleMainAxisExtent(columns: 1, bodyHeight: 900),
+      136,
+    );
+  });
 }
