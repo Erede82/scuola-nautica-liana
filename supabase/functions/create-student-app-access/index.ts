@@ -16,7 +16,7 @@ type Body = {
   password?: string;
 };
 
-const STAFF_ROLES = new Set(["school_admin", "staff", "admin"]);
+const STAFF_ROLES = new Set(["school_admin", "staff", "instructor", "admin"]);
 
 function jsonResponse(
   body: Record<string, unknown>,
