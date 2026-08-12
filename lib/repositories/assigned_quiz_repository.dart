@@ -48,7 +48,7 @@ abstract class AssignedQuizRepository {
   Future<List<AssignedQuizAttemptSummary>> loadAttempts(String assignmentId);
 }
 
-/// Implementazione Supabase (RPC + query `assigned_quizzes` / `assigned_quiz_attempts`).
+/// Implementazione Supabase (RPC + query staff / `assigned_quiz_attempts`).
 class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
   AssignedQuizRepositorySupabase({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
@@ -184,12 +184,9 @@ class AssignedQuizRepositorySupabase implements AssignedQuizRepository {
           message: 'Sessione non disponibile. Accedi nuovamente.',
         );
       }
-      final res = await _client
-          .from('assigned_quizzes')
-          .select(_assignmentSelect)
-          .eq('student_user_id', uid)
-          .eq('status', AssignedQuizStatus.assigned.dbValue)
-          .order('assigned_at', ascending: false);
+      // Proiezione server-side: la tabella contiene staff_note e
+      // generation_params, che non devono essere leggibili dallo studente.
+      final res = await _client.rpc('get_my_assigned_quizzes');
       final summaries = (res as List<dynamic>)
           .map((row) => parseAssignedQuizSummary(requireAssignedQuizMap(row)))
           .toList(growable: false);
