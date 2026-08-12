@@ -183,6 +183,14 @@ void main() {
       expect(repoSource, contains("order('completed_at', ascending: false)"));
       expect(repoSource, contains("order('position', ascending: true)"));
     });
+
+    test('lista corrente filtra esplicitamente per user_id', () {
+      expect(repoSource, contains(".eq('user_id', uid)"));
+      expect(
+        repoSource,
+        contains("fetchCurrentUserAttempts"),
+      );
+    });
   });
 
   group('ExamQuizAttempt submit RPC params (P9E.6-A3)', () {
@@ -266,6 +274,18 @@ void main() {
           const PostgrestException(message: 'question_not_valid_for_exam'),
         ),
         ExamQuizAttemptErrorCode.questionNotValidForExam,
+      );
+      expect(
+        extractExamQuizAttemptErrorCode(
+          const PostgrestException(message: 'invalid_exam_topic_quotas'),
+        ),
+        ExamQuizAttemptErrorCode.invalidExamTopicQuotas,
+      );
+      expect(
+        examQuizAttemptErrorMessageIt(
+          ExamQuizAttemptErrorCode.invalidExamTopicQuotas,
+        ),
+        contains('quote'),
       );
     });
   });
