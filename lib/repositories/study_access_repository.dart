@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../config/supabase_config.dart';
 import '../data/license_catalog.dart';
 import '../domain/backoffice/backoffice.dart';
 import '../models/license_models.dart';
@@ -110,6 +111,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
   final Map<String, bool> _lessonSheetOverrides = {};
   final Map<LicenseCategoryId, bool> _examOverrides = {};
   final Map<String, bool> _errorTopicOverrides = {};
+  bool _remoteAccessAuthoritative = false;
 
   static String _sheetStoreKey(
     LicenseCategoryId categoryId,
@@ -174,6 +176,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     _lessonSheetOverrides.clear();
     _examOverrides.clear();
     _errorTopicOverrides.clear();
+    _remoteAccessAuthoritative = false;
     notifyListeners();
   }
 
@@ -188,29 +191,30 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
 
   @override
   void hydrateFromRemoteStudyProgress(StudentStudyProgressBundle bundle) {
-    resetDemoAssignments();
+    _lessonSheetOverrides.clear();
+    _examOverrides.clear();
+    _errorTopicOverrides.clear();
+    _remoteAccessAuthoritative = true;
     for (final u in bundle.sheetUnlocks) {
-      applyLessonQuizSheetUnlock(
-        categoryId: u.categoryId,
-        lessonNumber: u.lessonNumber,
-        sheetNumber: u.sheetNumber,
-        unlocked: u.unlocked,
+      final key = _sheetStoreKey(
+        u.categoryId,
+        u.lessonNumber,
+        u.sheetNumber,
       );
+      _lessonSheetOverrides[key] = u.unlocked;
     }
     for (final e in bundle.examAccessByCategory) {
-      applyExamQuizUnlock(
-        categoryId: e.categoryId,
-        unlocked: e.examUnlocked,
-      );
+      _examOverrides[e.categoryId] = e.examUnlocked;
     }
     for (final t in bundle.errorReviewAssignments) {
-      applyErrorReviewTopicUnlock(
-        categoryId: t.categoryId,
-        lessonNumber: t.lessonNumber,
-        unlocked: t.topicUnlocked,
-      );
+      _errorTopicOverrides[_topicStoreKey(t.categoryId, t.lessonNumber)] =
+          t.topicUnlocked;
     }
+    notifyListeners();
   }
+
+  bool get _allowDemoFallback =>
+      !SupabaseConfig.isConfigured && !_remoteAccessAuthoritative;
 
   static String _sheetUnlockedLabel(LicenseCategoryId categoryId) {
     switch (categoryId) {
@@ -347,7 +351,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       lessonNumber,
       maxSheets,
     );
-    final demoLessonUnlocked = !schoolStoredAnySheetForLesson &&
+    final demoLessonUnlocked = _allowDemoFallback &&
+        !schoolStoredAnySheetForLesson &&
         _demoEntireLessonUnlockedForStudent(category, lessonNumber);
     final lessonUnlocked = schoolUnlockedLesson || demoLessonUnlocked;
 
@@ -473,7 +478,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       );
     }
 
-    if (!kDemoUnlockEntireExamForTheory) {
+    if (!_allowDemoFallback || !kDemoUnlockEntireExamForTheory) {
       return StudyContentAccessSnapshot(
         contentType: StudyContentType.examQuiz,
         categoryId: categoryId,
@@ -532,7 +537,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     }
 
     final o = _errorTopicOverride(categoryId, lessonNumber);
-    final unlocked = o ?? (lessonNumber != 7);
+    final unlocked = o ?? (_allowDemoFallback && lessonNumber != 7);
 
     if (unlocked) {
       return StudyContentAccessSnapshot(
