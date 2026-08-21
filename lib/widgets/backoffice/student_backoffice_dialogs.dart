@@ -12,15 +12,6 @@ import 'lesson_study_access_ui.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
 
-typedef _PaymentResult = ({
-  int amountCents,
-  PaymentMethod method,
-  DateTime receivedAt,
-  String? notes,
-  String? receiptReference,
-  String idempotencyKey,
-});
-
 typedef _GuidanceResult = ({
   DateTime lessonDate,
   DateTime start,
@@ -576,7 +567,15 @@ Future<void> showErrorReviewAssignDialog(
 }
 
 class _AddPaymentDialogBody extends StatefulWidget {
-  const _AddPaymentDialogBody();
+  const _AddPaymentDialogBody({
+    required this.studentId,
+    required this.repository,
+    required this.onRefreshDetail,
+  });
+
+  final StudentId studentId;
+  final BackofficeRepository repository;
+  final BackofficeDetailRefresh onRefreshDetail;
 
   @override
   State<_AddPaymentDialogBody> createState() => _AddPaymentDialogBodyState();
@@ -591,6 +590,19 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
       BackofficePaymentMethods.selectableForNewPayment.first;
   DateTime _received = DateTime.now();
 
+  /// Stable for this dialog so a timeout-after-commit retry hits
+  /// `record_payment` idempotency instead of inserting a second payment.
+  late final String _idempotencyKey;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _idempotencyKey =
+        'payment-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+  }
+
   @override
   void dispose() {
     _amountCtrl.dispose();
@@ -600,6 +612,8 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
+
     final cents = parseEuroInputToCents(_amountCtrl.text);
     if (cents == null) {
       if (!mounted) return;
@@ -611,6 +625,11 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
       );
       return;
     }
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -633,121 +652,185 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+      return;
+    }
 
-    final r = (
-      amountCents: cents,
-      method: _method,
-      receivedAt: _received,
-      notes: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      receiptReference: _receiptCtrl.text.trim().isEmpty
-          ? null
-          : _receiptCtrl.text.trim(),
-      idempotencyKey: 'payment-${DateTime.now().microsecondsSinceEpoch}',
-    );
-    Navigator.of(context).pop<_PaymentResult>(r);
+    try {
+      await widget.repository.addPayment(
+        studentId: widget.studentId,
+        amountCents: cents,
+        method: _method,
+        receivedAt: _received,
+        notes: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        receiptReference: _receiptCtrl.text.trim().isEmpty
+            ? null
+            : _receiptCtrl.text.trim(),
+        idempotencyKey: _idempotencyKey,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = _formatWriteError(e);
+      });
+      return;
+    }
+
+    // Write succeeded. A failed 360 refresh must not look like a failed
+    // payment or staff will retry and create a duplicate with a new key.
+    try {
+      final fresh = await widget.repository.getStudentAdmin360(
+        widget.studentId,
+      );
+      if (fresh != null) {
+        await widget.onRefreshDetail(fresh);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Aggiungi pagamento'),
-      content: SizedBox(
-        width: 400,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Registra solo incassi verificati. Importo in euro (es. 250,50).',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: BackofficeUiTokens.text.withValues(alpha: 0.72),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Importo (€)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Metodo',
-                  border: OutlineInputBorder(),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<PaymentMethod>(
-                    isExpanded: true,
-                    value: _method,
-                    items: BackofficePaymentMethods.selectableForNewPayment
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(BackofficeFormatters.paymentMethod(m)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setState(() => _method = v);
-                    },
+    return PopScope(
+      canPop: !_submitting,
+      child: AlertDialog(
+        title: const Text('Aggiungi pagamento'),
+        content: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Registra solo incassi verificati. Importo in euro (es. 250,50).',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: BackofficeUiTokens.text.withValues(alpha: 0.72),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Data incasso · ${BackofficeFormatters.dateUi(_received)}',
+                const SizedBox(height: 16),
+                TextField(
+                  key: const ValueKey('add-payment-amount'),
+                  controller: _amountCtrl,
+                  enabled: !_submitting,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Importo (€)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.calendar_today_outlined),
-                  onPressed: () async {
-                    final d = await showBackofficeDatePicker(
-                      context,
-                      initialDate: _received,
-                    );
-                    if (d != null && mounted) {
-                      setState(() {
-                        _received = DateTime(d.year, d.month, d.day, 12, 0);
-                      });
-                    }
-                  },
+                const SizedBox(height: 12),
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Metodo',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<PaymentMethod>(
+                      isExpanded: true,
+                      value: _method,
+                      items: BackofficePaymentMethods.selectableForNewPayment
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(BackofficeFormatters.paymentMethod(m)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _submitting
+                          ? null
+                          : (v) {
+                              if (v != null) setState(() => _method = v);
+                            },
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _receiptCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Riferimento ricevuta (opz.)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Data incasso · ${BackofficeFormatters.dateUi(_received)}',
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    onPressed: _submitting
+                        ? null
+                        : () async {
+                            final d = await showBackofficeDatePicker(
+                              context,
+                              initialDate: _received,
+                            );
+                            if (d != null && mounted) {
+                              setState(() {
+                                _received = DateTime(
+                                  d.year,
+                                  d.month,
+                                  d.day,
+                                  12,
+                                  0,
+                                );
+                              });
+                            }
+                          },
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _noteCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Nota (opz.)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _receiptCtrl,
+                  enabled: !_submitting,
+                  decoration: const InputDecoration(
+                    labelText: 'Riferimento ricevuta (opz.)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _noteCtrl,
+                  enabled: !_submitting,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Nota (opz.)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Errore: $_error',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: _submitting ? null : () => Navigator.pop(context),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            key: const ValueKey('add-payment-save'),
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Salva'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annulla'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('Salva')),
-      ],
     );
   }
 }
@@ -758,34 +841,17 @@ Future<void> showAddPaymentDialog(
   required BackofficeRepository repository,
   required BackofficeDetailRefresh onRefreshDetail,
 }) async {
-  final studentId = view.profile.id;
-
-  final result = await showDialog<_PaymentResult>(
+  final saved = await showDialog<bool>(
     context: context,
-    builder: (ctx) => const _AddPaymentDialogBody(),
+    builder: (ctx) => _AddPaymentDialogBody(
+      studentId: view.profile.id,
+      repository: repository,
+      onRefreshDetail: onRefreshDetail,
+    ),
   );
 
-  if (result == null || !context.mounted) return;
-
-  try {
-    await repository.addPayment(
-      studentId: studentId,
-      amountCents: result.amountCents,
-      method: result.method,
-      receivedAt: result.receivedAt,
-      notes: result.notes,
-      receiptReference: result.receiptReference,
-      idempotencyKey: result.idempotencyKey,
-    );
-    final fresh = await repository.getStudentAdmin360(studentId);
-    if (fresh != null) await onRefreshDetail(fresh);
-    if (context.mounted) {
-      _backofficeSnack(context, 'Pagamento registrato.');
-    }
-  } catch (e) {
-    if (context.mounted) {
-      _backofficeSnack(context, 'Errore: ${_formatWriteError(e)}');
-    }
+  if (saved == true && context.mounted) {
+    _backofficeSnack(context, 'Pagamento registrato.');
   }
 }
 
