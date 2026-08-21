@@ -3,7 +3,7 @@
 // Secrets: STRIPE_SECRET_KEY (Supabase secrets)
 // Env auto: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 // Env required: CHECKOUT_ALLOWED_REDIRECT_ORIGINS (comma-separated origins, es.
-//   http://localhost:3000,https://scuolanauticaliana.it,https://app.scuolanauticaliana.it)
+//   http://localhost:3000,https://app.autoscuolaliana.it)
 //
 // Dominio Pagamenti online: scrive su online_orders / online_payment_transactions.
 // Non tocca Contabilità, payments, record_payment, student_financial_summaries,

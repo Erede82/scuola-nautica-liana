@@ -37,6 +37,10 @@ abstract final class SupabaseConfig {
     return 'it.scuolanauticaliana.app://login-callback';
   }
 
+  /// Fallback non-web quando `CHECKOUT_REDIRECT_ORIGIN` non è valorizzato.
+  static const String defaultNonWebCheckoutRedirectOrigin =
+      'https://app.autoscuolaliana.it';
+
   /// Origin autorizzato per successUrl/cancelUrl Stripe Checkout (web: [Uri.base.origin]).
   static String get checkoutRedirectOrigin {
     if (kIsWeb) {
@@ -46,10 +50,17 @@ abstract final class SupabaseConfig {
       'CHECKOUT_REDIRECT_ORIGIN',
       defaultValue: '',
     );
-    if (custom.trim().isNotEmpty) {
-      return custom.trim();
+    return resolveNonWebCheckoutRedirectOrigin(custom);
+  }
+
+  /// Risolve l'origin Stripe Checkout fuori dal web (override → fallback production).
+  @visibleForTesting
+  static String resolveNonWebCheckoutRedirectOrigin(String customOrigin) {
+    final trimmed = customOrigin.trim();
+    if (trimmed.isNotEmpty) {
+      return trimmed;
     }
-    return 'https://app.scuolanauticaliana.it';
+    return defaultNonWebCheckoutRedirectOrigin;
   }
 
   static String extraCheckoutSuccessUrl(String productId) =>
@@ -58,6 +69,22 @@ abstract final class SupabaseConfig {
 
   static String extraCheckoutCancelUrl(String productId) =>
       _extraCheckoutReturnUri(status: 'cancel', productId: productId).toString();
+
+  /// Costruisce success/cancel URL non-web da origin + productId.
+  @visibleForTesting
+  static Uri buildNonWebExtraCheckoutReturnUri({
+    required String origin,
+    required String status,
+    required String productId,
+  }) {
+    return Uri.parse(origin).replace(
+      path: '/',
+      queryParameters: <String, String>{
+        'extraCheckout': status,
+        'productId': productId,
+      },
+    );
+  }
 
   static Uri _extraCheckoutReturnUri({
     required String status,
@@ -73,12 +100,10 @@ abstract final class SupabaseConfig {
         },
       );
     }
-    return Uri.parse(checkoutRedirectOrigin).replace(
-      path: '/',
-      queryParameters: <String, String>{
-        'extraCheckout': status,
-        'productId': productId,
-      },
+    return buildNonWebExtraCheckoutReturnUri(
+      origin: checkoutRedirectOrigin,
+      status: status,
+      productId: productId,
     );
   }
 
