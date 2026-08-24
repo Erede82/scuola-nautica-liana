@@ -3,6 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/constants/app_branding.dart';
 import 'package:scuola_nautica_liana/pages/login_page.dart';
 
+bool _usesBrandingAsset(Image widget, String assetName) {
+  var provider = widget.image;
+  if (provider is ResizeImage) {
+    provider = provider.imageProvider;
+  }
+  return provider is AssetImage && provider.assetName == assetName;
+}
+
 void main() {
   for (final size in const [
     Size(390, 844),
@@ -37,12 +45,11 @@ void main() {
 
         expect(find.byType(LoginPage), findsOneWidget);
         expect(
-          find.byWidgetPredicate((widget) {
-            if (widget is! Image) return false;
-            final provider = widget.image;
-            return provider is AssetImage &&
-                provider.assetName == AppBranding.logoScuolaNauticaLianaBlue;
-          }),
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Image &&
+                _usesBrandingAsset(widget, AppBranding.logoScuolaNauticaLianaBlue),
+          ),
           findsOneWidget,
         );
         expect(

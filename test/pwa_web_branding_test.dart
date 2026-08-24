@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,6 +32,40 @@ void main() {
         entry.value,
         reason: '${entry.key} size $size != ${entry.value}',
       );
+    }
+  });
+
+  test('icone maskable distinte dalle standard', () {
+    final standard512 = web('icons/Icon-512.png').readAsBytesSync();
+    final maskable512 = web('icons/Icon-maskable-512.png').readAsBytesSync();
+    final standard192 = web('icons/Icon-192.png').readAsBytesSync();
+    final maskable192 = web('icons/Icon-maskable-192.png').readAsBytesSync();
+
+    expect(standard512, isNot(equals(maskable512)));
+    expect(standard192, isNot(equals(maskable192)));
+  });
+
+  test('icone PWA senza halo e con background #005E83', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    const bg = (0x00, 0x5E, 0x83);
+    const white = (0xFF, 0xFF, 0xFF);
+
+    for (final relative in [
+      'icons/Icon-512.png',
+      'icons/Icon-192.png',
+      'icons/apple-touch-icon.png',
+      'icons/Icon-maskable-512.png',
+      'icons/Icon-maskable-192.png',
+      'favicon.png',
+    ]) {
+      final pixels = await _loadRgbPixelsFromFile(web(relative));
+      expect(
+        pixels.every((px) => px == bg || px == white),
+        isTrue,
+        reason: '$relative contiene pixel di fringe',
+      );
+      expect(pixels.first, bg, reason: '$relative angolo non #005E83');
     }
   });
 
@@ -118,4 +153,20 @@ bool _isPng(List<int> bytes) {
   final h =
       (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
   return (w, h);
+}
+
+Future<List<(int, int, int)>> _loadRgbPixelsFromFile(File pngFile) async {
+  final codec = await ui.instantiateImageCodec(pngFile.readAsBytesSync());
+  final frame = await codec.getNextFrame();
+  final image = frame.image;
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  expect(byteData, isNotNull);
+
+  final out = <(int, int, int)>[];
+  final bytes = byteData!.buffer.asUint8List();
+  for (var i = 0; i < bytes.length; i += 4) {
+    out.add((bytes[i], bytes[i + 1], bytes[i + 2]));
+  }
+  image.dispose();
+  return out;
 }

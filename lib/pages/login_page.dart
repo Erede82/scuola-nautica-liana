@@ -152,11 +152,19 @@ class _LoginPageState extends State<LoginPage> {
                   150.0,
                   210.0,
                 );
+                final cacheWidth = constraints.maxWidth >= 1200
+                    ? null
+                    : (logoWidth *
+                              MediaQuery.devicePixelRatioOf(context) *
+                              1.15)
+                          .round()
+                          .clamp(300, 480);
                 return Center(
                   child: Image.asset(
                     AppBranding.logoScuolaNauticaLianaBlue,
                     width: logoWidth,
                     fit: BoxFit.contain,
+                    cacheWidth: cacheWidth,
                     filterQuality: FilterQuality.high,
                     semanticLabel: AppBranding.schoolName,
                     errorBuilder: (context, error, stackTrace) => Text(

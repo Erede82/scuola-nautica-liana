@@ -40,6 +40,7 @@ class _WelcomePageState extends State<WelcomePage> {
   bool _discoverVisible = false;
   bool _journeyVisible = false;
   bool _showBackToTop = false;
+  bool _precacheStarted = false;
 
   @override
   void initState() {
@@ -48,7 +49,40 @@ class _WelcomePageState extends State<WelcomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleScroll();
+      _precacheWelcomeAssets();
     });
+  }
+
+  /// Precarica hero e logo login senza bloccare il primo frame.
+  Future<void> _precacheWelcomeAssets() async {
+    if (!mounted || _precacheStarted) return;
+    _precacheStarted = true;
+
+    final heroCacheWidth = _WelcomeAssetHints.heroCacheWidth(context);
+    final logoCacheWidth = _WelcomeAssetHints.loginLogoCacheWidth(context);
+
+    final futures = <Future<void>>[
+      precacheImage(
+        _WelcomeAssetHints.resizedAsset(
+          AppBranding.welcomeBoatJpg,
+          cacheWidth: heroCacheWidth,
+        ),
+        context,
+      ),
+      precacheImage(
+        _WelcomeAssetHints.resizedAsset(
+          AppBranding.logoScuolaNauticaLianaBlue,
+          cacheWidth: logoCacheWidth,
+        ),
+        context,
+      ),
+    ];
+
+    try {
+      await Future.wait(futures);
+    } catch (_) {
+      // Asset opzionali: il fallback gradient/errorBuilder resta disponibile.
+    }
   }
 
   void _handleScroll() {
@@ -405,6 +439,8 @@ class _HeroSection extends StatelessWidget {
           Image.asset(
             AppBranding.welcomeBoatJpg,
             fit: BoxFit.cover,
+            cacheWidth: _WelcomeAssetHints.heroCacheWidth(context),
+            filterQuality: FilterQuality.medium,
             errorBuilder: (_, _, _) {
               return Container(
                 decoration: const BoxDecoration(
@@ -813,6 +849,10 @@ class _DiscoverImageCard extends StatelessWidget {
             Image.asset(
               imagePath,
               fit: BoxFit.cover,
+              cacheWidth: imagePath == AppBranding.welcomeBoatJpg
+                  ? _WelcomeAssetHints.discoverCardCacheWidth(context)
+                  : null,
+              filterQuality: FilterQuality.medium,
               errorBuilder: (_, _, _) {
                 return Container(
                   decoration: const BoxDecoration(
@@ -1371,6 +1411,52 @@ class _FooterLinkText extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Limiti decode/precache per Welcome su layout compatto (desktop resta full-res).
+abstract final class _WelcomeAssetHints {
+  static const int _compactHeroMinCacheWidth = 960;
+  static const int _compactHeroMaxCacheWidth = 1600;
+  static const int _compactCardMaxCacheWidth = 1200;
+  static const int _loginLogoMaxCacheWidth = 480;
+
+  static ImageProvider resizedAsset(
+    String assetPath, {
+    int? cacheWidth,
+  }) {
+    final provider = AssetImage(assetPath);
+    if (cacheWidth == null) return provider;
+    return ResizeImage(provider, width: cacheWidth);
+  }
+
+  static int? heroCacheWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= 900) return null;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return (width * dpr * 1.1)
+        .round()
+        .clamp(_compactHeroMinCacheWidth, _compactHeroMaxCacheWidth);
+  }
+
+  static int? discoverCardCacheWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= 900) return null;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cardWidth = width >= 900 ? width / 2 : width - 40;
+    return (cardWidth * dpr * 1.05)
+        .round()
+        .clamp(720, _compactCardMaxCacheWidth);
+  }
+
+  static int? loginLogoCacheWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= 1200) return null;
+    final logoWidth = (width * 0.55).clamp(150.0, 210.0);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final target = (logoWidth * dpr * 1.15).round();
+    if (target >= 760) return null;
+    return target.clamp(300, _loginLogoMaxCacheWidth);
   }
 }
 
