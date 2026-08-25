@@ -12,10 +12,13 @@ import 'staff_access_service.dart';
 /// un refresh esplicito. Poi [StudentAuthRepository.restoreSessionIfAvailable],
 /// infine [initializeStaffAccess].
 Future<void> bootstrapAppAuth() async {
-  if (SupabaseConfig.isConfigured) {
-    await refreshSupabaseSessionIfExpired();
+  if (!SupabaseConfig.isConfigured) {
+    // Anonimo / offline: niente lavoro Auth. Welcome può partire subito.
+    return;
   }
+  await refreshSupabaseSessionIfExpired();
   await studentAuthRepository.restoreSessionIfAvailable();
+  // Listener + snapshot: su cold start anonimo resolve è immediato (no role).
   await initializeStaffAccess();
 }
 

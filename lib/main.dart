@@ -7,6 +7,8 @@ import 'services/app_auth_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Route stale `#/forgot-password`: normalizzata in web/index.html prima di Flutter.
+  // Vedi [web_startup_route_guard.dart] per la logica testabile e i limiti recovery.
   await SupabaseConfig.initialize();
   if (kDebugMode) {
     debugPrint(

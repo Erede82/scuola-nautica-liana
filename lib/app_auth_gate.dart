@@ -109,10 +109,16 @@ class _AppAuthGateState extends State<AppAuthGate> {
     super.dispose();
   }
 
+  static const Color _startupBg = Color(0xFF005E83);
+
   @override
   Widget build(BuildContext context) {
     if (_bootstrapping) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // Allineato allo splash HTML: niente flash bianco tra first-frame e Welcome.
+      return const Scaffold(
+        backgroundColor: _startupBg,
+        body: SizedBox.expand(),
+      );
     }
 
     if (!SupabaseConfig.isConfigured) {

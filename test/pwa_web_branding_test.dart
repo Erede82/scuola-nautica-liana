@@ -128,6 +128,18 @@ void main() {
     expect(html.toLowerCase(), isNot(contains('flutter demo')));
   });
 
+  test('index.html splash HTML e background #005E83', () {
+    final html = web('index.html').readAsStringSync();
+    expect(html, contains('id="liana-splash"'));
+    expect(html, contains('background-color: #005E83'));
+    expect(html, contains('src="icons/Icon-512.png"'));
+    expect(html, contains('flutter-first-frame'));
+    expect(html, contains('env(safe-area-inset-top'));
+    expect(html, contains('forgot-password'));
+    expect(html, isNot(contains('https://fonts.googleapis.com')));
+    expect(html, isNot(contains('-webkit-only')));
+  });
+
   test('nessun riferimento HTML alle icone Flutter template residue', () {
     final html = web('index.html').readAsStringSync();
     expect(html, isNot(contains('icons/Icon-192.png')));
