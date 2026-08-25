@@ -2,30 +2,67 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/app_auth_gate.dart';
 import 'package:scuola_nautica_liana/pages/forgot_password_page.dart';
+import 'package:scuola_nautica_liana/pages/login_page.dart';
+import 'package:scuola_nautica_liana/pages/student_registration_page.dart';
 import 'package:scuola_nautica_liana/pages/welcome_page.dart';
 import 'package:scuola_nautica_liana/services/web_startup_route_guard.dart';
 
+Map<String, WidgetBuilder> _productionRoutes() => {
+      '/login': (context) => const LoginPage(),
+      '/register': (context) => const StudentRegistrationPage(),
+      '/forgot-password': (context) => const ForgotPasswordPage(),
+    };
+
+Widget _productionWelcomeApp({Widget? home}) {
+  return MaterialApp(
+    home: home ?? const WelcomePage(),
+    routes: _productionRoutes(),
+  );
+}
+
 void main() {
   group('web startup route guard', () {
-    test('stale #/forgot-password senza recovery → root', () {
+    test('stale #/forgot-password senza recovery → /#/', () {
       expect(
         resolvedCleanStartupLocation(
           hash: '#/forgot-password',
           search: '',
           pathname: '/',
         ),
-        '/',
+        '/#/',
       );
     });
 
-    test('stale forgot-password path → root', () {
+    test('stale app.autoscuolaliana.it/#/forgot-password → /#/', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/forgot-password',
+          search: '',
+          pathname: '/',
+        ),
+        '/#/',
+      );
+    });
+
+    test('stale forgot-password path → /#/', () {
       expect(
         resolvedCleanStartupLocation(
           hash: '',
           search: '',
           pathname: '/forgot-password',
         ),
-        '/',
+        '/#/',
+      );
+    });
+
+    test('stale con query legittima preserva search → /?foo=bar#/', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/forgot-password',
+          search: '?foo=bar',
+          pathname: '/',
+        ),
+        '/?foo=bar#/',
       );
     });
 
@@ -44,6 +81,17 @@ void main() {
           search: '',
         ),
         isTrue,
+      );
+    });
+
+    test('recovery reale su #/forgot-password con payload preserva URL', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/forgot-password?type=recovery&access_token=abc',
+          search: '',
+          pathname: '/',
+        ),
+        isNull,
       );
     });
 
@@ -80,25 +128,32 @@ void main() {
     });
   });
 
-  testWidgets('cold start root → Welcome (anonimo)', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: AppAuthGate()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.byType(WelcomePage), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  group('Welcome CTA production-like', () {
+    testWidgets('tester.tap(Accedi) → LoginPage', (tester) async {
+      await tester.pumpWidget(_productionWelcomeApp());
+      await tester.pumpAndSettle();
 
-  testWidgets(
-    'navigazione manuale Password dimenticata? apre ForgotPasswordPage',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: const WelcomePage(),
-          routes: {
-            '/forgot-password': (_) => const ForgotPasswordPage(),
-          },
-        ),
-      );
+      await tester.tap(find.text('Accedi'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(find.textContaining('Accedi con le credenziali'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Registrati → StudentRegistrationPage', (tester) async {
+      await tester.pumpWidget(_productionWelcomeApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Registrati'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StudentRegistrationPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Password dimenticata? → ForgotPasswordPage', (tester) async {
+      await tester.pumpWidget(_productionWelcomeApp());
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Password dimenticata?'));
@@ -107,33 +162,51 @@ void main() {
       expect(find.byType(ForgotPasswordPage), findsOneWidget);
       expect(find.text('Recupera password'), findsOneWidget);
       expect(tester.takeException(), isNull);
-    },
-  );
+    });
+  });
 
-  testWidgets(
-    'named route /forgot-password resta raggiungibile manualmente',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pushNamed('/forgot-password'),
-                child: const Text('go-forgot'),
-              ),
-            ),
-          ),
-          routes: {
-            '/forgot-password': (_) => const ForgotPasswordPage(),
-          },
-        ),
-      );
+  group('Welcome back navigation', () {
+    testWidgets('Welcome → Accedi → Login → Back → Welcome', (tester) async {
+      await tester.pumpWidget(_productionWelcomeApp());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('go-forgot'));
+
+      await tester.tap(find.text('Accedi'));
       await tester.pumpAndSettle();
-      expect(find.byType(ForgotPasswordPage), findsOneWidget);
-      expect(find.text('Recupera password'), findsOneWidget);
-    },
-  );
+      expect(find.byType(LoginPage), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomePage), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'Welcome → Password dimenticata → Forgot → Back → Welcome',
+      (tester) async {
+        await tester.pumpWidget(_productionWelcomeApp());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Password dimenticata?'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ForgotPasswordPage), findsOneWidget);
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(WelcomePage), findsOneWidget);
+        expect(find.byType(ForgotPasswordPage), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
+
+  testWidgets('cold start root → Welcome (anonimo)', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AppAuthGate()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(WelcomePage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

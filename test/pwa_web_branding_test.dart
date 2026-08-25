@@ -136,6 +136,7 @@ void main() {
     expect(html, contains('flutter-first-frame'));
     expect(html, contains('env(safe-area-inset-top'));
     expect(html, contains('forgot-password'));
+    expect(html, contains("+ '#/"));
     expect(html, isNot(contains('https://fonts.googleapis.com')));
     expect(html, isNot(contains('-webkit-only')));
   });

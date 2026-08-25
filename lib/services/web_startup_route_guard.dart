@@ -10,9 +10,12 @@
 /// un flow UI nuovo.
 ///
 /// La normalizzazione runtime avviene in `web/index.html` *prima* del bootstrap
-/// Flutter (history.replaceState). Questo modulo espone la stessa logica in
-/// forma testabile.
+/// Flutter (`history.replaceState` hash-compatible). Questo modulo espone la
+/// stessa logica in forma testabile.
 library;
+
+/// Root hash Flutter dopo normalizzazione stale.
+const String flutterHashRoot = '#/';
 
 /// True se hash/query contengono un payload Auth/recovery reale.
 bool hasRealAuthRecoveryPayload({
@@ -42,7 +45,8 @@ bool isStaleForgotPasswordPath(String path) {
 
 /// Calcola l’URL di replace per un cold start stale, o `null` se non agire.
 ///
-/// Usato dai test e allineato allo script in `web/index.html`.
+/// Flutter Web usa hash routing: la normalizzazione resta nello spazio `/#/…`,
+/// non in un pathname hashless `/`.
 String? resolvedCleanStartupLocation({
   required String hash,
   required String search,
@@ -65,5 +69,6 @@ String? resolvedCleanStartupLocation({
         )
       : pathname;
   final normalizedPath = cleanPath.isEmpty ? '/' : cleanPath;
-  return search.isEmpty ? normalizedPath : '$normalizedPath?$search';
+  final query = search.isEmpty ? '' : search;
+  return '$normalizedPath$query$flutterHashRoot';
 }

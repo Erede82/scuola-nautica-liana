@@ -90,11 +90,10 @@
           /^\/forgot-password\/?$/i.test(location.pathname);
         if (!staleForgot) return;
 
-        var clean =
-          location.pathname.replace(/\/forgot-password\/?$/i, '/') +
-          (search || '');
-        if (!clean || clean === '') clean = '/';
-        history.replaceState(null, '', clean);
+        var cleanPath =
+          location.pathname.replace(/\/forgot-password\/?$/i, '/');
+        if (!cleanPath || cleanPath === '') cleanPath = '/';
+        history.replaceState(null, '', cleanPath + (search || '') + '#/');
       } catch (_) {}
     })();
   </script>
