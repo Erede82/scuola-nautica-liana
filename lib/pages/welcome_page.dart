@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../constants/app_branding.dart';
+import '../services/startup_diagnostics.dart';
 import '../theme/app_visual_tokens.dart';
 import '../utils/school_contact_launcher.dart';
 
@@ -36,20 +37,32 @@ class _WelcomePageState extends State<WelcomePage> {
   final GlobalKey _discoverTitleKey = GlobalKey();
   final GlobalKey _journeySectionKey = GlobalKey();
 
+  final GlobalKey _ctaAccediKey = GlobalKey();
+  final GlobalKey _ctaRegistratiKey = GlobalKey();
+  final GlobalKey _ctaForgotKey = GlobalKey();
+  final GlobalKey _ctaScopriKey = GlobalKey();
+
   bool _heroVisible = false;
   bool _discoverVisible = false;
   bool _journeyVisible = false;
   bool _showBackToTop = false;
   bool _precacheStarted = false;
+  bool _loggedRevealHeroStart = false;
+  final Map<String, double> _lastCtaY = <String, double>{};
 
   @override
   void initState() {
     super.initState();
+    StartupDiagnostics.log('WELCOME initState');
     _scrollController.addListener(_handleScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      StartupDiagnostics.log('WELCOME firstPostFrame');
       _handleScroll();
       _precacheWelcomeAssets();
+      _logCtaLayoutsIfNeeded();
+      // Compact hero usa SingleChildScrollView interno: solo diagnostica.
+      StartupDiagnostics.log('hero inner scrollable present=true');
     });
   }
 
@@ -101,13 +114,52 @@ class _WelcomePageState extends State<WelcomePage> {
         nd != _discoverVisible ||
         nj != _journeyVisible ||
         showTop != _showBackToTop) {
+      if (nh != _heroVisible) {
+        StartupDiagnostics.log('HERO visible=$nh');
+        if (nh && !_loggedRevealHeroStart) {
+          _loggedRevealHeroStart = true;
+          StartupDiagnostics.log('REVEAL hero start');
+        }
+        if (nh) {
+          StartupDiagnostics.log('REVEAL hero visible');
+        }
+      }
+      if (nd != _discoverVisible) {
+        StartupDiagnostics.log('DISCOVER visible=$nd');
+      }
       setState(() {
         _heroVisible = nh;
         _discoverVisible = nd;
         _journeyVisible = nj;
         _showBackToTop = showTop;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _logCtaLayoutsIfNeeded();
+      });
     }
+  }
+
+  void _logCtaLayoutsIfNeeded() {
+    if (!StartupDiagnostics.enabled || !mounted) return;
+    _logOneCtaLayout('Accedi', _ctaAccediKey);
+    _logOneCtaLayout('Registrati', _ctaRegistratiKey);
+    _logOneCtaLayout('Forgot', _ctaForgotKey);
+    _logOneCtaLayout('Scopri', _ctaScopriKey);
+  }
+
+  void _logOneCtaLayout(String label, GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final y = box.localToGlobal(Offset.zero).dy;
+    final h = box.size.height;
+    final prev = _lastCtaY[label];
+    if (prev != null && (y - prev).abs() <= 2) return;
+    _lastCtaY[label] = y;
+    StartupDiagnostics.log(
+      'LAYOUT $label y=${y.toStringAsFixed(1)} h=${h.toStringAsFixed(1)}',
+    );
   }
 
   /// `null` se il render object non è ancora pronto (non sovrascrivere lo stato).
@@ -130,23 +182,45 @@ class _WelcomePageState extends State<WelcomePage> {
 
   @override
   void dispose() {
+    StartupDiagnostics.log('WELCOME dispose');
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _scrollToDiscover() async {
-    if (!mounted) return;
+    StartupDiagnostics.log('SCROLL begin');
+    StartupDiagnostics.log(
+      'SCROLLCTRL attached=${_scrollController.hasClients} '
+      'offset=${_scrollController.hasClients ? _scrollController.offset.toStringAsFixed(1) : 'n/a'}',
+    );
+    if (!mounted) {
+      StartupDiagnostics.log('SCROLL abort=unmounted');
+      return;
+    }
 
     // La sezione deve essere già “svelata” (niente AnimatedSlide spostato) prima dello scroll.
     setState(() => _discoverVisible = true);
+    StartupDiagnostics.log('DISCOVER visible=true');
     await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
+    StartupDiagnostics.log('SCROLL afterEndOfFrame');
+    if (!mounted) {
+      StartupDiagnostics.log('SCROLL abort=unmounted');
+      return;
+    }
 
     final targetContext =
         _discoverTitleKey.currentContext ?? _discoverKey.currentContext;
-    if (targetContext == null || !targetContext.mounted) return;
-    if (!_scrollController.hasClients) return;
+    StartupDiagnostics.log('SCROLL targetContext=${targetContext != null}');
+    if (targetContext == null || !targetContext.mounted) {
+      StartupDiagnostics.log('SCROLL abort=noTargetContext');
+      return;
+    }
+    StartupDiagnostics.log('SCROLL hasClients=${_scrollController.hasClients}');
+    if (!_scrollController.hasClients) {
+      StartupDiagnostics.log('SCROLL abort=noClients');
+      return;
+    }
 
     final viewH = MediaQuery.sizeOf(context).height;
     // Stessi parametri di prima, ma arriviamo al punto finale in una sola animazione (niente “doppio passaggio”).
@@ -162,7 +236,11 @@ class _WelcomePageState extends State<WelcomePage> {
         : 36.0;
 
     final renderObject = targetContext.findRenderObject();
-    if (renderObject == null) return;
+    StartupDiagnostics.log('SCROLL renderObject=${renderObject != null}');
+    if (renderObject == null) {
+      StartupDiagnostics.log('SCROLL abort=noRenderObject');
+      return;
+    }
 
     final viewport = RenderAbstractViewport.of(renderObject);
     final position = _scrollController.position;
@@ -172,11 +250,17 @@ class _WelcomePageState extends State<WelcomePage> {
       position.maxScrollExtent,
     );
 
+    StartupDiagnostics.log(
+      'SCROLL currentOffset=${position.pixels.toStringAsFixed(1)} '
+      'destination=${destination.toStringAsFixed(1)}',
+    );
+    StartupDiagnostics.log('SCROLL animateTo');
     await position.animateTo(
       destination,
       duration: const Duration(milliseconds: 780),
       curve: Curves.easeOutCubic,
     );
+    StartupDiagnostics.log('SCROLL completed');
   }
 
   void _scrollToTop() {
@@ -198,6 +282,9 @@ class _WelcomePageState extends State<WelcomePage> {
       return;
     }
 
+    StartupDiagnostics.log(
+      'NAV target=${StartupDiagnostics.sanitizeRoute(fallbackRoute)}',
+    );
     Navigator.maybeOf(context)?.pushNamed(fallbackRoute);
   }
 
@@ -223,19 +310,34 @@ class _WelcomePageState extends State<WelcomePage> {
                     visible: _heroVisible,
                     offsetY: 18,
                     child: _HeroSection(
-                      onDiscoverTap: _scrollToDiscover,
-                      onLoginTap: () =>
-                          _handleAction(context, widget.onLoginTap, '/login'),
-                      onRegisterTap: () => _handleAction(
-                        context,
-                        widget.onRegisterTap,
-                        '/register',
-                      ),
-                      onForgotPasswordTap: () => _handleAction(
-                        context,
-                        widget.onForgotPasswordTap,
-                        '/forgot-password',
-                      ),
+                      accediKey: _ctaAccediKey,
+                      registratiKey: _ctaRegistratiKey,
+                      forgotKey: _ctaForgotKey,
+                      scopriKey: _ctaScopriKey,
+                      onDiscoverTap: () {
+                        StartupDiagnostics.log('TAP Scopri');
+                        _scrollToDiscover();
+                      },
+                      onLoginTap: () {
+                        StartupDiagnostics.log('TAP Accedi');
+                        _handleAction(context, widget.onLoginTap, '/login');
+                      },
+                      onRegisterTap: () {
+                        StartupDiagnostics.log('TAP Registrati');
+                        _handleAction(
+                          context,
+                          widget.onRegisterTap,
+                          '/register',
+                        );
+                      },
+                      onForgotPasswordTap: () {
+                        StartupDiagnostics.log('TAP Forgot');
+                        _handleAction(
+                          context,
+                          widget.onForgotPasswordTap,
+                          '/forgot-password',
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -319,12 +421,20 @@ class _HeroSection extends StatelessWidget {
     required this.onLoginTap,
     required this.onRegisterTap,
     required this.onForgotPasswordTap,
+    required this.accediKey,
+    required this.registratiKey,
+    required this.forgotKey,
+    required this.scopriKey,
   });
 
   final VoidCallback onDiscoverTap;
   final VoidCallback onLoginTap;
   final VoidCallback onRegisterTap;
   final VoidCallback onForgotPasswordTap;
+  final GlobalKey accediKey;
+  final GlobalKey registratiKey;
+  final GlobalKey forgotKey;
+  final GlobalKey scopriKey;
 
   static const Color _ctaBlue = Color(0xFF1B5583);
 
@@ -485,6 +595,10 @@ class _HeroSection extends StatelessWidget {
                   onRegisterTap: onRegisterTap,
                   onForgotPasswordTap: onForgotPasswordTap,
                   onDiscoverTap: onDiscoverTap,
+                  accediKey: accediKey,
+                  registratiKey: registratiKey,
+                  forgotKey: forgotKey,
+                  scopriKey: scopriKey,
                 );
               },
             ),
@@ -502,6 +616,10 @@ class _HeroSection extends StatelessWidget {
     required VoidCallback onRegisterTap,
     required VoidCallback onForgotPasswordTap,
     required VoidCallback onDiscoverTap,
+    required GlobalKey accediKey,
+    required GlobalKey registratiKey,
+    required GlobalKey forgotKey,
+    required GlobalKey scopriKey,
   }) {
     final horizontalPadding = isCompact ? 24.0 : 40.0;
     final verticalPadding = isCompact ? (cramped ? 12.0 : 20.0) : 36.0;
@@ -517,11 +635,13 @@ class _HeroSection extends StatelessWidget {
           runSpacing: 14,
           children: [
             OutlinedButton(
+              key: accediKey,
               onPressed: onLoginTap,
               style: _heroMainCtaStyle(),
               child: const Text('Accedi'),
             ),
             OutlinedButton(
+              key: registratiKey,
               onPressed: onRegisterTap,
               style: _heroMainCtaStyle(),
               child: const Text('Registrati'),
@@ -530,6 +650,7 @@ class _HeroSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         TextButton(
+          key: forgotKey,
           onPressed: onForgotPasswordTap,
           style: TextButton.styleFrom(
             foregroundColor: Colors.white.withValues(alpha: 0.88),
@@ -542,6 +663,7 @@ class _HeroSection extends StatelessWidget {
         ),
         SizedBox(height: isCompact ? (cramped ? 14 : 20) : 22),
         OutlinedButton(
+          key: scopriKey,
           onPressed: onDiscoverTap,
           style: _heroDiscoverStyle(),
           child: const Text('SCOPRICI'),

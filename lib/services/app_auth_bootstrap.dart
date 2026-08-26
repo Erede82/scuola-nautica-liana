@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../repositories/student_auth_registry.dart';
 import 'staff_access_service.dart';
+import 'startup_diagnostics.dart';
 
 /// Avvio sessione: JWT aggiornato se scaduto, poi ripristino profilo studente, poi permessi staff.
 ///
@@ -12,14 +13,17 @@ import 'staff_access_service.dart';
 /// un refresh esplicito. Poi [StudentAuthRepository.restoreSessionIfAvailable],
 /// infine [initializeStaffAccess].
 Future<void> bootstrapAppAuth() async {
+  StartupDiagnostics.log('AUTH bootstrapStart');
   if (!SupabaseConfig.isConfigured) {
     // Anonimo / offline: niente lavoro Auth. Welcome può partire subito.
+    StartupDiagnostics.log('AUTH bootstrapComplete');
     return;
   }
   await refreshSupabaseSessionIfExpired();
   await studentAuthRepository.restoreSessionIfAvailable();
   // Listener + snapshot: su cold start anonimo resolve è immediato (no role).
   await initializeStaffAccess();
+  StartupDiagnostics.log('AUTH bootstrapComplete');
 }
 
 /// Se la sessione locale ha JWT scaduto, rinfresca prima delle query protette.

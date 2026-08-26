@@ -13,6 +13,7 @@ import 'services/auth_flow_state.dart';
 import 'services/auth_logout_navigation.dart';
 import 'services/demo_student_enrollment.dart';
 import 'services/staff_access_service.dart';
+import 'services/startup_diagnostics.dart';
 import 'utils/admin_access_utils.dart';
 
 /// Root dell’app: Welcome se non autenticato, altrimenti Home o Admin.
@@ -59,6 +60,7 @@ class _AppAuthGateState extends State<AppAuthGate> {
   Future<void> _finalizeBootstrap() async {
     if (!SupabaseConfig.isConfigured) {
       if (mounted) setState(() => _bootstrapping = false);
+      StartupDiagnostics.log('AUTH gateWelcome');
       return;
     }
 
@@ -92,6 +94,11 @@ class _AppAuthGateState extends State<AppAuthGate> {
       }
     }
     if (mounted) setState(() => _bootstrapping = false);
+    if (mounted &&
+        (!SupabaseConfig.isConfigured ||
+            Supabase.instance.client.auth.currentUser == null)) {
+      StartupDiagnostics.log('AUTH gateWelcome');
+    }
   }
 
   @override
