@@ -1,20 +1,18 @@
-/// Guard di startup web/PWA: distingue route Flutter stale da recovery Auth reale.
+/// Guard di startup web/PWA: root Flutter canonica `/#/` e route stale.
 ///
-/// Caso tipico: hash Flutter `#/forgot-password` residuo da una sessione
-/// precedente. Non è un flusso Auth recovery.
+/// Comportamenti (allineati a `web/index.html`, prima di `flutter_bootstrap.js`):
+/// - `/` → `/#/`
+/// - `/?foo=bar` → `/?foo=bar#/`
+/// - `/#/forgot-password` (senza recovery) → `/#/`
+/// - `/#/`, `/#/login`, `/#/register` → no-op (idempotente)
 ///
 /// Limitazione documentata: l’app **non** implementa una schermata dedicata
 /// “imposta nuova password” dopo il link email. I payload Supabase reali
 /// (`access_token` / `type=recovery` / `code` in hash o query) vengono
-/// lasciati intatti così `supabase_flutter` può recuperarli; non inventiamo
-/// un flow UI nuovo.
-///
-/// La normalizzazione runtime avviene in `web/index.html` *prima* del bootstrap
-/// Flutter (`history.replaceState` hash-compatible). Questo modulo espone la
-/// stessa logica in forma testabile.
+/// lasciati intatti così `supabase_flutter` può recuperarli.
 library;
 
-/// Root hash Flutter dopo normalizzazione stale.
+/// Root hash Flutter dopo normalizzazione.
 const String flutterHashRoot = '#/';
 
 /// True se hash/query contengono un payload Auth/recovery reale.
@@ -43,10 +41,14 @@ bool isStaleForgotPasswordPath(String path) {
   return RegExp(r'/forgot-password/?$', caseSensitive: false).hasMatch(path);
 }
 
-/// Calcola l’URL di replace per un cold start stale, o `null` se non agire.
+bool _isHashEmpty(String hash) => hash.isEmpty || hash == '#';
+
+bool _isAppRootPath(String pathname) =>
+    pathname.isEmpty || pathname == '/';
+
+/// Calcola l’URL di replace per cold start, o `null` se non agire.
 ///
-/// Flutter Web usa hash routing: la normalizzazione resta nello spazio `/#/…`,
-/// non in un pathname hashless `/`.
+/// Flutter Web usa hash routing: la root canonica è `/#/`, non `/`.
 String? resolvedCleanStartupLocation({
   required String hash,
   required String search,
@@ -56,19 +58,26 @@ String? resolvedCleanStartupLocation({
     return null;
   }
 
+  final query = search.isEmpty ? '' : search;
   final fragmentLooksStale = isStaleForgotPasswordFragment(hash);
   final pathLooksStale = isStaleForgotPasswordPath(pathname);
-  if (!fragmentLooksStale && !pathLooksStale) {
-    return null;
+
+  if (fragmentLooksStale || pathLooksStale) {
+    final cleanPath = pathLooksStale
+        ? pathname.replaceFirst(
+            RegExp(r'/forgot-password/?$', caseSensitive: false),
+            '/',
+          )
+        : pathname;
+    final normalizedPath = cleanPath.isEmpty ? '/' : cleanPath;
+    return '$normalizedPath$query$flutterHashRoot';
   }
 
-  final cleanPath = pathLooksStale
-      ? pathname.replaceFirst(
-          RegExp(r'/forgot-password/?$', caseSensitive: false),
-          '/',
-        )
-      : pathname;
-  final normalizedPath = cleanPath.isEmpty ? '/' : cleanPath;
-  final query = search.isEmpty ? '' : search;
-  return '$normalizedPath$query$flutterHashRoot';
+  // Root hashless → `/#/` (idempotente: `/#/` ha hash non vuoto → no-op).
+  if (_isAppRootPath(pathname) && _isHashEmpty(hash)) {
+    final normalizedPath = pathname.isEmpty ? '/' : pathname;
+    return '$normalizedPath$query$flutterHashRoot';
+  }
+
+  return null;
 }

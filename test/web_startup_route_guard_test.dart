@@ -22,6 +22,61 @@ Widget _productionWelcomeApp({Widget? home}) {
 
 void main() {
   group('web startup route guard', () {
+    test('root hashless / → /#/', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '',
+          search: '',
+          pathname: '/',
+        ),
+        '/#/',
+      );
+    });
+
+    test('root con query /?foo=bar → /?foo=bar#/', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '',
+          search: '?foo=bar',
+          pathname: '/',
+        ),
+        '/?foo=bar#/',
+      );
+    });
+
+    test('/#/ è idempotente → no action', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/',
+          search: '',
+          pathname: '/',
+        ),
+        isNull,
+      );
+    });
+
+    test('/#/login → no action', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/login',
+          search: '',
+          pathname: '/',
+        ),
+        isNull,
+      );
+    });
+
+    test('/#/register → no action', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '#/register',
+          search: '',
+          pathname: '/',
+        ),
+        isNull,
+      );
+    });
+
     test('stale #/forgot-password senza recovery → /#/', () {
       expect(
         resolvedCleanStartupLocation(
@@ -95,6 +150,17 @@ void main() {
       );
     });
 
+    test('root hashless con recovery code in query → no action', () {
+      expect(
+        resolvedCleanStartupLocation(
+          hash: '',
+          search: '?code=auth-code-1',
+          pathname: '/',
+        ),
+        isNull,
+      );
+    });
+
     test('PKCE code in query non viene normalizzato', () {
       expect(
         resolvedCleanStartupLocation(
@@ -125,6 +191,23 @@ void main() {
       expect(isStaleForgotPasswordFragment('#/login'), isFalse);
       expect(isStaleForgotPasswordPath('/forgot-password'), isTrue);
       expect(isStaleForgotPasswordPath('/'), isFalse);
+    });
+
+    test('history target: Back resta nello spazio /#/', () {
+      // Prima: / → /#/login → Back → /  (boundary hashless)
+      // Dopo:  /#/ → /#/login → Back → /#/ (niente attraversamento)
+      expect(
+        resolvedCleanStartupLocation(hash: '', search: '', pathname: '/'),
+        '/#/',
+      );
+      expect(
+        resolvedCleanStartupLocation(hash: '#/', search: '', pathname: '/'),
+        isNull,
+      );
+      expect(
+        resolvedCleanStartupLocation(hash: '#/login', search: '', pathname: '/'),
+        isNull,
+      );
     });
   });
 

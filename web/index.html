@@ -70,15 +70,18 @@
 </head>
 <body>
   <!--
-    Cold-start guard: una route Flutter stale `#/forgot-password` non deve
-    ripristinarsi al normale avvio. I segnali Auth/recovery reali (token in
-    hash/query) restano intatti.
+    Cold-start guard (prima di flutter_bootstrap.js):
+    1) root hashless `/` → `/#/` (root Flutter canonica)
+    2) stale `#/forgot-password` → `/#/`
+    I segnali Auth/recovery reali (token in hash/query) restano intatti.
+    Idempotente: `/#/`, `/#/login`, `/#/register` → no-op.
   -->
   <script>
     (function () {
       try {
         var hash = location.hash || '';
         var search = location.search || '';
+        var pathname = location.pathname || '/';
         var hasAuthPayload =
           /(?:^|[&#?])(?:access_token|refresh_token|type=recovery|type%3Drecovery|code)=/i.test(
             hash + search
@@ -87,13 +90,20 @@
 
         var staleForgot =
           /^#\/?forgot-password\/?(?:\?.*)?$/i.test(hash) ||
-          /^\/forgot-password\/?$/i.test(location.pathname);
-        if (!staleForgot) return;
+          /^\/forgot-password\/?$/i.test(pathname);
+        if (staleForgot) {
+          var cleanPath = pathname.replace(/\/forgot-password\/?$/i, '/');
+          if (!cleanPath || cleanPath === '') cleanPath = '/';
+          history.replaceState(null, '', cleanPath + (search || '') + '#/');
+          return;
+        }
 
-        var cleanPath =
-          location.pathname.replace(/\/forgot-password\/?$/i, '/');
-        if (!cleanPath || cleanPath === '') cleanPath = '/';
-        history.replaceState(null, '', cleanPath + (search || '') + '#/');
+        // Root hashless → root hash Flutter (niente loop su /#/).
+        var hashEmpty = !hash || hash === '#';
+        var atRoot = pathname === '/' || pathname === '';
+        if (atRoot && hashEmpty) {
+          history.replaceState(null, '', (pathname || '/') + (search || '') + '#/');
+        }
       } catch (_) {}
     })();
   </script>

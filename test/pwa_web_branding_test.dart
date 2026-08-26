@@ -76,7 +76,7 @@ void main() {
     expect(json['name'], 'Scuola Nautica Liana');
     expect(json['short_name'], 'Nautica Liana');
     expect(json['id'], '/');
-    expect(json['start_url'], '/');
+    expect(json['start_url'], '/#/');
     expect(json['scope'], '/');
     expect(json['display'], 'standalone');
     expect(json['background_color'], '#F7F3ED');
@@ -137,6 +137,8 @@ void main() {
     expect(html, contains('env(safe-area-inset-top'));
     expect(html, contains('forgot-password'));
     expect(html, contains("+ '#/"));
+    expect(html, contains('hashEmpty'));
+    expect(html, contains('atRoot'));
     expect(html, isNot(contains('https://fonts.googleapis.com')));
     expect(html, isNot(contains('-webkit-only')));
   });
