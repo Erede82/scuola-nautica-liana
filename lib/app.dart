@@ -7,6 +7,8 @@ import 'app_root_navigator.dart';
 import 'pages/forgot_password_page.dart';
 import 'pages/login_page.dart';
 import 'pages/student_registration_page.dart';
+import 'services/startup_diagnostics.dart';
+import 'services/startup_diagnostics_host.dart';
 import 'theme/app_visual_tokens.dart';
 import 'widgets/international_phone_field.dart';
 
@@ -309,6 +311,11 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordPage(),
       },
       home: const AppAuthGate(),
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        if (!StartupDiagnostics.enabled) return content;
+        return StartupDiagnosticsHost(child: content);
+      },
     );
   }
 }

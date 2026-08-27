@@ -41,6 +41,7 @@ class _WelcomePageState extends State<WelcomePage> {
   final GlobalKey _ctaRegistratiKey = GlobalKey();
   final GlobalKey _ctaForgotKey = GlobalKey();
   final GlobalKey _ctaScopriKey = GlobalKey();
+  final GlobalKey _backToTopKey = GlobalKey();
 
   bool _heroVisible = false;
   bool _discoverVisible = false;
@@ -55,6 +56,17 @@ class _WelcomePageState extends State<WelcomePage> {
     super.initState();
     StartupDiagnostics.log('WELCOME initState');
     _scrollController.addListener(_handleScroll);
+    if (StartupDiagnostics.enabled) {
+      StartupDiagnostics.registerTarget('Accedi', _ctaAccediKey);
+      StartupDiagnostics.registerTarget('Registrati', _ctaRegistratiKey);
+      StartupDiagnostics.registerTarget('Forgot', _ctaForgotKey);
+      StartupDiagnostics.registerTarget('Scopri', _ctaScopriKey);
+      StartupDiagnostics.registerTarget('BackToTop', _backToTopKey);
+      StartupDiagnostics.welcomeScrollOffsetProvider = () {
+        if (!_scrollController.hasClients) return null;
+        return _scrollController.offset;
+      };
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       StartupDiagnostics.log('WELCOME firstPostFrame');
@@ -183,6 +195,14 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   void dispose() {
     StartupDiagnostics.log('WELCOME dispose');
+    if (StartupDiagnostics.enabled) {
+      StartupDiagnostics.unregisterTarget('Accedi');
+      StartupDiagnostics.unregisterTarget('Registrati');
+      StartupDiagnostics.unregisterTarget('Forgot');
+      StartupDiagnostics.unregisterTarget('Scopri');
+      StartupDiagnostics.unregisterTarget('BackToTop');
+      StartupDiagnostics.welcomeScrollOffsetProvider = null;
+    }
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
@@ -386,6 +406,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       ),
                     ),
                     child: InkWell(
+                      key: _backToTopKey,
                       onTap: _scrollToTop,
                       borderRadius: BorderRadius.circular(14),
                       child: Semantics(

@@ -4,6 +4,7 @@ import '../constants/app_branding.dart';
 import '../models/app_auth_summary.dart';
 import '../repositories/student_auth_registry.dart';
 import '../services/staff_access_service.dart';
+import '../services/startup_diagnostics.dart';
 import '../utils/admin_access_utils.dart';
 import '../widgets/branded_app_bar_title.dart';
 import 'accedi_da_pc_page.dart' show showAccediDaPcBottomSheet;
@@ -23,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final GlobalKey _loginBackKey = GlobalKey();
 
   bool _obscure = true;
   bool _loading = false;
@@ -40,7 +42,16 @@ class _LoginPageState extends State<LoginPage> {
       AdminAccessUtils.normalizeEmail(value);
 
   @override
+  void initState() {
+    super.initState();
+    if (StartupDiagnostics.enabled) {
+      StartupDiagnostics.registerTarget('LoginBack', _loginBackKey);
+    }
+  }
+
+  @override
   void dispose() {
+    StartupDiagnostics.unregisterTarget('LoginBack');
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
@@ -139,6 +150,8 @@ class _LoginPageState extends State<LoginPage> {
         backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
+        // Key diagnostica sul back standard (comportamento AppBar invariato).
+        leading: BackButton(key: _loginBackKey),
         title: const SectionAppBarTitle('Accedi', logoHeight: 30),
       ),
       body: Form(

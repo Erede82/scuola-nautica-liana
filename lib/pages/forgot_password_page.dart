@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
 import '../repositories/student_auth_registry.dart';
+import '../services/startup_diagnostics.dart';
 import '../theme/app_visual_tokens.dart';
 
 /// Recupero password via Supabase Auth (`resetPasswordForEmail`).
@@ -15,6 +16,7 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
+  final GlobalKey _forgotBackKey = GlobalKey();
   bool _loading = false;
 
   static const Color _primaryColor = AppVisual.logoBlue;
@@ -27,7 +29,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    if (StartupDiagnostics.enabled) {
+      StartupDiagnostics.registerTarget('ForgotBack', _forgotBackKey);
+    }
+  }
+
+  @override
   void dispose() {
+    StartupDiagnostics.unregisterTarget('ForgotBack');
     _emailCtrl.dispose();
     super.dispose();
   }
@@ -73,6 +84,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
+        leading: BackButton(key: _forgotBackKey),
       ),
       body: Form(
         key: _formKey,
