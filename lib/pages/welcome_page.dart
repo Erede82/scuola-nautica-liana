@@ -58,11 +58,11 @@ class _WelcomePageState extends State<WelcomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       StartupDiagnostics.log('WELCOME firstPostFrame');
+      // Hero CTA senza nested scroll / reveal transform: hit-test stabile dal primo frame.
+      StartupDiagnostics.log('hero inner scrollable present=false');
       _handleScroll();
       _precacheWelcomeAssets();
       _logCtaLayoutsIfNeeded();
-      // Compact hero usa SingleChildScrollView interno: solo diagnostica.
-      StartupDiagnostics.log('hero inner scrollable present=true');
     });
   }
 
@@ -202,65 +202,86 @@ class _WelcomePageState extends State<WelcomePage> {
     // La sezione deve essere già “svelata” (niente AnimatedSlide spostato) prima dello scroll.
     setState(() => _discoverVisible = true);
     StartupDiagnostics.log('DISCOVER visible=true');
-    await WidgetsBinding.instance.endOfFrame;
-    StartupDiagnostics.log('SCROLL afterEndOfFrame');
-    if (!mounted) {
-      StartupDiagnostics.log('SCROLL abort=unmounted');
+
+    // Retry bounded: attempt 0..2 (max 2 retry aggiuntivi), solo endOfFrame.
+    const maxAttempt = 2;
+    for (var attempt = 0; attempt <= maxAttempt; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (attempt == 0) {
+        StartupDiagnostics.log('SCROLL afterEndOfFrame');
+      } else {
+        StartupDiagnostics.log('SCROLL retry=$attempt');
+      }
+      if (!mounted) {
+        StartupDiagnostics.log('SCROLL abort=unmounted');
+        return;
+      }
+
+      final targetContext =
+          _discoverTitleKey.currentContext ?? _discoverKey.currentContext;
+      StartupDiagnostics.log('SCROLL targetContext=${targetContext != null}');
+      if (targetContext == null || !targetContext.mounted) {
+        if (attempt == maxAttempt) {
+          StartupDiagnostics.log('SCROLL abort=noTargetContext');
+          return;
+        }
+        continue;
+      }
+
+      StartupDiagnostics.log(
+        'SCROLL hasClients=${_scrollController.hasClients}',
+      );
+      if (!_scrollController.hasClients) {
+        if (attempt == maxAttempt) {
+          StartupDiagnostics.log('SCROLL abort=noClients');
+          return;
+        }
+        continue;
+      }
+
+      final renderObject = targetContext.findRenderObject();
+      StartupDiagnostics.log('SCROLL renderObject=${renderObject != null}');
+      if (renderObject == null) {
+        if (attempt == maxAttempt) {
+          StartupDiagnostics.log('SCROLL abort=noRenderObject');
+          return;
+        }
+        continue;
+      }
+
+      final viewH = MediaQuery.sizeOf(context).height;
+      final alignment = viewH >= 800
+          ? 0.035
+          : viewH >= 640
+          ? 0.028
+          : 0.022;
+      final nudgeUp = viewH >= 800
+          ? 56.0
+          : viewH >= 640
+          ? 44.0
+          : 36.0;
+
+      final viewport = RenderAbstractViewport.of(renderObject);
+      final position = _scrollController.position;
+      final revealed = viewport.getOffsetToReveal(renderObject, alignment);
+      final destination = (revealed.offset - nudgeUp).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+
+      StartupDiagnostics.log(
+        'SCROLL currentOffset=${position.pixels.toStringAsFixed(1)} '
+        'destination=${destination.toStringAsFixed(1)}',
+      );
+      StartupDiagnostics.log('SCROLL animateTo');
+      await position.animateTo(
+        destination,
+        duration: const Duration(milliseconds: 780),
+        curve: Curves.easeOutCubic,
+      );
+      StartupDiagnostics.log('SCROLL completed');
       return;
     }
-
-    final targetContext =
-        _discoverTitleKey.currentContext ?? _discoverKey.currentContext;
-    StartupDiagnostics.log('SCROLL targetContext=${targetContext != null}');
-    if (targetContext == null || !targetContext.mounted) {
-      StartupDiagnostics.log('SCROLL abort=noTargetContext');
-      return;
-    }
-    StartupDiagnostics.log('SCROLL hasClients=${_scrollController.hasClients}');
-    if (!_scrollController.hasClients) {
-      StartupDiagnostics.log('SCROLL abort=noClients');
-      return;
-    }
-
-    final viewH = MediaQuery.sizeOf(context).height;
-    // Stessi parametri di prima, ma arriviamo al punto finale in una sola animazione (niente “doppio passaggio”).
-    final alignment = viewH >= 800
-        ? 0.035
-        : viewH >= 640
-        ? 0.028
-        : 0.022;
-    final nudgeUp = viewH >= 800
-        ? 56.0
-        : viewH >= 640
-        ? 44.0
-        : 36.0;
-
-    final renderObject = targetContext.findRenderObject();
-    StartupDiagnostics.log('SCROLL renderObject=${renderObject != null}');
-    if (renderObject == null) {
-      StartupDiagnostics.log('SCROLL abort=noRenderObject');
-      return;
-    }
-
-    final viewport = RenderAbstractViewport.of(renderObject);
-    final position = _scrollController.position;
-    final revealed = viewport.getOffsetToReveal(renderObject, alignment);
-    final destination = (revealed.offset - nudgeUp).clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-
-    StartupDiagnostics.log(
-      'SCROLL currentOffset=${position.pixels.toStringAsFixed(1)} '
-      'destination=${destination.toStringAsFixed(1)}',
-    );
-    StartupDiagnostics.log('SCROLL animateTo');
-    await position.animateTo(
-      destination,
-      duration: const Duration(milliseconds: 780),
-      curve: Curves.easeOutCubic,
-    );
-    StartupDiagnostics.log('SCROLL completed');
   }
 
   void _scrollToTop() {
@@ -306,39 +327,36 @@ class _WelcomePageState extends State<WelcomePage> {
               children: [
                 KeyedSubtree(
                   key: _heroSectionKey,
-                  child: _RevealOnScroll(
-                    visible: _heroVisible,
-                    offsetY: 18,
-                    child: _HeroSection(
-                      accediKey: _ctaAccediKey,
-                      registratiKey: _ctaRegistratiKey,
-                      forgotKey: _ctaForgotKey,
-                      scopriKey: _ctaScopriKey,
-                      onDiscoverTap: () {
-                        StartupDiagnostics.log('TAP Scopri');
-                        _scrollToDiscover();
-                      },
-                      onLoginTap: () {
-                        StartupDiagnostics.log('TAP Accedi');
-                        _handleAction(context, widget.onLoginTap, '/login');
-                      },
-                      onRegisterTap: () {
-                        StartupDiagnostics.log('TAP Registrati');
-                        _handleAction(
-                          context,
-                          widget.onRegisterTap,
-                          '/register',
-                        );
-                      },
-                      onForgotPasswordTap: () {
-                        StartupDiagnostics.log('TAP Forgot');
-                        _handleAction(
-                          context,
-                          widget.onForgotPasswordTap,
-                          '/forgot-password',
-                        );
-                      },
-                    ),
+                  // Nessun AnimatedSlide/Opacity sulla hero: CTA hit-test stabili al primo frame.
+                  child: _HeroSection(
+                    accediKey: _ctaAccediKey,
+                    registratiKey: _ctaRegistratiKey,
+                    forgotKey: _ctaForgotKey,
+                    scopriKey: _ctaScopriKey,
+                    onDiscoverTap: () {
+                      StartupDiagnostics.log('TAP Scopri');
+                      _scrollToDiscover();
+                    },
+                    onLoginTap: () {
+                      StartupDiagnostics.log('TAP Accedi');
+                      _handleAction(context, widget.onLoginTap, '/login');
+                    },
+                    onRegisterTap: () {
+                      StartupDiagnostics.log('TAP Registrati');
+                      _handleAction(
+                        context,
+                        widget.onRegisterTap,
+                        '/register',
+                      );
+                    },
+                    onForgotPasswordTap: () {
+                      StartupDiagnostics.log('TAP Forgot');
+                      _handleAction(
+                        context,
+                        widget.onForgotPasswordTap,
+                        '/forgot-password',
+                      );
+                    },
                   ),
                 ),
                 _RevealOnScroll(
@@ -624,11 +642,9 @@ class _HeroSection extends StatelessWidget {
     final horizontalPadding = isCompact ? 24.0 : 40.0;
     final verticalPadding = isCompact ? (cramped ? 12.0 : 20.0) : 36.0;
 
-    final ctaColumn = Column(
+    final ctaGroup = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _heroHeadlineBlock(cramped: cramped, isCompact: isCompact),
-        SizedBox(height: cramped ? 12 : 22),
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 14,
@@ -671,28 +687,43 @@ class _HeroSection extends StatelessWidget {
       ],
     );
 
+    final headline = _heroHeadlineBlock(cramped: cramped, isCompact: isCompact);
+
     if (isCompact) {
-      return SingleChildScrollView(
+      // Un solo scroll owner (outer Welcome). CTA ancorate in basso: geometria
+      // indipendente dall'altezza dinamica della headline (font resolve).
+      return Padding(
         padding: EdgeInsets.symmetric(
           horizontal: horizontalPadding,
           vertical: verticalPadding,
         ),
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: viewportConstraints.maxHeight),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 980),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _HeroLogo(height: cramped ? 56 : 70),
+          constraints: BoxConstraints(
+            minHeight: viewportConstraints.maxHeight - verticalPadding * 2,
+            maxHeight: viewportConstraints.maxHeight - verticalPadding * 2,
+            maxWidth: 980,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _HeroLogo(height: cramped ? 56 : 70),
+              ),
+              SizedBox(height: cramped ? 8 : 16),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: headline,
+                  ),
                 ),
-                SizedBox(height: cramped ? 12 : 24),
-                ctaColumn,
-              ],
-            ),
+              ),
+              SizedBox(height: cramped ? 8 : 12),
+              ctaGroup,
+            ],
           ),
         ),
       );
@@ -711,7 +742,16 @@ class _HeroSection extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Positioned(top: 0, left: 0, child: _HeroLogo(height: 86)),
-              Center(child: ctaColumn),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    headline,
+                    SizedBox(height: cramped ? 12 : 22),
+                    ctaGroup,
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -1610,13 +1650,19 @@ class _RevealOnScroll extends StatelessWidget {
       child: child,
     );
 
-    if (!fade) return slide;
+    final animated = fade
+        ? AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: duration,
+            curve: curve,
+            child: slide,
+          )
+        : slide;
 
-    return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
-      duration: duration,
-      curve: curve,
-      child: slide,
+    // Opacity 0 non deve restare hit-testable (evita tap fantasma sulle sezioni nascoste).
+    return IgnorePointer(
+      ignoring: !visible,
+      child: animated,
     );
   }
 }
