@@ -106,9 +106,10 @@ void main() {
     expect(
       html,
       contains(
-        'name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"',
+        'name="viewport" content="width=device-width, initial-scale=1.0"',
       ),
     );
+    expect(html, isNot(contains('viewport-fit=cover')));
     expect(html, contains('name="theme-color" content="#005E83"'));
     expect(html, contains('name="apple-mobile-web-app-capable" content="yes"'));
     expect(

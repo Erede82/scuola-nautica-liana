@@ -230,7 +230,7 @@ class _WelcomePageState extends State<WelcomePage> {
     }
 
     final targetContext =
-        _discoverTitleKey.currentContext ?? _discoverKey.currentContext;
+        _discoverKey.currentContext ?? _discoverTitleKey.currentContext;
     StartupDiagnostics.log('SCROLL targetContext=${targetContext != null}');
     if (targetContext == null || !targetContext.mounted) {
       StartupDiagnostics.log('SCROLL abort=noTargetContext');
@@ -242,19 +242,6 @@ class _WelcomePageState extends State<WelcomePage> {
       return;
     }
 
-    final viewH = MediaQuery.sizeOf(context).height;
-    // Stessi parametri di prima, ma arriviamo al punto finale in una sola animazione (niente “doppio passaggio”).
-    final alignment = viewH >= 800
-        ? 0.035
-        : viewH >= 640
-        ? 0.028
-        : 0.022;
-    final nudgeUp = viewH >= 800
-        ? 56.0
-        : viewH >= 640
-        ? 44.0
-        : 36.0;
-
     final renderObject = targetContext.findRenderObject();
     StartupDiagnostics.log('SCROLL renderObject=${renderObject != null}');
     if (renderObject == null) {
@@ -264,11 +251,10 @@ class _WelcomePageState extends State<WelcomePage> {
 
     final viewport = RenderAbstractViewport.of(renderObject);
     final position = _scrollController.position;
-    final revealed = viewport.getOffsetToReveal(renderObject, alignment);
-    final destination = (revealed.offset - nudgeUp).clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
+    final destination = viewport
+        .getOffsetToReveal(renderObject, 0.0)
+        .offset
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
 
     StartupDiagnostics.log(
       'SCROLL currentOffset=${position.pixels.toStringAsFixed(1)} '
@@ -1080,10 +1066,17 @@ class _JourneySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isCompact = MediaQuery.of(context).size.width < 940;
+    final size = MediaQuery.sizeOf(context);
+    final bool isCompact = size.width < 940;
+    // Compact/mobile: almeno un viewport così, con Journey in cima, il footer resta sotto fold.
+    final bool applyCompactMinHeight = size.width < 900;
+    final compactMinHeight = applyCompactMinHeight ? size.height : null;
 
     return Container(
       width: double.infinity,
+      constraints: compactMinHeight != null
+          ? BoxConstraints(minHeight: compactMinHeight)
+          : const BoxConstraints(),
       padding: EdgeInsets.fromLTRB(
         isCompact ? 20 : 30,
         isCompact ? 40 : 56,
