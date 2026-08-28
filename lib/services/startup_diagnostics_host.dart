@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'startup_diagnostics.dart';
+import 'startup_history_diagnostics.dart';
 
 /// Host root: [Listener] translucido + [WidgetsBindingObserver] metrics.
 ///
@@ -23,8 +24,10 @@ class _StartupDiagnosticsHostState extends State<StartupDiagnosticsHost>
     super.initState();
     if (!StartupDiagnostics.enabled) return;
     WidgetsBinding.instance.addObserver(this);
+    StartupHistoryDiagnostics.installIfEnabled();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      StartupHistoryDiagnostics.logInitialSnapshot();
       StartupDiagnostics.logWebViewOnceAtStartup();
       StartupDiagnostics.logFlutterView(context);
     });
@@ -34,6 +37,7 @@ class _StartupDiagnosticsHostState extends State<StartupDiagnosticsHost>
   void dispose() {
     if (StartupDiagnostics.enabled) {
       WidgetsBinding.instance.removeObserver(this);
+      StartupHistoryDiagnostics.dispose();
     }
     super.dispose();
   }

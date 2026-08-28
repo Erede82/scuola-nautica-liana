@@ -294,6 +294,9 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
 
     return MaterialApp(
       navigatorKey: appRootNavigatorKey,
+      navigatorObservers: StartupDiagnostics.enabled
+          ? [StartupDiagnosticsNavigatorObserver()]
+          : const [],
       debugShowCheckedModeBanner: false,
       title: 'Scuola Nautica Liana',
       locale: const Locale('it', 'IT'),

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../app_root_navigator.dart';
+import 'startup_history_diagnostics.dart';
 import 'startup_viewport_diagnostics.dart';
 
 /// Diagnostica startup/first-interaction (PWA.7-P + PWA.7-U-B raw pointer).
@@ -163,6 +164,66 @@ abstract final class StartupDiagnostics {
     return '<unknown>';
   }
 
+  /// Classificazione route browser per history diagnostics (no URL raw).
+  ///
+  /// Valori: `root`, `login`, `register`, `forgot`, `empty-hash`,
+  /// `auth-redacted`, `other`.
+  static String historyRouteLabel(String pathname, String hash) {
+    final normalizedPath = pathname.trim().isEmpty ? '/' : pathname.trim();
+    final hashEmpty = hash.isEmpty || hash == '#';
+    final atRoot = normalizedPath == '/' || normalizedPath.isEmpty;
+    if (atRoot && hashEmpty) {
+      return 'empty-hash';
+    }
+
+    final synthetic = hash.isNotEmpty ? hash : normalizedPath;
+    return _historyLabelFromSanitized(sanitizeRoute(synthetic));
+  }
+
+  static String _historyLabelFromSanitized(String sanitized) {
+    switch (sanitized) {
+      case '/':
+        return 'root';
+      case '/login':
+        return 'login';
+      case '/register':
+        return 'register';
+      case '/forgot-password':
+        return 'forgot';
+      case '<auth-redacted>':
+        return 'auth-redacted';
+      default:
+        return 'other';
+    }
+  }
+
+  /// Etichetta history da route Flutter (`settings.name`).
+  static String historyRouteLabelFromSettingsName(String? name) {
+    if (name == null || name.trim().isEmpty) return 'root';
+    return historyRouteLabel('/', '#$name');
+  }
+
+  /// Formatta riga HISTORY per log diagnostico.
+  static String formatHistoryEvent({
+    required String event,
+    required int historyLength,
+    required String route,
+    required String visibility,
+    bool? persisted,
+    bool? statePresent,
+  }) {
+    final buffer = StringBuffer('HISTORY event=$event len=$historyLength')
+      ..write(' route=$route')
+      ..write(' visibility=$visibility');
+    if (persisted != null) {
+      buffer.write(' persisted=$persisted');
+    }
+    if (statePresent != null) {
+      buffer.write(' statePresent=$statePresent');
+    }
+    return buffer.toString();
+  }
+
   static String resolveRoute(BuildContext? context) {
     // Il Listener root sta nel MaterialApp.builder (sopra le route):
     // usa il Navigator root per la route corrente.
@@ -305,5 +366,37 @@ abstract final class StartupDiagnostics {
     _started = false;
     _webViewLoggedAtStartup = false;
     clearTargetsForTest();
+    StartupHistoryDiagnostics.dispose();
+  }
+}
+
+/// Observer passivo: marker post-navigazione Flutter (solo diagnostics ON).
+class StartupDiagnosticsNavigatorObserver extends NavigatorObserver {
+  void _logVisible(Route<dynamic>? route) {
+    if (!StartupDiagnostics.enabled || route == null) return;
+    final label = StartupDiagnostics.historyRouteLabelFromSettingsName(
+      route.settings.name,
+    );
+    StartupDiagnostics.log('ROUTE visible=$label');
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _logVisible(route);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _logVisible(previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _logVisible(newRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _logVisible(previousRoute);
   }
 }
