@@ -7,7 +7,6 @@ import 'app_root_navigator.dart';
 import 'pages/forgot_password_page.dart';
 import 'pages/login_page.dart';
 import 'pages/student_registration_page.dart';
-import 'services/root_url_canonicalizer.dart';
 import 'services/startup_diagnostics.dart';
 import 'services/startup_diagnostics_host.dart';
 import 'theme/app_visual_tokens.dart';
@@ -296,7 +295,6 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: appRootNavigatorKey,
       navigatorObservers: [
-        RootUrlCanonicalizationObserver(),
         if (StartupDiagnostics.enabled)
           StartupDiagnosticsNavigatorObserver(),
       ],
