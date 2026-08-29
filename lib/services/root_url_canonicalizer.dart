@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'web_startup_route_guard.dart';
@@ -71,31 +72,73 @@ abstract final class RootUrlCanonicalizer {
   }
 }
 
+/// Pianifica canonicalizzazione root al prossimo post-frame (dopo sync Flutter).
+class RootUrlCanonicalizationScheduler {
+  RootUrlCanonicalizationScheduler({
+    void Function({required bool flutterRouteIsRoot})? canonicalize,
+    SchedulerBinding? binding,
+  })  : _canonicalize =
+            canonicalize ?? RootUrlCanonicalizer.canonicalizeIfNeeded,
+        _binding = binding ?? SchedulerBinding.instance;
+
+  final void Function({required bool flutterRouteIsRoot}) _canonicalize;
+  final SchedulerBinding _binding;
+
+  Route<dynamic>? _pendingRoute;
+  bool _postFrameScheduled = false;
+
+  @visibleForTesting
+  bool get hasPendingPostFrameForTest => _postFrameScheduled;
+
+  /// Accoda canonicalizzazione per [route] root; esegue al post-frame se ancora current.
+  void schedule(Route<dynamic> route) {
+    if (!RootUrlCanonicalizer.isFlutterRootRoute(route)) return;
+    _pendingRoute = route;
+    if (_postFrameScheduled) return;
+    _postFrameScheduled = true;
+    _binding.addPostFrameCallback(_onPostFrame);
+  }
+
+  void _onPostFrame(Duration _) {
+    _postFrameScheduled = false;
+    final route = _pendingRoute;
+    _pendingRoute = null;
+    if (route == null || !route.isCurrent) return;
+    if (!RootUrlCanonicalizer.isFlutterRootRoute(route)) return;
+    _canonicalize(flutterRouteIsRoot: true);
+  }
+}
+
 /// Observer production-safe: canonicalizza browser root quando Flutter è root.
 class RootUrlCanonicalizationObserver extends NavigatorObserver {
-  void _onRootVisible(Route<dynamic>? route) {
+  RootUrlCanonicalizationObserver({
+    RootUrlCanonicalizationScheduler? scheduler,
+  }) : _scheduler = scheduler ?? RootUrlCanonicalizationScheduler();
+
+  final RootUrlCanonicalizationScheduler _scheduler;
+
+  void _scheduleForRoot(Route<dynamic>? route) {
     if (route == null) return;
-    if (!RootUrlCanonicalizer.isFlutterRootRoute(route)) return;
-    RootUrlCanonicalizer.canonicalizeIfNeeded(flutterRouteIsRoot: true);
+    _scheduler.schedule(route);
   }
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _onRootVisible(route);
+    _scheduleForRoot(route);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _onRootVisible(previousRoute);
+    _scheduleForRoot(previousRoute);
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    _onRootVisible(newRoute);
+    _scheduleForRoot(newRoute);
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _onRootVisible(previousRoute);
+    _scheduleForRoot(previousRoute);
   }
 }
