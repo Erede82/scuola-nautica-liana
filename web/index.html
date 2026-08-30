@@ -41,10 +41,11 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background-color: #005E83;
+      /* Fallback scuro (no blu pieno) se l'immagine Welcome non è ancora pronta. */
+      background-color: #0A1620;
       overflow: hidden;
     }
-    /* Splash pre-Flutter: full viewport, safe-area iOS, no remote assets. */
+    /* Static Welcome shell: stessa foto della hero Flutter + overlay + logo. */
     #liana-splash {
       position: fixed;
       inset: 0;
@@ -58,7 +59,18 @@
         env(safe-area-inset-right, 0px)
         env(safe-area-inset-bottom, 0px)
         env(safe-area-inset-left, 0px);
-      background-color: #005E83;
+      background-color: #0A1620;
+      background-image:
+        linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0.72) 0%,
+          rgba(0, 0, 0, 0.58) 45%,
+          rgba(0, 0, 0, 0.48) 100%
+        ),
+        url("assets/assets/images/welcome/welcome_boat.jpg");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
       pointer-events: none;
     }
     #liana-splash img {
@@ -109,9 +121,9 @@
   </script>
 
   <div id="liana-splash" aria-hidden="true">
-    <!-- Marchio ufficiale già in web/icons (bianco su #005E83). -->
+    <!-- Marchio ufficiale bianco (stesso asset della hero Welcome). -->
     <img
-      src="icons/Icon-512.png"
+      src="assets/assets/branding/logo_mark_white.png"
       alt=""
       width="168"
       height="168"

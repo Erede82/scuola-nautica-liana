@@ -15,6 +15,7 @@ import 'services/demo_student_enrollment.dart';
 import 'services/staff_access_service.dart';
 import 'services/startup_diagnostics.dart';
 import 'utils/admin_access_utils.dart';
+import 'widgets/startup_visual_shell.dart';
 
 /// Root dell’app: Welcome se non autenticato, altrimenti Home o Admin.
 /// Dopo login/registrazione le pagine fanno solo `Navigator.pop` e questo widget si aggiorna.
@@ -116,16 +117,11 @@ class _AppAuthGateState extends State<AppAuthGate> {
     super.dispose();
   }
 
-  static const Color _startupBg = Color(0xFF005E83);
-
   @override
   Widget build(BuildContext context) {
     if (_bootstrapping) {
-      // Allineato allo splash HTML: niente flash bianco tra first-frame e Welcome.
-      return const Scaffold(
-        backgroundColor: _startupBg,
-        body: SizedBox.expand(),
-      );
+      // Allineato allo splash HTML: Welcome shell (no pagina blu piena).
+      return const StartupVisualShell();
     }
 
     if (!SupabaseConfig.isConfigured) {

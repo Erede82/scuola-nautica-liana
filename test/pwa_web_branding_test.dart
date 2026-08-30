@@ -129,12 +129,19 @@ void main() {
     expect(html.toLowerCase(), isNot(contains('flutter demo')));
   });
 
-  test('index.html splash HTML e background #005E83', () {
+  test('index.html splash è static Welcome shell (no blu pieno)', () {
     final html = web('index.html').readAsStringSync();
     expect(html, contains('id="liana-splash"'));
-    expect(html, contains('background-color: #005E83'));
-    expect(html, contains('src="icons/Icon-512.png"'));
     expect(html, contains('flutter-first-frame'));
+    expect(html, contains('pointer-events: none'));
+    expect(
+      html,
+      contains('assets/assets/images/welcome/welcome_boat.jpg'),
+    );
+    expect(html, contains('assets/assets/branding/logo_mark_white.png'));
+    expect(html, contains('background-color: #0A1620'));
+    expect(html, isNot(contains('background-color: #005E83')));
+    expect(html, isNot(contains('src="icons/Icon-512.png"')));
     expect(html, contains('env(safe-area-inset-top'));
     expect(html, contains('forgot-password'));
     expect(html, contains("+ '#/"));
@@ -142,6 +149,18 @@ void main() {
     expect(html, contains('atRoot'));
     expect(html, isNot(contains('https://fonts.googleapis.com')));
     expect(html, isNot(contains('-webkit-only')));
+    expect(html, isNot(contains('viewport-fit=cover')));
+  });
+
+  test('asset Welcome boat e logo mark white presenti in sorgente', () {
+    expect(
+      File('${root.path}/assets/images/welcome/welcome_boat.jpg').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${root.path}/assets/branding/logo_mark_white.png').existsSync(),
+      isTrue,
+    );
   });
 
   test('nessun riferimento HTML alle icone Flutter template residue', () {
