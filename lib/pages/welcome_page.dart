@@ -6,6 +6,7 @@ import '../constants/app_branding.dart';
 import '../services/startup_diagnostics.dart';
 import '../theme/app_visual_tokens.dart';
 import '../utils/school_contact_launcher.dart';
+import '../widgets/welcome_asset_hints.dart';
 
 /// Welcome a blocchi: [WelcomePage] espone già [GlobalKey] per hero / scoprici / percorso
 /// e un [ScrollController] — in un secondo step si possono collegare a visibility + reveal.
@@ -83,19 +84,19 @@ class _WelcomePageState extends State<WelcomePage> {
     if (!mounted || _precacheStarted) return;
     _precacheStarted = true;
 
-    final heroCacheWidth = _WelcomeAssetHints.heroCacheWidth(context);
-    final logoCacheWidth = _WelcomeAssetHints.loginLogoCacheWidth(context);
+    final heroCacheWidth = WelcomeAssetHints.heroCacheWidth(context);
+    final logoCacheWidth = WelcomeAssetHints.loginLogoCacheWidth(context);
 
     final futures = <Future<void>>[
       precacheImage(
-        _WelcomeAssetHints.resizedAsset(
+        WelcomeAssetHints.resizedAsset(
           AppBranding.welcomeBoatJpg,
           cacheWidth: heroCacheWidth,
         ),
         context,
       ),
       precacheImage(
-        _WelcomeAssetHints.resizedAsset(
+        WelcomeAssetHints.resizedAsset(
           AppBranding.logoScuolaNauticaLianaBlue,
           cacheWidth: logoCacheWidth,
         ),
@@ -556,7 +557,7 @@ class _HeroSection extends StatelessWidget {
           Image.asset(
             AppBranding.welcomeBoatJpg,
             fit: BoxFit.cover,
-            cacheWidth: _WelcomeAssetHints.heroCacheWidth(context),
+            cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
             filterQuality: FilterQuality.medium,
             errorBuilder: (_, _, _) {
               return Container(
@@ -680,6 +681,11 @@ class _HeroSection extends StatelessWidget {
 
     if (isCompact) {
       return SingleChildScrollView(
+        // iPhone normali: gesture verticale → outer scroll (niente nested bounce).
+        // Viewport cramped (<720): inner resta scrollabile per CTA raggiungibili.
+        physics: cramped
+            ? null
+            : const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.symmetric(
           horizontal: horizontalPadding,
           vertical: verticalPadding,
@@ -978,9 +984,7 @@ class _DiscoverImageCard extends StatelessWidget {
             Image.asset(
               imagePath,
               fit: BoxFit.cover,
-              cacheWidth: imagePath == AppBranding.welcomeBoatJpg
-                  ? _WelcomeAssetHints.discoverCardCacheWidth(context)
-                  : null,
+              cacheWidth: WelcomeAssetHints.discoverCardCacheWidth(context),
               filterQuality: FilterQuality.medium,
               errorBuilder: (_, _, _) {
                 return Container(
@@ -1547,52 +1551,6 @@ class _FooterLinkText extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// Limiti decode/precache per Welcome su layout compatto (desktop resta full-res).
-abstract final class _WelcomeAssetHints {
-  static const int _compactHeroMinCacheWidth = 960;
-  static const int _compactHeroMaxCacheWidth = 1600;
-  static const int _compactCardMaxCacheWidth = 1200;
-  static const int _loginLogoMaxCacheWidth = 480;
-
-  static ImageProvider resizedAsset(
-    String assetPath, {
-    int? cacheWidth,
-  }) {
-    final provider = AssetImage(assetPath);
-    if (cacheWidth == null) return provider;
-    return ResizeImage(provider, width: cacheWidth);
-  }
-
-  static int? heroCacheWidth(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width >= 900) return null;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    return (width * dpr * 1.1)
-        .round()
-        .clamp(_compactHeroMinCacheWidth, _compactHeroMaxCacheWidth);
-  }
-
-  static int? discoverCardCacheWidth(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width >= 900) return null;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final cardWidth = width >= 900 ? width / 2 : width - 40;
-    return (cardWidth * dpr * 1.05)
-        .round()
-        .clamp(720, _compactCardMaxCacheWidth);
-  }
-
-  static int? loginLogoCacheWidth(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width >= 1200) return null;
-    final logoWidth = (width * 0.55).clamp(150.0, 210.0);
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final target = (logoWidth * dpr * 1.15).round();
-    if (target >= 760) return null;
-    return target.clamp(300, _loginLogoMaxCacheWidth);
   }
 }
 

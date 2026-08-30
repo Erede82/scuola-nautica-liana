@@ -199,18 +199,28 @@ void main() {
       expect(find.text('Scoprici'), findsOneWidget);
     });
 
-    testWidgets('hero inner scrollable present (nested)', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      addTearDown(() async {
-        await tester.binding.setSurfaceSize(null);
-      });
+    testWidgets('hero inner present with NeverScrollable on normal iPhone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(_welcomeHarness());
       await tester.pumpAndSettle();
 
       // Outer + compact-hero inner SingleChildScrollView.
       expect(find.byType(SingleChildScrollView), findsAtLeastNWidgets(2));
-      debugPrint('[P0-C] hero inner scrollable present=true');
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SingleChildScrollView &&
+              w.physics is NeverScrollableScrollPhysics,
+        ),
+        findsOneWidget,
+      );
+      debugPrint('[P0-C] hero inner NeverScrollable present=true');
     });
   });
 }

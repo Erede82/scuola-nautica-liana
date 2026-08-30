@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
+import 'welcome_asset_hints.dart';
 
 /// Shell visuale di startup allineata alla hero Welcome (foto + overlay + logo).
 ///
@@ -12,14 +13,16 @@ class StartupVisualShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: fallbackBg,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          _BoatBackground(),
-          ColoredBox(color: Color(0x8C000000)),
-          Center(
+          _BoatBackground(
+            cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
+          ),
+          const ColoredBox(color: Color(0x8C000000)),
+          const Center(
             child: _OfficialMark(),
           ),
         ],
@@ -29,13 +32,16 @@ class StartupVisualShell extends StatelessWidget {
 }
 
 class _BoatBackground extends StatelessWidget {
-  const _BoatBackground();
+  const _BoatBackground({this.cacheWidth});
+
+  final int? cacheWidth;
 
   @override
   Widget build(BuildContext context) {
     return Image.asset(
       AppBranding.welcomeBoatJpg,
       fit: BoxFit.cover,
+      cacheWidth: cacheWidth,
       filterQuality: FilterQuality.medium,
       errorBuilder: (_, _, _) =>
           const ColoredBox(color: StartupVisualShell.fallbackBg),
