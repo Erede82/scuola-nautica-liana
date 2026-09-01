@@ -35,7 +35,12 @@ abstract final class WelcomeStaticShellLayout {
 
 /// Foreground Welcome-like per [StartupVisualShell] (nessun input).
 class WelcomeStaticShellForeground extends StatelessWidget {
-  const WelcomeStaticShellForeground({super.key});
+  const WelcomeStaticShellForeground({
+    super.key,
+    required this.viewportConstraints,
+  });
+
+  final BoxConstraints viewportConstraints;
 
   @override
   Widget build(BuildContext context) {
@@ -46,37 +51,35 @@ class WelcomeStaticShellForeground extends StatelessWidget {
     final verticalPadding = isCompact ? (cramped ? 12.0 : 20.0) : 36.0;
     final logoHeight = cramped ? 56.0 : (isCompact ? 70.0 : 86.0);
 
-    return LayoutBuilder(
-      builder: (context, viewport) {
-        return SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: verticalPadding,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: viewport.maxHeight),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 980),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _StaticHeroLogo(height: logoHeight),
-                  ),
-                  SizedBox(height: cramped ? 12 : 24),
-                  _StaticHeroCopy(
-                    cramped: cramped,
-                    isCompact: isCompact,
-                  ),
-                ],
+    return SingleChildScrollView(
+      physics: cramped
+          ? null
+          : const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: viewportConstraints.maxHeight),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _StaticHeroLogo(height: logoHeight),
               ),
-            ),
+              SizedBox(height: cramped ? 12 : 24),
+              _StaticHeroCopy(
+                cramped: cramped,
+                isCompact: isCompact,
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -177,69 +180,104 @@ class _StaticHeroCopy extends StatelessWidget {
           alignment: WrapAlignment.center,
           spacing: 14,
           runSpacing: 14,
-          children: const [
-            _StaticOutlineCta(
-              label: WelcomeStaticShellLayout.ctaAccedi,
-              compact: false,
+          children: [
+            OutlinedButton(
+              onPressed: () {},
+              style: _StaticWelcomeButtonStyles.mainCtaStyle(),
+              child: const Text(WelcomeStaticShellLayout.ctaAccedi),
             ),
-            _StaticOutlineCta(
-              label: WelcomeStaticShellLayout.ctaRegistrati,
-              compact: false,
+            OutlinedButton(
+              onPressed: () {},
+              style: _StaticWelcomeButtonStyles.mainCtaStyle(),
+              child: const Text(WelcomeStaticShellLayout.ctaRegistrati),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Text(
-          WelcomeStaticShellLayout.ctaForgot,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.88),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+        TextButton(
+          onPressed: () {},
+          style: _StaticWelcomeButtonStyles.forgotStyle(),
+          child: const Text(WelcomeStaticShellLayout.ctaForgot),
         ),
         SizedBox(height: isCompact ? (cramped ? 14 : 20) : 22),
-        const _StaticOutlineCta(
-          label: WelcomeStaticShellLayout.ctaScoprici,
-          compact: true,
+        OutlinedButton(
+          onPressed: () {},
+          style: _StaticWelcomeButtonStyles.discoverStyle(),
+          child: const Text(WelcomeStaticShellLayout.ctaScoprici),
         ),
       ],
     );
   }
 }
 
-/// CTA visiva statica (stile outline hero Welcome, senza interazione).
-class _StaticOutlineCta extends StatelessWidget {
-  const _StaticOutlineCta({
-    required this.label,
-    required this.compact,
-  });
+/// Stili button statici allineati al box model hero Welcome a riposo.
+abstract final class _StaticWelcomeButtonStyles {
+  static const Color _forgotFg = Color(0xE0FFFFFF); // white @ 0.88
 
-  final String label;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final padding = compact
-        ? const EdgeInsets.symmetric(horizontal: 22, vertical: 14)
-        : const EdgeInsets.symmetric(horizontal: 28, vertical: 18);
-    final textStyle = TextStyle(
-      color: Colors.white,
-      fontSize: compact ? 13 : 15,
-      fontWeight: FontWeight.w700,
-      letterSpacing: compact ? 1.05 : 0,
-    );
-
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
+  static ButtonStyle mainCtaStyle() {
+    return ButtonStyle(
+      elevation: WidgetStateProperty.all(0),
+      shadowColor: WidgetStateProperty.all(Colors.transparent),
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+      ),
+      shape: WidgetStateProperty.all(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      textStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+      backgroundColor: WidgetStateProperty.all(Colors.transparent),
+      foregroundColor: WidgetStateProperty.all(Colors.white),
+      side: WidgetStateProperty.all(
+        BorderSide(
           color: Colors.white.withValues(alpha: 0.50),
           width: 1.2,
         ),
       ),
-      child: Text(label, style: textStyle),
+      overlayColor: WidgetStateProperty.all(Colors.transparent),
+    );
+  }
+
+  static ButtonStyle discoverStyle() {
+    return ButtonStyle(
+      elevation: WidgetStateProperty.all(0),
+      shadowColor: WidgetStateProperty.all(Colors.transparent),
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      ),
+      minimumSize: WidgetStateProperty.all(Size.zero),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: WidgetStateProperty.all(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      textStyle: WidgetStateProperty.all(
+        const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.05,
+        ),
+      ),
+      backgroundColor: WidgetStateProperty.all(Colors.transparent),
+      foregroundColor: WidgetStateProperty.all(Colors.white),
+      side: WidgetStateProperty.all(
+        BorderSide(
+          color: Colors.white.withValues(alpha: 0.50),
+          width: 1.2,
+        ),
+      ),
+      overlayColor: WidgetStateProperty.all(Colors.transparent),
+    );
+  }
+
+  static ButtonStyle forgotStyle() {
+    return TextButton.styleFrom(
+      foregroundColor: _forgotFg,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      textStyle: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 }

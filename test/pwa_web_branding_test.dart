@@ -181,6 +181,8 @@ void main() {
     expect(html, contains('rgba(0, 0, 0, 0.62)'));
     expect(html, contains('rgba(0, 0, 0, 0.55)'));
     expect(html, contains('rgba(0, 0, 0, 0.48)'));
+    expect(html, contains('padding: 6px 12px'));
+    expect(html, contains('box-sizing: border-box'));
     expect(html, contains('background-size: cover'));
   });
 

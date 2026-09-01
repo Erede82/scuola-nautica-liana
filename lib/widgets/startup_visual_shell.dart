@@ -29,11 +29,24 @@ class StartupVisualShell extends StatelessWidget {
             ),
             const SafeArea(
               bottom: false,
-              child: WelcomeStaticShellForeground(),
+              child: _ShellHeroForeground(),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ShellHeroForeground extends StatelessWidget {
+  const _ShellHeroForeground();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, viewport) {
+        return WelcomeStaticShellForeground(viewportConstraints: viewport);
+      },
     );
   }
 }

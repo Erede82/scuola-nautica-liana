@@ -109,7 +109,9 @@ void main() {
       expect(scopriTop, greaterThan(forgotBottom));
     });
 
-    testWidgets('shell non interattiva (IgnorePointer)', (tester) async {
+    testWidgets('shell non interattiva (IgnorePointer + button disabled)', (
+      tester,
+    ) async {
       await pumpShell(tester, const Size(390, 844));
 
       expect(find.byType(StartupVisualShell), findsOneWidget);
@@ -119,10 +121,15 @@ void main() {
         ),
         findsWidgets,
       );
-      expect(find.byType(GestureDetector), findsNothing);
-      expect(find.byType(ElevatedButton), findsNothing);
-      expect(find.byType(TextButton), findsNothing);
-      expect(find.byType(OutlinedButton), findsNothing);
+      expect(
+        find.ancestor(
+          of: find.text(WelcomeStaticShellLayout.ctaAccedi),
+          matching: find.byWidgetPredicate(
+            (w) => w is IgnorePointer && w.ignoring,
+          ),
+        ),
+        findsWidgets,
+      );
     });
   });
 
