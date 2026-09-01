@@ -2,30 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
 import 'welcome_asset_hints.dart';
+import 'welcome_static_shell_layout.dart';
 
-/// Shell visuale di startup allineata alla hero Welcome (foto + overlay + logo).
+/// Shell visuale di startup allineata alla hero Welcome (foto + overlay + copy).
 ///
-/// Solo rendering: nessuna logica Auth/bootstrap.
+/// Solo rendering: nessuna logica Auth/bootstrap. [IgnorePointer] evita input
+/// fantasma durante cold start / snapshot iOS.
 class StartupVisualShell extends StatelessWidget {
   const StartupVisualShell({super.key});
 
-  static const Color fallbackBg = Color(0xFF0A1620);
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: fallbackBg,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          _BoatBackground(
-            cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
-          ),
-          const ColoredBox(color: Color(0x8C000000)),
-          const Center(
-            child: _OfficialMark(),
-          ),
-        ],
+    return IgnorePointer(
+      child: Scaffold(
+        backgroundColor: WelcomeStaticShellLayout.fallbackBg,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            _BoatBackground(
+              cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: WelcomeStaticShellLayout.heroOverlayGradient,
+              ),
+            ),
+            const SafeArea(
+              bottom: false,
+              child: WelcomeStaticShellForeground(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -43,22 +50,9 @@ class _BoatBackground extends StatelessWidget {
       fit: BoxFit.cover,
       cacheWidth: cacheWidth,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) =>
-          const ColoredBox(color: StartupVisualShell.fallbackBg),
-    );
-  }
-}
-
-class _OfficialMark extends StatelessWidget {
-  const _OfficialMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      AppBranding.logoMarkWhite,
-      width: 168,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      errorBuilder: (_, _, _) => const ColoredBox(
+        color: WelcomeStaticShellLayout.fallbackBg,
+      ),
     );
   }
 }

@@ -152,6 +152,38 @@ void main() {
     expect(html, isNot(contains('viewport-fit=cover')));
   });
 
+  test('index.html splash Z1 — continuità visiva Welcome (snapshot iOS)', () {
+    final html = web('index.html').readAsStringSync();
+
+    for (final snippet in [
+      'liana-splash',
+      'welcome_boat',
+      'logo_mark_white',
+      'Scuola Nautica',
+      'Liana',
+      'Benvenuto',
+      'Accedi',
+      'Registrati',
+      'Password dimenticata?',
+      'SCOPRICI',
+      'pointer-events: none',
+      'flutter-first-frame',
+    ]) {
+      expect(html, contains(snippet), reason: snippet);
+    }
+
+    // NO-COVER: niente logo gigante 168px centrato come unica hero.
+    expect(html, isNot(contains('width="168"')));
+    expect(html, isNot(contains('width: min(42vw, 168px)')));
+
+    // Gradient allineato alla Welcome (72 → 62 → 55 → 48).
+    expect(html, contains('rgba(0, 0, 0, 0.72)'));
+    expect(html, contains('rgba(0, 0, 0, 0.62)'));
+    expect(html, contains('rgba(0, 0, 0, 0.55)'));
+    expect(html, contains('rgba(0, 0, 0, 0.48)'));
+    expect(html, contains('background-size: cover'));
+  });
+
   test('asset Welcome boat e logo mark white presenti in sorgente', () {
     expect(
       File('${root.path}/assets/images/welcome/welcome_boat.jpg').existsSync(),
