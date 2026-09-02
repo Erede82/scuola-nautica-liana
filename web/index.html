@@ -144,9 +144,17 @@
       line-height: 1.2;
       pointer-events: none;
     }
+    .liana-splash-footer-cta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 12px;
+      gap: 20px;
+      pointer-events: none;
+    }
     .liana-splash-forgot {
-      display: inline-block;
-      margin: 12px 0 0;
+      display: block;
+      margin: 0;
       padding: 6px 12px;
       font-size: 14px;
       font-weight: 500;
@@ -157,7 +165,7 @@
     .liana-splash-discover {
       display: inline-block;
       box-sizing: border-box;
-      margin-top: 20px;
+      margin: 0;
       padding: 14px 22px;
       border: 1.2px solid rgba(255, 255, 255, 0.5);
       border-radius: 18px;
@@ -177,8 +185,8 @@
       .liana-splash-copy {
         margin-top: 12px;
       }
-      .liana-splash-discover {
-        margin-top: 14px;
+      .liana-splash-footer-cta {
+        gap: 14px;
       }
     }
   </style>
@@ -245,8 +253,10 @@
           <span class="liana-splash-cta">Accedi</span>
           <span class="liana-splash-cta">Registrati</span>
         </div>
-        <p class="liana-splash-forgot">Password dimenticata?</p>
-        <span class="liana-splash-discover">SCOPRICI</span>
+        <div class="liana-splash-footer-cta">
+          <p class="liana-splash-forgot">Password dimenticata?</p>
+          <span class="liana-splash-discover">SCOPRICI</span>
+        </div>
       </div>
     </div>
   </div>

@@ -186,6 +186,49 @@ void main() {
     expect(html, contains('background-size: cover'));
   });
 
+  test('index.html splash Z3 — Password e SCOPRICI verticali (no side-by-side)', () {
+    final html = web('index.html').readAsStringSync();
+
+    expect(html, contains('class="liana-splash-footer-cta"'));
+    expect(html, contains('.liana-splash-footer-cta'));
+    expect(html, contains('flex-direction: column'));
+    expect(html, contains('align-items: center'));
+
+    // Password e SCOPRICI devono stare nello stesso wrapper verticale.
+    final footerStart = html.indexOf('class="liana-splash-footer-cta"');
+    expect(footerStart, greaterThan(-1));
+    final footerEnd = html.indexOf('</div>', footerStart);
+    expect(footerEnd, greaterThan(footerStart));
+    final footerBlock = html.substring(footerStart, footerEnd);
+    expect(footerBlock, contains('liana-splash-forgot'));
+    expect(footerBlock, contains('Password dimenticata?'));
+    expect(footerBlock, contains('liana-splash-discover'));
+    expect(footerBlock, contains('SCOPRICI'));
+
+    // Il wrapper footer NON deve essere row (affiancamento).
+    final cssFooter = RegExp(
+      r'\.liana-splash-footer-cta\s*\{[^}]+\}',
+      dotAll: true,
+    ).firstMatch(html);
+    expect(cssFooter, isNotNull, reason: 'CSS footer-cta');
+    final footerCss = cssFooter!.group(0)!;
+    expect(footerCss, contains('flex-direction: column'));
+    expect(footerCss, isNot(contains('flex-direction: row')));
+
+    // Gap Password → SCOPRICI (20px / 14px cramped).
+    expect(html, contains('gap: 20px'));
+    expect(html, contains('gap: 14px'));
+
+    // Accedi/Registrati restano nel row orizzontale separato.
+    expect(html, contains('liana-splash-cta-row'));
+    final ctaRowStart = html.indexOf('class="liana-splash-cta-row"');
+    final ctaRowEnd = html.indexOf('</div>', ctaRowStart);
+    final ctaRowBlock = html.substring(ctaRowStart, ctaRowEnd);
+    expect(ctaRowBlock, contains('Accedi'));
+    expect(ctaRowBlock, contains('Registrati'));
+    expect(ctaRowBlock, isNot(contains('SCOPRICI')));
+  });
+
   test('asset Welcome boat e logo mark white presenti in sorgente', () {
     expect(
       File('${root.path}/assets/images/welcome/welcome_boat.jpg').existsSync(),
