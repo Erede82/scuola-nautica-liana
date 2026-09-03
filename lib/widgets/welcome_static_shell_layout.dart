@@ -68,7 +68,7 @@ class WelcomeStaticShellForeground extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.center,
                 child: _StaticHeroLogo(height: logoHeight),
               ),
               SizedBox(height: cramped ? 12 : 24),

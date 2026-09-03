@@ -699,7 +699,7 @@ class _HeroSection extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.center,
                   child: _HeroLogo(height: cramped ? 56 : 70),
                 ),
                 SizedBox(height: cramped ? 12 : 24),
@@ -723,7 +723,12 @@ class _HeroSection extends StatelessWidget {
             fit: StackFit.expand,
             clipBehavior: Clip.none,
             children: [
-              Positioned(top: 0, left: 0, child: _HeroLogo(height: 86)),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Center(child: _HeroLogo(height: 86)),
+              ),
               Center(child: ctaColumn),
             ],
           ),

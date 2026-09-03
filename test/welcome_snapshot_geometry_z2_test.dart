@@ -110,7 +110,62 @@ void main() {
         reason:
             'forgot shell=${shellForgot.top} welcome=${welcomeForgot.top}',
       );
+
+      // FRONT.1: logo top-center — shell ↔ Welcome centerX ≤ 1 px.
+      expect(
+        (shellLogo.center.dx - welcomeLogo.center.dx).abs(),
+        lessThanOrEqualTo(1),
+        reason:
+            'logo centerX shell=${shellLogo.center.dx} welcome=${welcomeLogo.center.dx}',
+      );
+      expect(
+        (shellLogo.center.dx - size.width / 2).abs(),
+        lessThanOrEqualTo(1),
+        reason: 'shell logo centerX vs viewport',
+      );
+      expect(
+        (welcomeLogo.center.dx - size.width / 2).abs(),
+        lessThanOrEqualTo(1),
+        reason: 'welcome logo centerX vs viewport',
+      );
     });
+
+    for (final size in <Size>[
+      Size(375, 812),
+      Size(393, 852),
+      Size(430, 932),
+      Size(390, 700),
+    ]) {
+      testWidgets(
+        '${size.width.toInt()}×${size.height.toInt()} — logo centerX ≤ 1px',
+        (tester) async {
+          await _setViewport(tester, size);
+          await tester.pumpWidget(const MaterialApp(home: StartupVisualShell()));
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+
+          final shellLogo = _rect(tester, _logoImage());
+          expect(
+            (shellLogo.center.dx - size.width / 2).abs(),
+            lessThanOrEqualTo(1),
+          );
+
+          await tester.pumpWidget(const MaterialApp(home: WelcomePage()));
+          await tester.pump();
+          await tester.pumpAndSettle(const Duration(milliseconds: 100));
+          _drainKnownOverflow(tester);
+          final welcomeLogo = _rect(tester, _logoImage());
+          expect(
+            (welcomeLogo.center.dx - size.width / 2).abs(),
+            lessThanOrEqualTo(1),
+          );
+          expect(
+            (shellLogo.center.dx - welcomeLogo.center.dx).abs(),
+            lessThanOrEqualTo(1),
+          );
+        },
+      );
+    }
 
     for (final size in <Size>[
       Size(375, 812),

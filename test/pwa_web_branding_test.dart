@@ -148,8 +148,26 @@ void main() {
     expect(html, contains('hashEmpty'));
     expect(html, contains('atRoot'));
     expect(html, isNot(contains('https://fonts.googleapis.com')));
+    expect(html, isNot(contains('https://fonts.gstatic.com')));
     expect(html, isNot(contains('-webkit-only')));
     expect(html, isNot(contains('viewport-fit=cover')));
+
+    // FRONT.1: logo top-center + Montserrat locale.
+    expect(html, contains('align-self: center'));
+    expect(html, isNot(contains('align-self: flex-start')));
+    expect(
+      html,
+      contains("font-family: 'Montserrat', Helvetica, Arial, sans-serif"),
+    );
+    expect(html, contains('assets/google_fonts/Montserrat-Medium.ttf'));
+    expect(html, contains('assets/google_fonts/Montserrat-Bold.ttf'));
+    // FRONT.1-FONT-DISPLAY: block su tutti e tre @font-face (400/500/700).
+    expect(
+      RegExp(r'font-display:\s*block').allMatches(html).length,
+      greaterThanOrEqualTo(3),
+    );
+    expect(html, isNot(contains('font-display: optional')));
+    expect(html, isNot(contains('font-display: swap')));
   });
 
   test('index.html splash Z1 — continuità visiva Welcome (snapshot iOS)', () {

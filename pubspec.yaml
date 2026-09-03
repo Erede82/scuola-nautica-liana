@@ -76,6 +76,9 @@ flutter:
     - assets/images/welcome/
     - assets/videos/
     - assets/data/
+    # Local Google Fonts TTFs (Montserrat + Ovo). Filenames must match
+    # google_fonts API prefixes so runtime HTTP fetch is unnecessary.
+    - google_fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

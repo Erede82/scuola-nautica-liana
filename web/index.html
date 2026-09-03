@@ -35,7 +35,48 @@
   <title>Scuola Nautica Liana</title>
   <link rel="manifest" href="manifest.json">
 
+  <!--
+    FRONT.1: Montserrat locale (stessi file in google_fonts/ per Flutter).
+    Preload solo pesi splash (500/700). font-display:block evita testo
+    Helvetica visibile: breve FOIT preferibile a swap metrico.
+  -->
+  <link
+    rel="preload"
+    as="font"
+    type="font/ttf"
+    href="assets/google_fonts/Montserrat-Medium.ttf"
+    crossorigin
+  >
+  <link
+    rel="preload"
+    as="font"
+    type="font/ttf"
+    href="assets/google_fonts/Montserrat-Bold.ttf"
+    crossorigin
+  >
+
   <style>
+    @font-face {
+      font-family: 'Montserrat';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('assets/google_fonts/Montserrat-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('assets/google_fonts/Montserrat-Medium.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('assets/google_fonts/Montserrat-Bold.ttf') format('truetype');
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -74,7 +115,7 @@
       background-position: center;
       background-repeat: no-repeat;
       pointer-events: none;
-      font-family: Helvetica, Arial, sans-serif;
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
       color: #fff;
       overflow: hidden;
     }
@@ -90,7 +131,7 @@
       pointer-events: none;
     }
     .liana-splash-logo {
-      align-self: flex-start;
+      align-self: center;
       height: 70px;
       width: auto;
       display: block;

@@ -67,7 +67,12 @@ void main() {
       final logoBox = tester.getRect(logoFinder);
       final screenHeight = tester.getSize(find.byType(StartupVisualShell)).height;
       expect(logoBox.center.dy, lessThan(screenHeight * 0.45));
-      expect(logoBox.left, lessThan(120));
+      final screenWidth = tester.getSize(find.byType(StartupVisualShell)).width;
+      expect(
+        (logoBox.center.dx - screenWidth / 2).abs(),
+        lessThanOrEqualTo(1),
+        reason: 'logo centerX=${logoBox.center.dx} viewport=${screenWidth / 2}',
+      );
     });
 
     testWidgets('titolo sotto il logo', (tester) async {
