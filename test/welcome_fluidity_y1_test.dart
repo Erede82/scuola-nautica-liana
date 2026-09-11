@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/constants/app_branding.dart';
 import 'package:scuola_nautica_liana/pages/welcome_page.dart';
-import 'package:scuola_nautica_liana/widgets/startup_visual_shell.dart';
 import 'package:scuola_nautica_liana/widgets/welcome_asset_hints.dart';
 
 Widget _welcomeHarness() => const MaterialApp(home: WelcomePage());
@@ -182,7 +181,7 @@ void main() {
     });
   });
 
-  group('PWA.7-Y1 StartupVisualShell cacheWidth', () {
+  group('PWA.7-Y1 WelcomePage hero cacheWidth (FRONT.6)', () {
     testWidgets('compact: boat decode usa heroCacheWidth', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -195,16 +194,18 @@ void main() {
           home: Builder(
             builder: (context) {
               expected = WelcomeAssetHints.heroCacheWidth(context);
-              return const StartupVisualShell();
+              return const WelcomePage();
             },
           ),
         ),
       );
       await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+      _drainKnownOverflow(tester);
 
       expect(expected, isNotNull);
       final boat = find.byWidgetPredicate((w) {
-        if (w is! Image) return false;
+        if (w is! Image || !w.gaplessPlayback) return false;
         final provider = w.image;
         if (provider is! ResizeImage) return false;
         final inner = provider.imageProvider;

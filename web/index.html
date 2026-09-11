@@ -27,24 +27,56 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Nautica Liana">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-capri-2026.png">
+
+  <!--
+    STARTUP.DECISIVE: Capri + logo + «Scuola Nautica Liana» (no boat/CTA).
+    portrait @3x per iPhone comuni.
+  -->
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1125x2436.png"
+    media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1170x2532.png"
+    media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1179x2556.png"
+    media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1206x2622.png"
+    media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1242x2688.png"
+    media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1284x2778.png"
+    media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image"
+    href="icons/startup/launch-1290x2796.png"
+    media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <!-- Fallback generico (iPhone X-class): se nessuna media matcha. -->
+  <link rel="apple-touch-startup-image" href="icons/startup/launch-1170x2532.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
 
   <title>Scuola Nautica Liana</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=20260909b">
 
-  <!--
-    FRONT.1: Montserrat locale (stessi file in google_fonts/ per Flutter).
-    Preload solo pesi splash (500/700). font-display:block evita testo
-    Helvetica visibile: breve FOIT preferibile a swap metrico.
-  -->
+  <!-- Boat preload per Welcome Flutter (NON renderizzata nello splash). -->
+  <link
+    rel="preload"
+    as="image"
+    href="assets/assets/images/welcome/welcome_boat.jpg"
+    fetchpriority="high"
+  >
+
+  <!-- FRONT.1: Montserrat locale (Welcome + titolo splash). -->
   <link
     rel="preload"
     as="font"
     type="font/ttf"
-    href="assets/google_fonts/Montserrat-Medium.ttf"
+    href="assets/google_fonts/Montserrat-SemiBold.ttf"
     crossorigin
   >
   <link
@@ -73,162 +105,74 @@
     @font-face {
       font-family: 'Montserrat';
       font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url('assets/google_fonts/Montserrat-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      font-style: normal;
       font-weight: 700;
       font-display: block;
       src: url('assets/google_fonts/Montserrat-Bold.ttf') format('truetype');
     }
+    /* RELEASE.FINAL: root Navy permanente; Capri solo sull'overlay splash. */
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      /* Fallback scuro (no blu pieno) se l'immagine Welcome non è ancora pronta. */
-      background-color: #0A1620;
+      background-color: #005E83;
       overflow: hidden;
     }
-    /*
-      Static Welcome shell (PWA.7-Z1): stessa hero della Welcome reale.
-      Solo rendering — pointer-events:none su tutto il nodo.
-      Gradient overlay: 0.72 → 0.62 → 0.55 → 0.48 (come Flutter hero).
-    */
+    /* RELEASE.IOS-SENTINEL: fascia Navy 16px solo iOS standalone (sotto splash). */
+    #liana-ios-status-sentinel {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 16px;
+      background: #005E83;
+      pointer-events: none;
+      z-index: 9500;
+    }
     #liana-splash {
       position: fixed;
       inset: 0;
       z-index: 9999;
       box-sizing: border-box;
-      padding:
-        env(safe-area-inset-top, 0px)
-        env(safe-area-inset-right, 0px)
-        env(safe-area-inset-bottom, 0px)
-        env(safe-area-inset-left, 0px);
-      background-color: #0A1620;
-      background-image:
-        linear-gradient(
-          to bottom,
-          rgba(0, 0, 0, 0.72) 0%,
-          rgba(0, 0, 0, 0.62) 35%,
-          rgba(0, 0, 0, 0.55) 65%,
-          rgba(0, 0, 0, 0.48) 100%
-        ),
-        url("assets/assets/images/welcome/welcome_boat.jpg");
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
+      background-color: #00BFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       pointer-events: none;
+      overflow: hidden;
       font-family: 'Montserrat', Helvetica, Arial, sans-serif;
       color: #fff;
-      overflow: hidden;
     }
-    .liana-splash-inner {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      min-height: 100%;
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 20px 24px;
-      box-sizing: border-box;
-      pointer-events: none;
-    }
-    .liana-splash-logo {
-      align-self: center;
-      height: 70px;
-      width: auto;
-      display: block;
-      filter: drop-shadow(0 5px 26px rgba(0, 0, 0, 0.52));
-      pointer-events: none;
-    }
-    .liana-splash-copy {
-      margin-top: 24px;
-      text-align: center;
-      pointer-events: none;
-    }
-    .liana-splash-title {
-      margin: 0;
-      font-size: clamp(32px, 10.5vw, 40px);
-      font-weight: 700;
-      line-height: 1.08;
-      letter-spacing: 0.2px;
-      pointer-events: none;
-    }
-    .liana-splash-subtitle {
-      margin: 12px 0 0;
-      font-size: clamp(16px, 4.4vw, 17px);
-      font-weight: 500;
-      line-height: 1.45;
-      color: rgba(255, 255, 255, 0.94);
-      pointer-events: none;
-    }
-    .liana-splash-editorial {
-      margin: 12px 0 0;
-      font-size: clamp(13px, 3.6vw, 14px);
-      line-height: 1.55;
-      color: rgba(255, 255, 255, 0.88);
-      pointer-events: none;
-    }
-    .liana-splash-cta-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 14px;
-      margin-top: 22px;
-      pointer-events: none;
-    }
-    .liana-splash-cta {
-      display: inline-block;
-      box-sizing: border-box;
-      padding: 18px 28px;
-      border: 1.2px solid rgba(255, 255, 255, 0.5);
-      border-radius: 18px;
-      font-size: 15px;
-      font-weight: 700;
-      line-height: 1.2;
-      pointer-events: none;
-    }
-    .liana-splash-footer-cta {
+    .liana-splash-brand {
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 12px;
-      gap: 20px;
       pointer-events: none;
     }
-    .liana-splash-forgot {
+    #liana-splash img {
+      height: 100px;
+      width: auto;
       display: block;
-      margin: 0;
-      padding: 6px 12px;
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.2;
-      color: rgba(255, 255, 255, 0.88);
       pointer-events: none;
     }
-    .liana-splash-discover {
-      display: inline-block;
-      box-sizing: border-box;
-      margin: 0;
-      padding: 14px 22px;
-      border: 1.2px solid rgba(255, 255, 255, 0.5);
-      border-radius: 18px;
-      font-size: 13px;
+    .liana-splash-title {
+      margin: 24px 0 0;
+      padding: 0 24px;
+      font-size: clamp(18px, 5.2vw, 22px);
       font-weight: 700;
-      letter-spacing: 1.05px;
-      line-height: 1.2;
+      line-height: 1.15;
+      letter-spacing: 0.2px;
+      text-align: center;
+      color: #fff;
       pointer-events: none;
-    }
-    @media (max-height: 719px) {
-      .liana-splash-inner {
-        padding: 12px 24px;
-      }
-      .liana-splash-logo {
-        height: 56px;
-      }
-      .liana-splash-copy {
-        margin-top: 12px;
-      }
-      .liana-splash-footer-cta {
-        gap: 14px;
-      }
     }
   </style>
 </head>
@@ -272,43 +216,47 @@
     })();
   </script>
 
+  <!--
+    RELEASE.IOS-SENTINEL: Navy 16px per status bar iOS Home Screen.
+    display:none di default; ON solo iOS + standalone (script sotto).
+    z-index 9500 < splash 9999 → Capri intro resta full-screen.
+  -->
+  <div id="liana-ios-status-sentinel" aria-hidden="true"></div>
+
+  <!--
+    STARTUP.DECISIVE: Capri + logo + titolo.
+    Rimozione SOLO da Flutter (WELCOME_VISUAL_READY ∧ 1500ms).
+    Nessuna rimozione a flutter-first-frame.
+  -->
   <div id="liana-splash" aria-hidden="true">
-    <div class="liana-splash-inner">
+    <div class="liana-splash-brand">
       <img
-        class="liana-splash-logo"
         src="assets/assets/branding/logo_mark_white.png"
         alt=""
-        width="70"
-        height="70"
+        width="100"
+        height="100"
         decoding="async"
       />
-      <div class="liana-splash-copy">
-        <h1 class="liana-splash-title">Scuola Nautica Liana</h1>
-        <p class="liana-splash-subtitle">
-          Benvenuto, sei pronto a navigare con noi?
-        </p>
-        <p class="liana-splash-editorial">
-          Un'esperienza di studio che parte dalla scuola e guarda subito al mare.
-        </p>
-        <div class="liana-splash-cta-row">
-          <span class="liana-splash-cta">Accedi</span>
-          <span class="liana-splash-cta">Registrati</span>
-        </div>
-        <div class="liana-splash-footer-cta">
-          <p class="liana-splash-forgot">Password dimenticata?</p>
-          <span class="liana-splash-discover">SCOPRICI</span>
-        </div>
-      </div>
+      <p class="liana-splash-title">Scuola Nautica Liana</p>
     </div>
   </div>
 
   <script>
     (function () {
-      function removeSplash() {
-        var el = document.getElementById('liana-splash');
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-      }
-      window.addEventListener('flutter-first-frame', removeSplash, { once: true });
+      try {
+        var ua = navigator.userAgent || '';
+        var isIOS =
+          /iPad|iPhone|iPod/.test(ua) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var isStandalone =
+          (window.matchMedia &&
+            window.matchMedia('(display-mode: standalone)').matches) ||
+          navigator.standalone === true;
+        if (isIOS && isStandalone) {
+          var el = document.getElementById('liana-ios-status-sentinel');
+          if (el) el.style.setProperty('display', 'block');
+        }
+      } catch (_) {}
     })();
   </script>
 

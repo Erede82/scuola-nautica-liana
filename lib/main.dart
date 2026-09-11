@@ -6,6 +6,7 @@ import 'app.dart';
 import 'config/supabase_config.dart';
 import 'services/app_auth_bootstrap.dart';
 import 'services/liana_url_strategy.dart';
+import 'services/html_splash_lifecycle.dart';
 import 'services/startup_diagnostics.dart';
 
 Future<void> main() async {
@@ -15,6 +16,7 @@ Future<void> main() async {
   GoogleFonts.config.allowRuntimeFetching = false;
   configureLianaUrlStrategy();
   StartupDiagnostics.ensureStarted();
+  HtmlSplashLifecycle.ensureIntroStarted();
   // Route stale `#/forgot-password`: normalizzata in web/index.html prima di Flutter.
   // Vedi [web_startup_route_guard.dart] per la logica testabile e i limiti recovery.
   await SupabaseConfig.initialize();

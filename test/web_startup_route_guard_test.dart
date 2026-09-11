@@ -286,9 +286,13 @@ void main() {
   });
 
   testWidgets('cold start root → Welcome (anonimo)', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: AppAuthGate()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppAuthGate(heroWarmupOverride: (_) async {}),
+      ),
+    );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
     expect(find.byType(WelcomePage), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

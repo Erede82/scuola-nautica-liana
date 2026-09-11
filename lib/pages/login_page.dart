@@ -5,16 +5,23 @@ import '../models/app_auth_summary.dart';
 import '../repositories/student_auth_registry.dart';
 import '../services/staff_access_service.dart';
 import '../services/startup_diagnostics.dart';
+import '../theme/app_visual_tokens.dart';
 import '../utils/admin_access_utils.dart';
+import '../utils/ios_edge_catcher.dart';
 import '../widgets/branded_app_bar_title.dart';
 import 'accedi_da_pc_page.dart' show showAccediDaPcBottomSheet;
 import 'forgot_password_page.dart';
 import 'student_registration_page.dart';
-import '../theme/app_visual_tokens.dart';
 
 /// Accesso con email e password.
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.isInternalIosWebLogin = false,
+  });
+
+  /// FRONT.FINAL: aperta da Welcome su iOS web (unnamed route).
+  final bool isInternalIosWebLogin;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -28,6 +35,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _obscure = true;
   bool _loading = false;
+  bool _edgeBackHandled = false;
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _backgroundColor = AppVisual.canvas;
@@ -47,10 +55,23 @@ class _LoginPageState extends State<LoginPage> {
     if (StartupDiagnostics.enabled) {
       StartupDiagnostics.registerTarget('LoginBack', _loginBackKey);
     }
+    IosEdgeCatcher.installIfNeeded(
+      isInternalIosWebLogin: widget.isInternalIosWebLogin,
+      onBack: _onDomEdgeBack,
+    );
+  }
+
+  void _onDomEdgeBack() {
+    if (!mounted || _edgeBackHandled) return;
+    _edgeBackHandled = true;
+    Navigator.of(context).maybePop();
   }
 
   @override
   void dispose() {
+    if (widget.isInternalIosWebLogin) {
+      IosEdgeCatcher.uninstall();
+    }
     StartupDiagnostics.unregisterTarget('LoginBack');
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -144,7 +165,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         backgroundColor: _primaryColor,
@@ -320,6 +341,8 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+
+    return page;
   }
 
   InputDecoration _decoration(String label) {

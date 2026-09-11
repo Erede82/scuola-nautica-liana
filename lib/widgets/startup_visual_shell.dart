@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_branding.dart';
-import 'welcome_asset_hints.dart';
 import 'welcome_static_shell_layout.dart';
 
-/// Shell visuale di startup allineata alla hero Welcome (foto + overlay + copy).
+/// Shell startup: Capri + logo + «Scuola Nautica Liana» (STARTUP.DECISIVE).
 ///
-/// Solo rendering: nessuna logica Auth/bootstrap. [IgnorePointer] evita input
-/// fantasma durante cold start / snapshot iOS.
+/// Nessuna boat/gradient/CTA — [WelcomePage] è l'unico layer hero completo.
+/// [IgnorePointer] evita input fantasma durante cold start.
 class StartupVisualShell extends StatelessWidget {
   const StartupVisualShell({super.key});
 
@@ -16,55 +15,39 @@ class StartupVisualShell extends StatelessWidget {
     return IgnorePointer(
       child: Scaffold(
         backgroundColor: WelcomeStaticShellLayout.fallbackBg,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            _BoatBackground(
-              cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
+        body: ColoredBox(
+          color: WelcomeStaticShellLayout.fallbackBg,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  AppBranding.logoMarkWhite,
+                  height: WelcomeStaticShellLayout.startupLogoHeight,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => SizedBox(
+                    height: WelcomeStaticShellLayout.startupLogoHeight,
+                  ),
+                ),
+                const SizedBox(
+                  height: WelcomeStaticShellLayout.startupLogoToTitleGap,
+                ),
+                Text(
+                  AppBranding.schoolName,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: WelcomeStaticShellLayout.startupTitleFontSize,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: WelcomeStaticShellLayout.heroOverlayGradient,
-              ),
-            ),
-            const SafeArea(
-              bottom: false,
-              child: _ShellHeroForeground(),
-            ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _ShellHeroForeground extends StatelessWidget {
-  const _ShellHeroForeground();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, viewport) {
-        return WelcomeStaticShellForeground(viewportConstraints: viewport);
-      },
-    );
-  }
-}
-
-class _BoatBackground extends StatelessWidget {
-  const _BoatBackground({this.cacheWidth});
-
-  final int? cacheWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      AppBranding.welcomeBoatJpg,
-      fit: BoxFit.cover,
-      cacheWidth: cacheWidth,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) => const ColoredBox(
-        color: WelcomeStaticShellLayout.fallbackBg,
       ),
     );
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/constants/app_branding.dart';
 import 'package:scuola_nautica_liana/pages/welcome_page.dart';
-import 'package:scuola_nautica_liana/widgets/startup_visual_shell.dart';
 import 'package:scuola_nautica_liana/widgets/welcome_static_shell_layout.dart';
 
 Finder _logoImage() {
@@ -25,36 +24,11 @@ Finder _scopriciButton() =>
 
 Rect _rect(WidgetTester tester, Finder finder) => tester.getRect(finder);
 
-double _deltaY(Rect a, Rect b) => (a.top - b.top).abs();
-
 Future<void> _setViewport(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-}
-
-Future<Rect> _measureShell(
-  WidgetTester tester,
-  Size size,
-  Finder target,
-) async {
-  await _setViewport(tester, size);
-  await tester.pumpWidget(const MaterialApp(home: StartupVisualShell()));
-  await tester.pump();
-  return _rect(tester, target);
-}
-
-Future<Rect> _measureWelcome(
-  WidgetTester tester,
-  Size size,
-  Finder target,
-) async {
-  await _setViewport(tester, size);
-  await tester.pumpWidget(const MaterialApp(home: WelcomePage()));
-  await tester.pump();
-  await tester.pumpAndSettle(const Duration(milliseconds: 100));
-  return _rect(tester, target);
 }
 
 void _drainKnownOverflow(WidgetTester tester) {
@@ -64,70 +38,31 @@ void _drainKnownOverflow(WidgetTester tester) {
   }
 }
 
+/// FRONT.6: Z2 shell↔Welcome geometry SUPERATA (shell = solo navy).
+/// Restano sole verifiche sulla Welcome reale.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('PWA.7-Z2 shell ↔ Welcome geometry', () {
-    testWidgets('390×844 — logo/Accedi/SCOPRICI entro 2px', (tester) async {
+  group('PWA.7-Z2 Welcome geometry (FRONT.6 — no shell hero)', () {
+    testWidgets('390×844 — logo centerX + ordine CTA sulla Welcome', (
+      tester,
+    ) async {
       const size = Size(390, 844);
-
-      final shellLogo = await _measureShell(tester, size, _logoImage());
-      final shellAccedi = await _measureShell(tester, size, _accediButton());
-      final shellScoprici =
-          await _measureShell(tester, size, _scopriciButton());
-
-      final welcomeLogo = await _measureWelcome(tester, size, _logoImage());
-      final welcomeAccedi = await _measureWelcome(tester, size, _accediButton());
-      final welcomeScoprici =
-          await _measureWelcome(tester, size, _scopriciButton());
+      await _setViewport(tester, size);
+      await tester.pumpWidget(const MaterialApp(home: WelcomePage()));
+      await tester.pump();
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
       _drainKnownOverflow(tester);
 
-      expect(
-        _deltaY(shellLogo, welcomeLogo),
-        lessThanOrEqualTo(2),
-        reason: 'logo shell=${shellLogo.top} welcome=${welcomeLogo.top}',
-      );
-      expect(
-        _deltaY(shellAccedi, welcomeAccedi),
-        lessThanOrEqualTo(2),
-        reason:
-            'accedi shell=${shellAccedi.top} welcome=${welcomeAccedi.top}',
-      );
-      expect(
-        _deltaY(shellScoprici, welcomeScoprici),
-        lessThanOrEqualTo(2),
-        reason:
-            'scoprici shell=${shellScoprici.top} welcome=${welcomeScoprici.top}',
-      );
+      final logo = _rect(tester, _logoImage());
+      final accedi = _rect(tester, _accediButton());
+      final forgot = _rect(tester, _forgotButton());
+      final scoprici = _rect(tester, _scopriciButton());
 
-      final shellForgot = await _measureShell(tester, size, _forgotButton());
-      final welcomeForgot =
-          await _measureWelcome(tester, size, _forgotButton());
-      _drainKnownOverflow(tester);
-      expect(
-        _deltaY(shellForgot, welcomeForgot),
-        lessThanOrEqualTo(2),
-        reason:
-            'forgot shell=${shellForgot.top} welcome=${welcomeForgot.top}',
-      );
-
-      // FRONT.1: logo top-center — shell ↔ Welcome centerX ≤ 1 px.
-      expect(
-        (shellLogo.center.dx - welcomeLogo.center.dx).abs(),
-        lessThanOrEqualTo(1),
-        reason:
-            'logo centerX shell=${shellLogo.center.dx} welcome=${welcomeLogo.center.dx}',
-      );
-      expect(
-        (shellLogo.center.dx - size.width / 2).abs(),
-        lessThanOrEqualTo(1),
-        reason: 'shell logo centerX vs viewport',
-      );
-      expect(
-        (welcomeLogo.center.dx - size.width / 2).abs(),
-        lessThanOrEqualTo(1),
-        reason: 'welcome logo centerX vs viewport',
-      );
+      expect((logo.center.dx - size.width / 2).abs(), lessThanOrEqualTo(1));
+      expect(accedi.top, greaterThan(logo.bottom));
+      expect(forgot.top, greaterThan(accedi.bottom));
+      expect(scoprici.top, greaterThan(forgot.bottom));
     });
 
     for (final size in <Size>[
@@ -140,27 +75,14 @@ void main() {
         '${size.width.toInt()}×${size.height.toInt()} — logo centerX ≤ 1px',
         (tester) async {
           await _setViewport(tester, size);
-          await tester.pumpWidget(const MaterialApp(home: StartupVisualShell()));
-          await tester.pump();
-          expect(tester.takeException(), isNull);
-
-          final shellLogo = _rect(tester, _logoImage());
-          expect(
-            (shellLogo.center.dx - size.width / 2).abs(),
-            lessThanOrEqualTo(1),
-          );
-
           await tester.pumpWidget(const MaterialApp(home: WelcomePage()));
           await tester.pump();
           await tester.pumpAndSettle(const Duration(milliseconds: 100));
           _drainKnownOverflow(tester);
-          final welcomeLogo = _rect(tester, _logoImage());
+
+          final logo = _rect(tester, _logoImage());
           expect(
-            (welcomeLogo.center.dx - size.width / 2).abs(),
-            lessThanOrEqualTo(1),
-          );
-          expect(
-            (shellLogo.center.dx - welcomeLogo.center.dx).abs(),
+            (logo.center.dx - size.width / 2).abs(),
             lessThanOrEqualTo(1),
           );
         },
@@ -173,15 +95,19 @@ void main() {
       Size(390, 700),
     ]) {
       testWidgets(
-        '${size.width.toInt()}×${size.height.toInt()} — no overflow, ordine CTA',
+        '${size.width.toInt()}×${size.height.toInt()} — ordine CTA Welcome',
         (tester) async {
           await _setViewport(tester, size);
-          await tester.pumpWidget(const MaterialApp(home: StartupVisualShell()));
+          await tester.pumpWidget(const MaterialApp(home: WelcomePage()));
           await tester.pump();
-          expect(tester.takeException(), isNull);
+          await tester.pumpAndSettle(const Duration(milliseconds: 100));
+          _drainKnownOverflow(tester);
 
           expect(find.text(WelcomeStaticShellLayout.ctaAccedi), findsOneWidget);
-          expect(find.text(WelcomeStaticShellLayout.ctaScoprici), findsOneWidget);
+          expect(
+            find.text(WelcomeStaticShellLayout.ctaScoprici),
+            findsOneWidget,
+          );
 
           final logoTop = _rect(tester, _logoImage()).top;
           final accediTop = _rect(tester, _accediButton()).top;

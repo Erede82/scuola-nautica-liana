@@ -10,17 +10,27 @@ import 'pages/welcome_page.dart';
 import 'repositories/student_auth_registry.dart';
 import 'services/app_auth_bootstrap.dart';
 import 'services/auth_flow_state.dart';
+import 'services/auth_gate_bootstrap.dart';
 import 'services/auth_logout_navigation.dart';
 import 'services/demo_student_enrollment.dart';
+import 'services/html_splash_lifecycle.dart';
 import 'services/staff_access_service.dart';
 import 'services/startup_diagnostics.dart';
 import 'utils/admin_access_utils.dart';
 import 'widgets/startup_visual_shell.dart';
+import 'widgets/welcome_asset_hints.dart';
 
 /// Root dell’app: Welcome se non autenticato, altrimenti Home o Admin.
 /// Dopo login/registrazione le pagine fanno solo `Navigator.pop` e questo widget si aggiorna.
 class AppAuthGate extends StatefulWidget {
-  const AppAuthGate({super.key});
+  const AppAuthGate({
+    super.key,
+    @visibleForTesting this.heroWarmupOverride,
+  });
+
+  /// FRONT.8 test hook: bypassa [precacheImage] (fake-async / VM).
+  @visibleForTesting
+  final Future<void> Function(BuildContext context)? heroWarmupOverride;
 
   @override
   State<AppAuthGate> createState() => _AppAuthGateState();
@@ -28,6 +38,9 @@ class AppAuthGate extends StatefulWidget {
 
 class _AppAuthGateState extends State<AppAuthGate> {
   bool _bootstrapping = true;
+  bool _authComplete = false;
+  bool _heroWarmupComplete = false;
+  bool _heroWarmupStarted = false;
   StreamSubscription<AuthState>? _authSub;
   VoidCallback? _studentListener;
   VoidCallback? _staffListener;
@@ -55,13 +68,71 @@ class _AppAuthGateState extends State<AppAuthGate> {
       });
     }
 
-    unawaited(_finalizeBootstrap());
+    unawaited(_runAuthBootstrap());
   }
 
-  Future<void> _finalizeBootstrap() async {
-    if (!SupabaseConfig.isConfigured) {
-      if (mounted) setState(() => _bootstrapping = false);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // MediaQuery disponibile qui: un solo hero precache (FRONT.8).
+    if (_heroWarmupStarted) return;
+    _heroWarmupStarted = true;
+    unawaited(_runHeroWarmup());
+  }
+
+  Future<void> _runAuthBootstrap() async {
+    try {
+      await _finalizeAuthBootstrap();
+    } catch (_) {
+      // Auth bootstrap best-effort: gate procede comunque dopo hero.
+    }
+    if (!mounted) return;
+    setState(() {
+      _authComplete = true;
+      _applyBootstrapGate();
+    });
+  }
+
+  Future<void> _runHeroWarmup() async {
+    StartupDiagnostics.log('HERO_WARMUP start');
+    try {
+      final override = widget.heroWarmupOverride;
+      if (override != null) {
+        await override(context);
+      } else {
+        await precacheImage(
+          WelcomeAssetHints.heroProvider(context),
+          context,
+        ).timeout(const Duration(seconds: 12));
+      }
+    } catch (_) {
+      // Decode fallito/timeout: Welcome ha ColoredBox + errorBuilder.
+    }
+    if (!mounted) return;
+    StartupDiagnostics.log('HERO_WARMUP ready');
+    setState(() {
+      _heroWarmupComplete = true;
+      _applyBootstrapGate();
+    });
+  }
+
+  void _applyBootstrapGate() {
+    if (!isAuthGateReady(
+      authComplete: _authComplete,
+      heroWarmupComplete: _heroWarmupComplete,
+    )) {
+      return;
+    }
+    if (!_bootstrapping) return;
+    _bootstrapping = false;
+    if (!SupabaseConfig.isConfigured ||
+        Supabase.instance.client.auth.currentUser == null) {
       StartupDiagnostics.log('AUTH gateWelcome');
+    }
+  }
+
+  Future<void> _finalizeAuthBootstrap() async {
+    if (!SupabaseConfig.isConfigured) {
       return;
     }
 
@@ -94,12 +165,6 @@ class _AppAuthGateState extends State<AppAuthGate> {
         }
       }
     }
-    if (mounted) setState(() => _bootstrapping = false);
-    if (mounted &&
-        (!SupabaseConfig.isConfigured ||
-            Supabase.instance.client.auth.currentUser == null)) {
-      StartupDiagnostics.log('AUTH gateWelcome');
-    }
   }
 
   @override
@@ -120,7 +185,8 @@ class _AppAuthGateState extends State<AppAuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_bootstrapping) {
-      // Allineato allo splash HTML: Welcome shell (no pagina blu piena).
+      // Sotto lo splash HTML: Azzurro Capri + logo (STARTUP.CAPRI). Splash resta fino a
+      // WELCOME_VISUAL_READY / app-surface-ready.
       return const StartupVisualShell();
     }
 
@@ -145,6 +211,7 @@ class _AppAuthGateState extends State<AppAuthGate> {
         email: email,
         staffRole: snap.staffRole,
       );
+      _scheduleAppSurfaceReady();
       return admin ? const AdminHomePage() : const HomePage();
     }
 
@@ -168,6 +235,13 @@ class _AppAuthGateState extends State<AppAuthGate> {
       email: email,
       staffRole: snap.staffRole,
     );
+    _scheduleAppSurfaceReady();
     return admin ? const AdminHomePage() : const HomePage();
+  }
+
+  void _scheduleAppSurfaceReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HtmlSplashLifecycle.markAppSurfaceReady();
+    });
   }
 }

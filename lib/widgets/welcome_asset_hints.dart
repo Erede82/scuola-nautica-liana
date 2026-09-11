@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_branding.dart';
+
 /// Limiti decode/precache per Welcome su layout compatto (desktop resta full-res).
 ///
-/// Condiviso tra [WelcomePage] hero/card e [StartupVisualShell].
+/// Usato da [WelcomePage] hero/card (FRONT.6: shell non decodifica più la boat).
+/// FRONT.8: [heroProvider] è l'unica source ImageProvider per precache + Welcome.
 abstract final class WelcomeAssetHints {
   static const int compactHeroMinCacheWidth = 960;
   static const int compactHeroMaxCacheWidth = 1600;
@@ -16,6 +19,14 @@ abstract final class WelcomeAssetHints {
     final provider = AssetImage(assetPath);
     if (cacheWidth == null) return provider;
     return ResizeImage(provider, width: cacheWidth);
+  }
+
+  /// Provider IDENTICO per precache gate e [WelcomePage] hero.
+  static ImageProvider heroProvider(BuildContext context) {
+    return resizedAsset(
+      AppBranding.welcomeBoatJpg,
+      cacheWidth: heroCacheWidth(context),
+    );
   }
 
   static int? heroCacheWidth(BuildContext context) {

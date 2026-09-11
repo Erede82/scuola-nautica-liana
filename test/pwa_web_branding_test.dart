@@ -18,6 +18,12 @@ void main() {
       'icons/Icon-maskable-192.png': (192, 192),
       'icons/Icon-maskable-512.png': (512, 512),
       'icons/apple-touch-icon.png': (180, 180),
+      // RELEASE.FINAL-CACHEBUST: URL nuovi (grafica identica).
+      'icons/Icon-192-capri-2026.png': (192, 192),
+      'icons/Icon-512-capri-2026.png': (512, 512),
+      'icons/Icon-maskable-192-capri-2026.png': (192, 192),
+      'icons/Icon-maskable-512-capri-2026.png': (512, 512),
+      'icons/apple-touch-icon-capri-2026.png': (180, 180),
       'icons/Icon-1024.png': (1024, 1024),
     };
 
@@ -36,27 +42,29 @@ void main() {
   });
 
   test('icone maskable distinte dalle standard', () {
-    final standard512 = web('icons/Icon-512.png').readAsBytesSync();
-    final maskable512 = web('icons/Icon-maskable-512.png').readAsBytesSync();
-    final standard192 = web('icons/Icon-192.png').readAsBytesSync();
-    final maskable192 = web('icons/Icon-maskable-192.png').readAsBytesSync();
+    final standard512 = web('icons/Icon-512-capri-2026.png').readAsBytesSync();
+    final maskable512 =
+        web('icons/Icon-maskable-512-capri-2026.png').readAsBytesSync();
+    final standard192 = web('icons/Icon-192-capri-2026.png').readAsBytesSync();
+    final maskable192 =
+        web('icons/Icon-maskable-192-capri-2026.png').readAsBytesSync();
 
     expect(standard512, isNot(equals(maskable512)));
     expect(standard192, isNot(equals(maskable192)));
   });
 
-  test('icone PWA senza halo e con background #005E83', () async {
+  test('icone PWA Capri #00BFFF + logo bianco (RELEASE.FINAL)', () async {
     TestWidgetsFlutterBinding.ensureInitialized();
 
-    const bg = (0x00, 0x5E, 0x83);
+    const bg = (0x00, 0xBF, 0xFF);
     const white = (0xFF, 0xFF, 0xFF);
 
     for (final relative in [
-      'icons/Icon-512.png',
-      'icons/Icon-192.png',
-      'icons/apple-touch-icon.png',
-      'icons/Icon-maskable-512.png',
-      'icons/Icon-maskable-192.png',
+      'icons/Icon-512-capri-2026.png',
+      'icons/Icon-192-capri-2026.png',
+      'icons/apple-touch-icon-capri-2026.png',
+      'icons/Icon-maskable-512-capri-2026.png',
+      'icons/Icon-maskable-192-capri-2026.png',
       'favicon.png',
     ]) {
       final pixels = await _loadRgbPixelsFromFile(web(relative));
@@ -65,7 +73,8 @@ void main() {
         isTrue,
         reason: '$relative contiene pixel di fringe',
       );
-      expect(pixels.first, bg, reason: '$relative angolo non #005E83');
+      expect(pixels.first, bg, reason: '$relative angolo non #00BFFF');
+      expect(pixels.any((px) => px == white), isTrue, reason: '$relative no logo');
     }
   });
 
@@ -79,8 +88,11 @@ void main() {
     expect(json['start_url'], '/#/');
     expect(json['scope'], '/');
     expect(json['display'], 'standalone');
-    expect(json['background_color'], '#F7F3ED');
+    expect(json['background_color'], '#005E83');
     expect(json['theme_color'], '#005E83');
+    final dark = json['color_scheme_dark'] as Map<String, dynamic>;
+    expect(dark['theme_color'], '#005E83');
+    expect(dark['background_color'], '#005E83');
     expect(json.containsKey('orientation'), isFalse);
 
     final icons = (json['icons'] as List).cast<Map<String, dynamic>>();
@@ -118,133 +130,94 @@ void main() {
         'name="apple-mobile-web-app-status-bar-style" content="black-translucent"',
       ),
     );
+    expect(html, isNot(contains('liana-status-area')));
     expect(
       html,
       contains('name="apple-mobile-web-app-title" content="Nautica Liana"'),
     );
-    expect(html, contains('href="icons/apple-touch-icon.png"'));
+    expect(html, contains('href="icons/apple-touch-icon-capri-2026.png"'));
     expect(html, contains('href="favicon.png"'));
-    expect(html, contains('href="manifest.json"'));
+    expect(html, contains('href="manifest.json?v=20260909b"'));
+    expect(
+      RegExp(r'rel="manifest"\s+href="manifest\.json"').hasMatch(html),
+      isFalse,
+    );
     expect(html, isNot(contains('icons/Icon-192.png')));
     expect(html.toLowerCase(), isNot(contains('flutter demo')));
   });
 
-  test('index.html splash è static Welcome shell (no blu pieno)', () {
+  test('index.html RELEASE.FINAL — root Navy, splash Capri + logo + title', () {
     final html = web('index.html').readAsStringSync();
     expect(html, contains('id="liana-splash"'));
-    expect(html, contains('flutter-first-frame'));
     expect(html, contains('pointer-events: none'));
+    // Root permanente Navy; Capri solo sull'overlay.
+    expect(html, contains('html, body'));
     expect(
-      html,
-      contains('assets/assets/images/welcome/welcome_boat.jpg'),
+      RegExp(r'html,\s*body\s*\{[^}]*background-color:\s*#005E83', multiLine: true)
+          .hasMatch(html),
+      isTrue,
     );
-    expect(html, contains('assets/assets/branding/logo_mark_white.png'));
-    expect(html, contains('background-color: #0A1620'));
-    expect(html, isNot(contains('background-color: #005E83')));
+    expect(
+      RegExp(r'#liana-splash\s*\{[^}]*background-color:\s*#00BFFF', multiLine: true)
+          .hasMatch(html),
+      isTrue,
+    );
+    // RELEASE.STABLE / IOS-SENTINEL: no viewport-fit; no legacy status-area.
+    expect(html, isNot(contains('liana-status-area')));
+    expect(html, isNot(contains('viewport-fit=cover')));
+    expect(html, isNot(contains('env(safe-area-inset-top)')));
+    expect(html, contains('id="liana-ios-status-sentinel"'));
+    expect(html, contains('name="theme-color" content="#005E83"'));
+    expect(html, isNot(contains('background-color: #0A1620')));
     expect(html, isNot(contains('src="icons/Icon-512.png"')));
-    expect(html, contains('env(safe-area-inset-top'));
     expect(html, contains('forgot-password'));
     expect(html, contains("+ '#/"));
     expect(html, contains('hashEmpty'));
     expect(html, contains('atRoot'));
     expect(html, isNot(contains('https://fonts.googleapis.com')));
-    expect(html, isNot(contains('https://fonts.gstatic.com')));
-    expect(html, isNot(contains('-webkit-only')));
-    expect(html, isNot(contains('viewport-fit=cover')));
 
-    // FRONT.1: logo top-center + Montserrat locale.
-    expect(html, contains('align-self: center'));
-    expect(html, isNot(contains('align-self: flex-start')));
+    expect(html, contains('assets/google_fonts/Montserrat-Bold.ttf'));
+    expect(html, contains('assets/google_fonts/Montserrat-SemiBold.ttf'));
+
+    // Boat preload (NON render nello splash).
+    expect(html, contains('rel="preload"'));
     expect(
       html,
-      contains("font-family: 'Montserrat', Helvetica, Arial, sans-serif"),
+      contains('href="assets/assets/images/welcome/welcome_boat.jpg"'),
     );
-    expect(html, contains('assets/google_fonts/Montserrat-Medium.ttf'));
-    expect(html, contains('assets/google_fonts/Montserrat-Bold.ttf'));
-    // FRONT.1-FONT-DISPLAY: block su tutti e tre @font-face (400/500/700).
+    expect(html, isNot(contains('background-image')));
     expect(
-      RegExp(r'font-display:\s*block').allMatches(html).length,
-      greaterThanOrEqualTo(3),
+      html,
+      isNot(contains('url("assets/assets/images/welcome/welcome_boat.jpg")')),
     );
-    expect(html, isNot(contains('font-display: optional')));
-    expect(html, isNot(contains('font-display: swap')));
-  });
 
-  test('index.html splash Z1 — continuità visiva Welcome (snapshot iOS)', () {
-    final html = web('index.html').readAsStringSync();
+    expect(html, contains('logo_mark_white.png'));
+    expect(html, contains('height: 100px'));
+    expect(html, contains('liana-splash-title'));
+    expect(html, contains('class="liana-splash-title"'));
+    expect(html, contains('Scuola Nautica Liana'));
 
-    for (final snippet in [
-      'liana-splash',
-      'welcome_boat',
-      'logo_mark_white',
-      'Scuola Nautica',
-      'Liana',
-      'Benvenuto',
-      'Accedi',
-      'Registrati',
+    for (final forbidden in [
       'Password dimenticata?',
       'SCOPRICI',
-      'pointer-events: none',
-      'flutter-first-frame',
+      'Benvenuto, sei pronto',
+      'liana-splash-cta',
+      'background-size: cover',
+      'viewport-fit=cover',
+      'liana-status-area',
     ]) {
-      expect(html, contains(snippet), reason: snippet);
+      expect(html, isNot(contains(forbidden)), reason: forbidden);
     }
 
-    // NO-COVER: niente logo gigante 168px centrato come unica hero.
-    expect(html, isNot(contains('width="168"')));
-    expect(html, isNot(contains('width: min(42vw, 168px)')));
-
-    // Gradient allineato alla Welcome (72 → 62 → 55 → 48).
-    expect(html, contains('rgba(0, 0, 0, 0.72)'));
-    expect(html, contains('rgba(0, 0, 0, 0.62)'));
-    expect(html, contains('rgba(0, 0, 0, 0.55)'));
-    expect(html, contains('rgba(0, 0, 0, 0.48)'));
-    expect(html, contains('padding: 6px 12px'));
-    expect(html, contains('box-sizing: border-box'));
-    expect(html, contains('background-size: cover'));
-  });
-
-  test('index.html splash Z3 — Password e SCOPRICI verticali (no side-by-side)', () {
-    final html = web('index.html').readAsStringSync();
-
-    expect(html, contains('class="liana-splash-footer-cta"'));
-    expect(html, contains('.liana-splash-footer-cta'));
-    expect(html, contains('flex-direction: column'));
-    expect(html, contains('align-items: center'));
-
-    // Password e SCOPRICI devono stare nello stesso wrapper verticale.
-    final footerStart = html.indexOf('class="liana-splash-footer-cta"');
-    expect(footerStart, greaterThan(-1));
-    final footerEnd = html.indexOf('</div>', footerStart);
-    expect(footerEnd, greaterThan(footerStart));
-    final footerBlock = html.substring(footerStart, footerEnd);
-    expect(footerBlock, contains('liana-splash-forgot'));
-    expect(footerBlock, contains('Password dimenticata?'));
-    expect(footerBlock, contains('liana-splash-discover'));
-    expect(footerBlock, contains('SCOPRICI'));
-
-    // Il wrapper footer NON deve essere row (affiancamento).
-    final cssFooter = RegExp(
-      r'\.liana-splash-footer-cta\s*\{[^}]+\}',
-      dotAll: true,
-    ).firstMatch(html);
-    expect(cssFooter, isNotNull, reason: 'CSS footer-cta');
-    final footerCss = cssFooter!.group(0)!;
-    expect(footerCss, contains('flex-direction: column'));
-    expect(footerCss, isNot(contains('flex-direction: row')));
-
-    // Gap Password → SCOPRICI (20px / 14px cramped).
-    expect(html, contains('gap: 20px'));
-    expect(html, contains('gap: 14px'));
-
-    // Accedi/Registrati restano nel row orizzontale separato.
-    expect(html, contains('liana-splash-cta-row'));
-    final ctaRowStart = html.indexOf('class="liana-splash-cta-row"');
-    final ctaRowEnd = html.indexOf('</div>', ctaRowStart);
-    final ctaRowBlock = html.substring(ctaRowStart, ctaRowEnd);
-    expect(ctaRowBlock, contains('Accedi'));
-    expect(ctaRowBlock, contains('Registrati'));
-    expect(ctaRowBlock, isNot(contains('SCOPRICI')));
+    final brandStart = html.indexOf('class="liana-splash-brand"');
+    expect(brandStart, greaterThan(-1));
+    final brandSlice = html.substring(brandStart, brandStart + 450);
+    expect(brandSlice.contains('Accedi'), isFalse);
+    expect(brandSlice.contains('<img'), isTrue);
+    expect(
+      html,
+      isNot(contains("addEventListener('flutter-first-frame'")),
+    );
   });
 
   test('asset Welcome boat e logo mark white presenti in sorgente', () {

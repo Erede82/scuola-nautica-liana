@@ -3,10 +3,14 @@ import 'package:flutter/rendering.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../constants/app_branding.dart';
+import '../pages/login_page.dart';
+import '../services/html_splash_lifecycle.dart';
 import '../services/startup_diagnostics.dart';
 import '../theme/app_visual_tokens.dart';
+import '../utils/login_navigation_policy.dart';
 import '../utils/school_contact_launcher.dart';
 import '../widgets/welcome_asset_hints.dart';
+import '../widgets/welcome_static_shell_layout.dart';
 
 /// Welcome a blocchi: [WelcomePage] espone già [GlobalKey] per hero / scoprici / percorso
 /// e un [ScrollController] — in un secondo step si possono collegare a visibility + reveal.
@@ -50,6 +54,7 @@ class _WelcomePageState extends State<WelcomePage> {
   bool _showBackToTop = false;
   bool _precacheStarted = false;
   bool _loggedRevealHeroStart = false;
+  bool _visualReadyMarked = false;
   final Map<String, double> _lastCtaY = <String, double>{};
 
   @override
@@ -76,36 +81,32 @@ class _WelcomePageState extends State<WelcomePage> {
       _logCtaLayoutsIfNeeded();
       // Compact hero usa SingleChildScrollView interno: solo diagnostica.
       StartupDiagnostics.log('hero inner scrollable present=true');
+      _markWelcomeVisualReadyOnce();
     });
   }
 
-  /// Precarica hero e logo login senza bloccare il primo frame.
+  /// STARTUP.DECISIVE: hero già warmata dal gate + primo layout → handoff atomico.
+  void _markWelcomeVisualReadyOnce() {
+    if (!mounted || _visualReadyMarked) return;
+    _visualReadyMarked = true;
+    HtmlSplashLifecycle.markWelcomeVisualReady();
+  }
+
+  /// Precarica logo login (hero già warmata da AppAuthGate FRONT.8).
   Future<void> _precacheWelcomeAssets() async {
     if (!mounted || _precacheStarted) return;
     _precacheStarted = true;
 
-    final heroCacheWidth = WelcomeAssetHints.heroCacheWidth(context);
     final logoCacheWidth = WelcomeAssetHints.loginLogoCacheWidth(context);
 
-    final futures = <Future<void>>[
-      precacheImage(
-        WelcomeAssetHints.resizedAsset(
-          AppBranding.welcomeBoatJpg,
-          cacheWidth: heroCacheWidth,
-        ),
-        context,
-      ),
-      precacheImage(
+    try {
+      await precacheImage(
         WelcomeAssetHints.resizedAsset(
           AppBranding.logoScuolaNauticaLianaBlue,
           cacheWidth: logoCacheWidth,
         ),
         context,
-      ),
-    ];
-
-    try {
-      await Future.wait(futures);
+      );
     } catch (_) {
       // Asset opzionali: il fallback gradient/errorBuilder resta disponibile.
     }
@@ -292,6 +293,22 @@ class _WelcomePageState extends State<WelcomePage> {
     StartupDiagnostics.log(
       'NAV target=${StartupDiagnostics.sanitizeRoute(fallbackRoute)}',
     );
+
+    // FRONT.8: Accedi su iOS web → route Flutter unnamed (niente /#/login in history).
+    if (fallbackRoute == '/login' && shouldUseInternalLoginRouteNow()) {
+      StartupDiagnostics.log('LOGIN navigation=internal-ios-web');
+      Navigator.maybeOf(context)?.push(
+        PageRouteBuilder<void>(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return const LoginPage(isInternalIosWebLogin: true);
+          },
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+        ),
+      );
+      return;
+    }
+
     Navigator.maybeOf(context)?.pushNamed(fallbackRoute);
   }
 
@@ -348,14 +365,9 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                   ),
                 ),
-                _RevealOnScroll(
-                  visible: _discoverVisible,
-                  offsetY: 0,
-                  child: _SplitDiscoverSection(
-                    key: _discoverKey,
-                    titleAnchorKey: _discoverTitleKey,
-                    cardsRevealVisible: _discoverVisible,
-                  ),
+                _SplitDiscoverSection(
+                  key: _discoverKey,
+                  titleAnchorKey: _discoverTitleKey,
                 ),
                 KeyedSubtree(
                   key: _journeySectionKey,
@@ -544,21 +556,24 @@ class _HeroSection extends StatelessWidget {
     final bool isCompact = size.width < 900;
     final bool cramped = isCompact && size.height < 720;
     // Su mobile la hero occupa tutta l’altezza finestra così non resta fascia bianca sotto.
+    // Desktop: 100% viewport (h>=760); viewport bassi → 760 con scroll (FRONT.3).
     final double heroHeight = isCompact
         ? size.height
-        : (size.height < 760 ? 760 : size.height * 0.96);
+        : (size.height < 760 ? 760 : size.height);
 
     return SizedBox(
       height: heroHeight,
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Underlay stabile durante decode/re-resolve boat (evita flash Scaffold).
+          const ColoredBox(color: Color(0xFF123A5A)),
           // Sfondo: in futuro sostituibile con video (stesso Stack + overlay).
-          Image.asset(
-            AppBranding.welcomeBoatJpg,
+          Image(
+            image: WelcomeAssetHints.heroProvider(context),
             fit: BoxFit.cover,
-            cacheWidth: WelcomeAssetHints.heroCacheWidth(context),
             filterQuality: FilterQuality.medium,
+            gaplessPlayback: true,
             errorBuilder: (_, _, _) {
               return Container(
                 decoration: const BoxDecoration(
@@ -577,18 +592,8 @@ class _HeroSection extends StatelessWidget {
           ),
           // Overlay “vedo non vedo”: scuro e uniforme, l’immagine resta appena percettibile.
           Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0.0, 0.35, 0.65, 1.0],
-                colors: [
-                  Colors.black.withValues(alpha: 0.72),
-                  Colors.black.withValues(alpha: 0.62),
-                  Colors.black.withValues(alpha: 0.55),
-                  Colors.black.withValues(alpha: 0.48),
-                ],
-              ),
+            decoration: const BoxDecoration(
+              gradient: WelcomeStaticShellLayout.heroOverlayGradient,
             ),
           ),
           SafeArea(
@@ -719,23 +724,32 @@ class _HeroSection extends StatelessWidget {
             horizontal: horizontalPadding,
             vertical: verticalPadding,
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            clipBehavior: Clip.none,
+          child: CustomMultiChildLayout(
+            delegate: _DesktopHeroLogoCopyDelegate(
+              logoHeight: _desktopLogoHeight,
+              // Stesso area-copy FRONT.8: CTA centrata sotto height+gap.
+              contentAreaTop: _desktopLogoHeight + _desktopLogoToCopyGap,
+              logoToTitleGap: WelcomeStaticShellLayout.desktopLogoToTitleGap,
+            ),
             children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Center(child: _HeroLogo(height: 86)),
+              LayoutId(
+                id: _DesktopHeroLogoCopyDelegate.idCopy,
+                child: ctaColumn,
               ),
-              Center(child: ctaColumn),
+              LayoutId(
+                id: _DesktopHeroLogoCopyDelegate.idLogo,
+                child: _HeroLogo(height: _desktopLogoHeight),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// Altezza logo desktop + gap area-copy FRONT.8 (copy frozen).
+  static const double _desktopLogoHeight = 86;
+  static const double _desktopLogoToCopyGap = 24;
 
   /// Titolo brand, sottotitolo di benvenuto e riga editoriale (hero).
   static Widget _heroHeadlineBlock({
@@ -792,6 +806,53 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
+/// FRONT.FINAL: CTA nella stessa area FRONT.8; logo ancorato a title (gap ~28).
+class _DesktopHeroLogoCopyDelegate extends MultiChildLayoutDelegate {
+  _DesktopHeroLogoCopyDelegate({
+    required this.logoHeight,
+    required this.contentAreaTop,
+    required this.logoToTitleGap,
+  });
+
+  static const Object idLogo = 'logo';
+  static const Object idCopy = 'copy';
+
+  final double logoHeight;
+  final double contentAreaTop;
+  final double logoToTitleGap;
+
+  @override
+  void performLayout(Size size) {
+    final copySize = layoutChild(
+      idCopy,
+      BoxConstraints.loose(size),
+    );
+    final areaHeight = (size.height - contentAreaTop).clamp(0.0, size.height);
+    final copyTop =
+        contentAreaTop + ((areaHeight - copySize.height) / 2).clamp(0.0, areaHeight);
+    final copyLeft = (size.width - copySize.width) / 2;
+    positionChild(idCopy, Offset(copyLeft, copyTop));
+
+    final logoSize = layoutChild(
+      idLogo,
+      BoxConstraints(
+        maxWidth: size.width,
+        maxHeight: logoHeight,
+      ),
+    );
+    final logoTop = copyTop - logoToTitleGap - logoSize.height;
+    final logoLeft = (size.width - logoSize.width) / 2;
+    positionChild(idLogo, Offset(logoLeft, logoTop));
+  }
+
+  @override
+  bool shouldRelayout(covariant _DesktopHeroLogoCopyDelegate oldDelegate) {
+    return logoHeight != oldDelegate.logoHeight ||
+        contentAreaTop != oldDelegate.contentAreaTop ||
+        logoToTitleGap != oldDelegate.logoToTitleGap;
+  }
+}
+
 /// Marchio in alto a sinistra nella hero: solo variante [AppLogoMarkVariant.white]
 /// su overlay scuro (nessun logo centrale, nessun aqua/blu in hero).
 class _HeroLogo extends StatelessWidget {
@@ -833,16 +894,15 @@ class _SplitDiscoverSection extends StatelessWidget {
   const _SplitDiscoverSection({
     super.key,
     required this.titleAnchorKey,
-    required this.cardsRevealVisible,
   });
 
   final GlobalKey titleAnchorKey;
-  final bool cardsRevealVisible;
 
   @override
   Widget build(BuildContext context) {
     final bool isCompact = MediaQuery.of(context).size.width < 900;
 
+    // FRONT.7: background bianco SEMPRE opaco (niente AnimatedOpacity sull'intera sezione).
     return Container(
       color: Colors.white,
       padding: EdgeInsets.fromLTRB(
@@ -886,13 +946,30 @@ class _SplitDiscoverSection extends StatelessWidget {
               Transform.translate(
                 offset: const Offset(0, -14),
                 child: isCompact
-                    ? Column(
+                    ? const Column(
                         children: [
-                          _RevealOnScroll(
-                            visible: cardsRevealVisible,
-                            fade: false,
-                            offsetY: 24,
-                            child: const _DiscoverImageCard(
+                          _DiscoverImageCard(
+                            imagePath: AppBranding.welcomeClassroomJpg,
+                            tag: 'AULA',
+                            title: 'Spazi di studio chiari e curati',
+                            description:
+                                'Un ambiente riconoscibile, ordinato e vicino agli allievi.',
+                          ),
+                          SizedBox(height: 16),
+                          _DiscoverImageCard(
+                            imagePath: AppBranding.welcomeBoatJpg,
+                            tag: 'MARE',
+                            title: 'La navigazione come esperienza reale',
+                            description:
+                                'Non solo teoria: il mare resta sempre il punto di arrivo.',
+                          ),
+                        ],
+                      )
+                    : const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _DiscoverImageCard(
                               imagePath: AppBranding.welcomeClassroomJpg,
                               tag: 'AULA',
                               title: 'Spazi di studio chiari e curati',
@@ -900,55 +977,14 @@ class _SplitDiscoverSection extends StatelessWidget {
                                   'Un ambiente riconoscibile, ordinato e vicino agli allievi.',
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          _RevealOnScroll(
-                            visible: cardsRevealVisible,
-                            fade: false,
-                            offsetY: 32,
-                            duration: const Duration(milliseconds: 760),
-                            curve: Curves.easeOutCubic,
-                            child: const _DiscoverImageCard(
+                          SizedBox(width: 20),
+                          Expanded(
+                            child: _DiscoverImageCard(
                               imagePath: AppBranding.welcomeBoatJpg,
                               tag: 'MARE',
                               title: 'La navigazione come esperienza reale',
                               description:
                                   'Non solo teoria: il mare resta sempre il punto di arrivo.',
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _RevealOnScroll(
-                              visible: cardsRevealVisible,
-                              fade: false,
-                              offsetY: 24,
-                              child: const _DiscoverImageCard(
-                                imagePath: AppBranding.welcomeClassroomJpg,
-                                tag: 'AULA',
-                                title: 'Spazi di studio chiari e curati',
-                                description:
-                                    'Un ambiente riconoscibile, ordinato e vicino agli allievi.',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _RevealOnScroll(
-                              visible: cardsRevealVisible,
-                              fade: false,
-                              offsetY: 32,
-                              duration: const Duration(milliseconds: 760),
-                              curve: Curves.easeOutCubic,
-                              child: const _DiscoverImageCard(
-                                imagePath: AppBranding.welcomeBoatJpg,
-                                tag: 'MARE',
-                                title: 'La navigazione come esperienza reale',
-                                description:
-                                    'Non solo teoria: il mare resta sempre il punto di arrivo.',
-                              ),
                             ),
                           ),
                         ],
@@ -1041,23 +1077,37 @@ class _DiscoverImageCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      height: 1.05,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      fontSize: 15,
-                      height: 1.45,
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.w700,
+                                height: 1.05,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              description,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                fontSize: 15,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1564,36 +1614,27 @@ class _RevealOnScroll extends StatelessWidget {
     required this.visible,
     required this.child,
     this.offsetY = 32,
-    this.duration = const Duration(milliseconds: 650),
-    this.curve = Curves.easeOutCubic,
-    this.fade = true,
   });
 
   final bool visible;
   final Widget child;
   final double offsetY;
-  final Duration duration;
-  final Curve curve;
 
-  /// Se false, solo slide (evita doppio fade annidato).
-  final bool fade;
+  static const _duration = Duration(milliseconds: 650);
+  static const _curve = Curves.easeOutCubic;
 
   @override
   Widget build(BuildContext context) {
-    final slide = AnimatedSlide(
-      offset: visible ? Offset.zero : Offset(0, offsetY / 100),
-      duration: duration,
-      curve: curve,
-      child: child,
-    );
-
-    if (!fade) return slide;
-
     return AnimatedOpacity(
       opacity: visible ? 1 : 0,
-      duration: duration,
-      curve: curve,
-      child: slide,
+      duration: _duration,
+      curve: _curve,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : Offset(0, offsetY / 100),
+        duration: _duration,
+        curve: _curve,
+        child: child,
+      ),
     );
   }
 }

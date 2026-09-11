@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,38 @@ import 'services/startup_diagnostics.dart';
 import 'services/startup_diagnostics_host.dart';
 import 'theme/app_visual_tokens.dart';
 import 'widgets/international_phone_field.dart';
+
+/// Named routes dell'app. Su web, `/login` usa durata transizione zero
+/// (FRONT.3: evita animazione push/pop che fa “riaprire” la Welcome).
+@visibleForTesting
+Route<dynamic>? generateAppRoute(
+  RouteSettings settings, {
+  bool? zeroLoginTransition,
+}) {
+  final Widget? page = switch (settings.name) {
+    '/login' => const LoginPage(),
+    '/register' => const StudentRegistrationPage(),
+    '/forgot-password' => const ForgotPasswordPage(),
+    _ => null,
+  };
+  if (page == null) return null;
+
+  final noTransition =
+      settings.name == '/login' && (zeroLoginTransition ?? kIsWeb);
+  if (noTransition) {
+    return PageRouteBuilder<void>(
+      settings: settings,
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+    );
+  }
+
+  return MaterialPageRoute<void>(
+    settings: settings,
+    builder: (context) => page,
+  );
+}
 
 class ScuolaNauticaLianaApp extends StatelessWidget {
   const ScuolaNauticaLianaApp({super.key});
@@ -309,11 +342,7 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
         ...InternationalPhoneField.localizationsDelegates,
       ],
       theme: theme,
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const StudentRegistrationPage(),
-        '/forgot-password': (context) => const ForgotPasswordPage(),
-      },
+      onGenerateRoute: generateAppRoute,
       home: const AppAuthGate(),
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
