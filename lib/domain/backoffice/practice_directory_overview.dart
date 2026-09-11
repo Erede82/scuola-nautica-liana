@@ -251,3 +251,110 @@ Iterable<PracticeListItem> filterPracticeDirectoryItems({
     yield i;
   }
 }
+
+// --- PRATICHE.8B: priorità operativa (solo client-side) ---
+
+/// Livello aggregato per badge / raggruppamento.
+enum PracticeAttentionLevel {
+  critical,
+  warning,
+  normal,
+}
+
+/// Motivo primario (una sola priorità per pratica).
+///
+/// Precedenza: medico scaduto > documenti mancanti > medico in scadenza > normale.
+enum PracticeAttentionKind {
+  medicalExpired,
+  docsIncomplete,
+  medicalExpiringSoon,
+  none,
+}
+
+PracticeAttentionKind practiceAttentionKind(PracticeListItem item) {
+  final medical = item.documentChecklistSummary.medicalCertificate;
+  if (medical == PracticeMedicalCertificateSummaryKind.expired) {
+    return PracticeAttentionKind.medicalExpired;
+  }
+  if (item.isDocumentIncompleteForFilter) {
+    return PracticeAttentionKind.docsIncomplete;
+  }
+  if (medical == PracticeMedicalCertificateSummaryKind.expiringSoon) {
+    return PracticeAttentionKind.medicalExpiringSoon;
+  }
+  return PracticeAttentionKind.none;
+}
+
+PracticeAttentionLevel practiceAttentionLevel(PracticeListItem item) {
+  switch (practiceAttentionKind(item)) {
+    case PracticeAttentionKind.medicalExpired:
+    case PracticeAttentionKind.docsIncomplete:
+      return PracticeAttentionLevel.critical;
+    case PracticeAttentionKind.medicalExpiringSoon:
+      return PracticeAttentionLevel.warning;
+    case PracticeAttentionKind.none:
+      return PracticeAttentionLevel.normal;
+  }
+}
+
+/// Rank numerico crescente = priorità più alta (0 prima in lista).
+int practiceAttentionRank(PracticeListItem item) {
+  switch (practiceAttentionKind(item)) {
+    case PracticeAttentionKind.medicalExpired:
+      return 0;
+    case PracticeAttentionKind.docsIncomplete:
+      return 1;
+    case PracticeAttentionKind.medicalExpiringSoon:
+      return 2;
+    case PracticeAttentionKind.none:
+      return 3;
+  }
+}
+
+/// Label chip aggiuntiva (null = nessun chip attention extra).
+///
+/// Docs-only critical: nessun label (resta «Mancano N»).
+String? practiceAttentionLabel(PracticeListItem item) {
+  switch (practiceAttentionKind(item)) {
+    case PracticeAttentionKind.medicalExpired:
+      return 'Medico scaduto';
+    case PracticeAttentionKind.medicalExpiringSoon:
+      return 'Medico in scadenza';
+    case PracticeAttentionKind.docsIncomplete:
+    case PracticeAttentionKind.none:
+      return null;
+  }
+}
+
+/// Comparator Priorità: rank ASC, poi `registrationDate` DESC, null date in coda.
+int comparePracticeAttention(PracticeListItem a, PracticeListItem b) {
+  final rankCmp =
+      practiceAttentionRank(a).compareTo(practiceAttentionRank(b));
+  if (rankCmp != 0) return rankCmp;
+
+  final ad = a.registrationDate;
+  final bd = b.registrationDate;
+  if (ad == null && bd == null) return 0;
+  if (ad == null) return 1;
+  if (bd == null) return -1;
+  return bd.compareTo(ad);
+}
+
+/// Sort stabile sulla lista già filtrata. OFF → ordine input invariato.
+List<PracticeListItem> sortPracticeDirectoryByAttention(
+  List<PracticeListItem> filtered, {
+  required bool priorityOn,
+}) {
+  if (!priorityOn || filtered.length < 2) {
+    return filtered;
+  }
+  final indexed = <(int, PracticeListItem)>[
+    for (var i = 0; i < filtered.length; i++) (i, filtered[i]),
+  ];
+  indexed.sort((a, b) {
+    final c = comparePracticeAttention(a.$2, b.$2);
+    if (c != 0) return c;
+    return a.$1.compareTo(b.$1);
+  });
+  return [for (final e in indexed) e.$2];
+}

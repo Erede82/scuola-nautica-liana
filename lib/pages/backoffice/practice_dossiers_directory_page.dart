@@ -77,6 +77,9 @@ class _PracticeDossiersDirectoryPageState
   bool _onlyDocsIncomplete = false;
   bool _onlyMedicalAttention = false;
 
+  /// PRATICHE.8B: sort attenzione client-side (default OFF = ordine repository).
+  bool _sortByPriority = false;
+
   PracticeDirectoryFilterState get _filterState => PracticeDirectoryFilterState(
     practiceTypeFilter: _practiceTypeFilter,
     practiceStatusFilter: _practiceStatusFilter,
@@ -268,6 +271,14 @@ class _PracticeDossiersDirectoryPageState
                   ),
                 ),
                 const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Priorità'),
+                  selected: _sortByPriority,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onSelected: (v) => setState(() => _sortByPriority = v),
+                ),
+                const SizedBox(width: 4),
                 IconButton.filledTonal(
                   onPressed: _loading ? null : _load,
                   icon: const Icon(Icons.refresh_rounded),
@@ -382,7 +393,10 @@ class _PracticeDossiersDirectoryPageState
       );
     }
     final raw = _items ?? const <PracticeListItem>[];
-    final filtered = _filtered(raw).toList(growable: false);
+    final filtered = sortPracticeDirectoryByAttention(
+      _filtered(raw).toList(growable: false),
+      priorityOn: _sortByPriority,
+    );
     if (filtered.isEmpty) {
       return Center(
         child: Text(
@@ -1007,6 +1021,25 @@ abstract final class _PracticeDocumentSummaryChips {
           fg: Colors.orange.shade900,
           textTheme: textTheme,
           onTap: onMissingDocumentsTap,
+        ),
+      );
+    }
+
+    // PRATICHE.8B: al più un indicatore attention extra (medico scaduto / in scadenza).
+    final attentionLabel = practiceAttentionLabel(item);
+    if (attentionLabel != null) {
+      final critical =
+          practiceAttentionKind(item) == PracticeAttentionKind.medicalExpired;
+      chips.add(
+        _pill(
+          label: attentionLabel,
+          bg: critical
+              ? const Color(0xFFFDECEC)
+              : const Color(0xFFFFF4E5),
+          fg: critical
+              ? const Color(0xFFB42318)
+              : const Color(0xFFB45309),
+          textTheme: textTheme,
         ),
       );
     }
