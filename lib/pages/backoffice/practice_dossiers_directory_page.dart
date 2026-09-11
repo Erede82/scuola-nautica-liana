@@ -75,6 +75,40 @@ class _PracticeDossiersDirectoryPageState
   PracticeFileStatus? _practiceStatusFilter;
   bool _onlyWithoutRegistry = false;
   bool _onlyDocsIncomplete = false;
+  bool _onlyMedicalAttention = false;
+
+  PracticeDirectoryFilterState get _filterState => PracticeDirectoryFilterState(
+    practiceTypeFilter: _practiceTypeFilter,
+    practiceStatusFilter: _practiceStatusFilter,
+    onlyWithoutRegistry: _onlyWithoutRegistry,
+    onlyDocsIncomplete: _onlyDocsIncomplete,
+    onlyMedicalAttention: _onlyMedicalAttention,
+  );
+
+  void _applyFilterState(PracticeDirectoryFilterState next) {
+    setState(() {
+      _practiceTypeFilter = next.practiceTypeFilter;
+      _practiceStatusFilter = next.practiceStatusFilter;
+      _onlyWithoutRegistry = next.onlyWithoutRegistry;
+      _onlyDocsIncomplete = next.onlyDocsIncomplete;
+      _onlyMedicalAttention = next.onlyMedicalAttention;
+    });
+  }
+
+  void _onDashboardTap(PracticeDirectoryDashboardCard card) {
+    // «Tutte» azzera anche i filtri pratica; la ricerca testuale resta.
+    if (card == PracticeDirectoryDashboardCard.all) {
+      setState(() {
+        _practiceTypeFilter = null;
+        _practiceStatusFilter = null;
+        _onlyWithoutRegistry = false;
+        _onlyDocsIncomplete = false;
+        _onlyMedicalAttention = false;
+      });
+      return;
+    }
+    _applyFilterState(_filterState.applyDashboard(card));
+  }
 
   @override
   void initState() {
@@ -95,6 +129,7 @@ class _PracticeDossiersDirectoryPageState
       _practiceStatusFilter = null;
       _onlyWithoutRegistry = false;
       _onlyDocsIncomplete = false;
+      _onlyMedicalAttention = false;
     });
   }
 
@@ -157,6 +192,10 @@ class _PracticeDossiersDirectoryPageState
       }
       if (_onlyWithoutRegistry && i.hasRegistryNumberAssigned) continue;
       if (_onlyDocsIncomplete && !i.isDocumentIncompleteForFilter) continue;
+      if (_onlyMedicalAttention &&
+          !practiceNeedsMedicalAttention(i.documentChecklistSummary)) {
+        continue;
+      }
       if (q.isNotEmpty) {
         final regNum = i.registryNumber?.toString() ?? '';
         final regYear = i.registryYear?.toString() ?? '';
@@ -237,6 +276,15 @@ class _PracticeDossiersDirectoryPageState
               ],
             ),
           ),
+          if (_items != null && !_loading && _error == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: _PracticeDirectoryDashboard(
+                overview: PracticeDirectoryOverview.fromItems(_items!),
+                active: _filterState.activeDashboardCard,
+                onTap: _onDashboardTap,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: Wrap(
@@ -287,8 +335,18 @@ class _PracticeDossiersDirectoryPageState
                         FilterChip(
                           label: const Text('Documenti da completare'),
                           selected: _onlyDocsIncomplete,
-                          onSelected: (v) =>
-                              setState(() => _onlyDocsIncomplete = v),
+                          onSelected: (v) => setState(() {
+                            _onlyDocsIncomplete = v;
+                            if (v) _onlyMedicalAttention = false;
+                          }),
+                        ),
+                        FilterChip(
+                          label: const Text('Medico in attenzione'),
+                          selected: _onlyMedicalAttention,
+                          onSelected: (v) => setState(() {
+                            _onlyMedicalAttention = v;
+                            if (v) _onlyDocsIncomplete = false;
+                          }),
                         ),
                         TextButton(
                           onPressed: _clearFilters,
@@ -358,6 +416,175 @@ class _PracticeDossiersDirectoryPageState
           },
         );
       },
+    );
+  }
+}
+
+/// Dashboard compatta 6 indicatori (PRATICHE.8A).
+class _PracticeDirectoryDashboard extends StatelessWidget {
+  const _PracticeDirectoryDashboard({
+    required this.overview,
+    required this.active,
+    required this.onTap,
+  });
+
+  final PracticeDirectoryOverview overview;
+  final PracticeDirectoryDashboardCard? active;
+  final ValueChanged<PracticeDirectoryDashboardCard> onTap;
+
+  static const _cards = <(
+    PracticeDirectoryDashboardCard,
+    String,
+    Color,
+    Color,
+  )>[
+    (PracticeDirectoryDashboardCard.all, 'Tutte', Color(0xFFE8F2F6), Color(0xFF005E83)),
+    (
+      PracticeDirectoryDashboardCard.newLicense,
+      'Conseguimento',
+      Color(0xFFEAF4FB),
+      Color(0xFF0B6E99),
+    ),
+    (
+      PracticeDirectoryDashboardCard.renewal,
+      'Rinnovo',
+      Color(0xFFEEF7F1),
+      Color(0xFF2E7D4F),
+    ),
+    (
+      PracticeDirectoryDashboardCard.duplicate,
+      'Duplicato',
+      Color(0xFFF4F0FA),
+      Color(0xFF5B4B8A),
+    ),
+    (
+      PracticeDirectoryDashboardCard.docsIncomplete,
+      'Documenti mancanti',
+      Color(0xFFFFF4E5),
+      Color(0xFFB45309),
+    ),
+    (
+      PracticeDirectoryDashboardCard.medicalAttention,
+      'Medico',
+      Color(0xFFFDECEC),
+      Color(0xFFB42318),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final gap = 8.0;
+        final cols = wide ? 6 : (constraints.maxWidth >= 560 ? 3 : 2);
+        final tileW =
+            (constraints.maxWidth - gap * (cols - 1)) / cols;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final entry in _cards)
+              SizedBox(
+                width: tileW,
+                child: _PracticeDashboardTile(
+                  label: entry.$2,
+                  count: overview.countFor(entry.$1),
+                  selected: active == entry.$1,
+                  bg: entry.$3,
+                  fg: entry.$4,
+                  onTap: () => onTap(entry.$1),
+                  textTheme: textTheme,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PracticeDashboardTile extends StatelessWidget {
+  const _PracticeDashboardTile({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.bg,
+    required this.fg,
+    required this.onTap,
+    required this.textTheme,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final Color bg;
+  final Color fg;
+  final VoidCallback onTap;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? fg.withValues(alpha: 0.12) : AppVisual.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? fg : AppVisual.border,
+          width: selected ? 1.6 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelSmall?.copyWith(
+                  color: AppVisual.inkMuted,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: fg.withValues(alpha: 0.55)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$count',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: fg,
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

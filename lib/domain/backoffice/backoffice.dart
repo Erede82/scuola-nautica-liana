@@ -14,6 +14,7 @@ export 'management_foundation.dart';
 export 'practice_document.dart';
 export 'practice_document_waiver.dart';
 export 'practice_document_requirements.dart';
+export 'practice_directory_overview.dart';
 export 'practice_list_item.dart';
 export 'student_document_types.dart';
 export 'practice_registry.dart';
