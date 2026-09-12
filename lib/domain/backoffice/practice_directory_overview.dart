@@ -358,3 +358,42 @@ List<PracticeListItem> sortPracticeDirectoryByAttention(
   });
   return [for (final e in indexed) e.$2];
 }
+
+// --- PRATICHE.8C: azioni rapide card (navigation / contact only) ---
+
+enum PracticeQuickAction {
+  openOverview,
+  openDocuments,
+  call,
+  email,
+}
+
+/// Tab Scheda 360 allineati a [Student360DetailView] (0 = Scheda, 1 = Documenti).
+const int practiceQuickActionTabScheda = 0;
+const int practiceQuickActionTabDocumenti = 1;
+
+bool practiceContactFieldPresent(String? raw) =>
+    raw != null && raw.trim().isNotEmpty;
+
+/// Voci menu disponibili per la card (sempre Scheda + Documenti; Chiama/Email se contatto).
+List<PracticeQuickAction> availablePracticeQuickActions(PracticeListItem item) {
+  return [
+    PracticeQuickAction.openOverview,
+    PracticeQuickAction.openDocuments,
+    if (practiceContactFieldPresent(item.studentPhone)) PracticeQuickAction.call,
+    if (practiceContactFieldPresent(item.studentEmail)) PracticeQuickAction.email,
+  ];
+}
+
+/// Tab iniziale per azioni di navigazione 360; `null` per Chiama/Email.
+int? practiceQuickActionInitialTabIndex(PracticeQuickAction action) {
+  switch (action) {
+    case PracticeQuickAction.openOverview:
+      return practiceQuickActionTabScheda;
+    case PracticeQuickAction.openDocuments:
+      return practiceQuickActionTabDocumenti;
+    case PracticeQuickAction.call:
+    case PracticeQuickAction.email:
+      return null;
+  }
+}

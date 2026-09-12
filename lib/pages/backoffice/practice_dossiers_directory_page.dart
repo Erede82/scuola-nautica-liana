@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
+import '../../utils/school_contact_launcher.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../theme/app_visual_tokens.dart';
@@ -618,6 +619,25 @@ class _PracticeRowCard extends StatelessWidget {
   final VoidCallback onOpen360;
   final VoidCallback onOpenDocuments360;
 
+  void _onQuickAction(BuildContext context, PracticeQuickAction action) {
+    switch (action) {
+      case PracticeQuickAction.openOverview:
+        onOpen360();
+      case PracticeQuickAction.openDocuments:
+        onOpenDocuments360();
+      case PracticeQuickAction.call:
+        final phone = item.studentPhone;
+        if (practiceContactFieldPresent(phone)) {
+          SchoolContactLauncher.dialPhone(context, phone!);
+        }
+      case PracticeQuickAction.email:
+        final email = item.studentEmail;
+        if (practiceContactFieldPresent(email)) {
+          SchoolContactLauncher.sendEmail(context, email!);
+        }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -634,6 +654,10 @@ class _PracticeRowCard extends StatelessWidget {
       if (item.studentPhone != null && item.studentPhone!.trim().isNotEmpty)
         InternationalPhoneRules.formatForDisplay(item.studentPhone),
     ].join(' · ');
+    final actionsMenu = _PracticeQuickActionsMenu(
+      actions: availablePracticeQuickActions(item),
+      onSelected: (a) => _onQuickAction(context, a),
+    );
 
     return Material(
       color: AppVisual.surface,
@@ -758,20 +782,35 @@ class _PracticeRowCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    FilledButton.tonal(
-                      onPressed: onOpen360,
-                      child: const Text('Apri Scheda 360'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        actionsMenu,
+                        const SizedBox(width: 4),
+                        FilledButton.tonal(
+                          onPressed: onOpen360,
+                          child: const Text('Apri Scheda 360'),
+                        ),
+                      ],
                     ),
                   ],
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      item.studentFullName,
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.studentFullName,
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        actionsMenu,
+                      ],
                     ),
                     if (contact.isNotEmpty)
                       Text(
@@ -817,6 +856,71 @@ class _PracticeRowCard extends StatelessWidget {
                   ],
                 ),
         ),
+      ),
+    );
+  }
+}
+
+/// Menu "..." card Directory: navigation/contact only (PRATICHE.8C).
+class _PracticeQuickActionsMenu extends StatelessWidget {
+  const _PracticeQuickActionsMenu({
+    required this.actions,
+    required this.onSelected,
+  });
+
+  final List<PracticeQuickAction> actions;
+  final ValueChanged<PracticeQuickAction> onSelected;
+
+  static String _label(PracticeQuickAction action) {
+    switch (action) {
+      case PracticeQuickAction.openOverview:
+        return 'Apri Scheda';
+      case PracticeQuickAction.openDocuments:
+        return 'Apri Documenti';
+      case PracticeQuickAction.call:
+        return 'Chiama';
+      case PracticeQuickAction.email:
+        return 'Email';
+    }
+  }
+
+  static IconData _icon(PracticeQuickAction action) {
+    switch (action) {
+      case PracticeQuickAction.openOverview:
+        return Icons.badge_outlined;
+      case PracticeQuickAction.openDocuments:
+        return Icons.folder_open_outlined;
+      case PracticeQuickAction.call:
+        return Icons.phone_outlined;
+      case PracticeQuickAction.email:
+        return Icons.email_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Evita che il tap sul menu propaghi all'InkWell della card (→ 360).
+    return Material(
+      type: MaterialType.transparency,
+      child: PopupMenuButton<PracticeQuickAction>(
+        tooltip: 'Azioni pratica',
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.more_vert, size: 22),
+        splashRadius: 20,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          for (final action in actions)
+            PopupMenuItem<PracticeQuickAction>(
+              value: action,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(_icon(action), size: 20),
+                title: Text(_label(action)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -50,6 +50,28 @@ abstract final class SchoolContactLauncher {
     return buf.toString();
   }
 
+  /// Apre `tel:` per un numero arbitrario (es. allievo in Directory).
+  ///
+  /// Usa [normalizePhoneForTel]; non altera dati in memoria/DB.
+  static Future<void> dialPhone(BuildContext context, String rawPhone) async {
+    final tel = normalizePhoneForTel(rawPhone);
+    if (tel.isEmpty) {
+      _snack(context, 'Numero di telefono non valido.');
+      return;
+    }
+    await _tryLaunch(context, Uri.parse('tel:$tel'));
+  }
+
+  /// Apre `mailto:` senza subject/body (navigation-only).
+  static Future<void> sendEmail(BuildContext context, String rawEmail) async {
+    final email = rawEmail.trim();
+    if (email.isEmpty) {
+      _snack(context, 'Indirizzo email non valido.');
+      return;
+    }
+    await _tryLaunch(context, Uri(scheme: 'mailto', path: email));
+  }
+
   static Future<void> dialSupportPhone(BuildContext context) async {
     if (!AppBranding.hasSupportPhone) {
       _snack(
