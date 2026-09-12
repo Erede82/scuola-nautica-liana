@@ -1,3 +1,4 @@
+import 'accounting.dart';
 import 'backoffice_enums.dart';
 import 'ids.dart';
 import 'practice_document_requirements.dart';
@@ -18,7 +19,9 @@ class PracticeListItem {
     this.practiceNumber,
     required this.documentStatus,
     required this.practiceStatus,
-    this.documentChecklistSummary = PracticeDocumentChecklistSummary.notApplicable,
+    this.documentChecklistSummary =
+        PracticeDocumentChecklistSummary.notApplicable,
+    this.financialSummary,
   });
 
   final PracticeDossierId practiceDossierId;
@@ -40,6 +43,11 @@ class PracticeListItem {
 
   /// Riepilogo checklist client-side (directory Pratiche).
   final PracticeDocumentChecklistSummary documentChecklistSummary;
+
+  /// Contabilità pratica da `student_financial_summaries` (batch Directory).
+  ///
+  /// `null` = nessuna riga → semanticamente quota non impostata (fee/paid/remaining = 0).
+  final StudentFinancialSummary? financialSummary;
 
   bool get hasRegistryNumberAssigned =>
       registryNumber != null &&

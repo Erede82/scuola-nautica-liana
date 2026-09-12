@@ -116,6 +116,7 @@ class PracticeDirectoryFilterState {
     this.onlyWithoutRegistry = false,
     this.onlyDocsIncomplete = false,
     this.onlyMedicalAttention = false,
+    this.onlyOpenBalance = false,
   });
 
   final String? practiceTypeFilter;
@@ -124,12 +125,16 @@ class PracticeDirectoryFilterState {
   final bool onlyDocsIncomplete;
   final bool onlyMedicalAttention;
 
+  /// Filtro avanzato AND (PRATICHE.8E): fee > 0 && remaining > 0.
+  final bool onlyOpenBalance;
+
   PracticeDirectoryFilterState copyWith({
     String? practiceTypeFilter,
     PracticeFileStatus? practiceStatusFilter,
     bool? onlyWithoutRegistry,
     bool? onlyDocsIncomplete,
     bool? onlyMedicalAttention,
+    bool? onlyOpenBalance,
     bool clearPracticeType = false,
     bool clearPracticeStatus = false,
   }) {
@@ -142,6 +147,7 @@ class PracticeDirectoryFilterState {
       onlyWithoutRegistry: onlyWithoutRegistry ?? this.onlyWithoutRegistry,
       onlyDocsIncomplete: onlyDocsIncomplete ?? this.onlyDocsIncomplete,
       onlyMedicalAttention: onlyMedicalAttention ?? this.onlyMedicalAttention,
+      onlyOpenBalance: onlyOpenBalance ?? this.onlyOpenBalance,
     );
   }
 
@@ -235,6 +241,9 @@ Iterable<PracticeListItem> filterPracticeDirectoryItems({
     }
     if (filters.onlyMedicalAttention &&
         !practiceNeedsMedicalAttention(i.documentChecklistSummary)) {
+      continue;
+    }
+    if (filters.onlyOpenBalance && !practiceHasOpenBalance(i)) {
       continue;
     }
     if (q.isNotEmpty) {
@@ -358,6 +367,48 @@ List<PracticeListItem> sortPracticeDirectoryByAttention(
     return a.$1.compareTo(b.$1);
   });
   return [for (final e in indexed) e.$2];
+}
+
+// --- PRATICHE.8E: saldo sintetico Directory (read-only contabilità pratica) ---
+
+enum PracticeFinancialStatus {
+  feeNotSet,
+  open,
+  settled,
+}
+
+int practiceFinancialFeeCents(PracticeListItem item) =>
+    item.financialSummary?.registrationFeeCents ?? 0;
+
+/// Residuo effettivo: mai negativo in UI (overpay → 0).
+int practiceFinancialRemainingCents(PracticeListItem item) {
+  final raw = item.financialSummary?.remainingBalanceCents ?? 0;
+  return raw < 0 ? 0 : raw;
+}
+
+PracticeFinancialStatus practiceFinancialStatus(PracticeListItem item) {
+  final fee = practiceFinancialFeeCents(item);
+  if (fee == 0) return PracticeFinancialStatus.feeNotSet;
+  final remaining = item.financialSummary?.remainingBalanceCents ?? 0;
+  if (remaining <= 0) return PracticeFinancialStatus.settled;
+  return PracticeFinancialStatus.open;
+}
+
+bool practiceHasOpenBalance(PracticeListItem item) =>
+    practiceFinancialStatus(item) == PracticeFinancialStatus.open;
+
+/// Label compatta Directory (formato euro allineato a BackofficeFormatters.moneyEur).
+String practiceFinancialLabel(PracticeListItem item) {
+  switch (practiceFinancialStatus(item)) {
+    case PracticeFinancialStatus.feeNotSet:
+      return 'Quota non impostata';
+    case PracticeFinancialStatus.settled:
+      return 'Saldato';
+    case PracticeFinancialStatus.open:
+      final cents = practiceFinancialRemainingCents(item);
+      final euros = (cents / 100).toStringAsFixed(2);
+      return 'Da incassare $euros €';
+  }
 }
 
 // --- PRATICHE.8C: azioni rapide card (navigation / contact only) ---

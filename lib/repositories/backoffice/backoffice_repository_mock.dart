@@ -140,6 +140,7 @@ class BackofficeRepositoryMock implements BackofficeRepository {
           documentStatus: d.documentStatus,
           practiceStatus: d.practiceStatus,
           documentChecklistSummary: summary,
+          financialSummary: view?.financialSummary,
         ),
       );
     }

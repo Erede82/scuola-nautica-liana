@@ -579,6 +579,9 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     final photosByStudent = await _loadStudentPhotosByStudentIds(studentIds);
     final dossierIds = dossierRows.map((d) => d.id).toList(growable: false);
     final waiversByDossier = await _loadDocumentWaiversByDossierIds(dossierIds);
+    final financialByStudent = await _loadFinancialSummariesByStudentIds(
+      studentIds,
+    );
 
     for (final d in dossierRows) {
       try {
@@ -601,6 +604,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
             d,
             studentById[d.studentId],
             documentChecklistSummary: summary,
+            financialSummary: financialByStudent[d.studentId],
           ),
         );
       } catch (err, st) {
@@ -608,6 +612,42 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       }
     }
     return out;
+  }
+
+  /// Batch `student_financial_summaries` per Directory (PRATICHE.8E). +1 SELECT.
+  Future<Map<String, StudentFinancialSummary>>
+  _loadFinancialSummariesByStudentIds(List<String> studentIds) async {
+    if (studentIds.isEmpty) return {};
+    try {
+      final res = await _client
+          .from('student_financial_summaries')
+          .select(
+            'student_id, registration_fee_cents, total_paid_cents, '
+            'remaining_balance_cents, currency_code',
+          )
+          .inFilter('student_id', studentIds);
+      final out = <String, StudentFinancialSummary>{};
+      for (final e in res as List<dynamic>) {
+        try {
+          final row = StudentFinancialSummaryRow.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          );
+          out[row.studentId] = mapFinancialRowToSummary(row);
+        } catch (err, st) {
+          debugPrint(
+            'listPracticeDossiers student_financial_summaries: '
+            'riga non mappabile: $err\n$st',
+          );
+        }
+      }
+      return out;
+    } catch (e, st) {
+      debugPrint(
+        'listPracticeDossiers: student_financial_summaries non disponibile: '
+        '$e\n$st',
+      );
+      return {};
+    }
   }
 
   Future<Map<String, List<PracticeDocumentWaiver>>>

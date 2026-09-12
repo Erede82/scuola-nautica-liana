@@ -79,6 +79,9 @@ class _PracticeDossiersDirectoryPageState
   bool _onlyDocsIncomplete = false;
   bool _onlyMedicalAttention = false;
 
+  /// PRATICHE.8E: filtro AND client-side (default OFF).
+  bool _onlyOpenBalance = false;
+
   /// PRATICHE.8B: sort attenzione client-side (default OFF = ordine repository).
   bool _sortByPriority = false;
 
@@ -88,6 +91,7 @@ class _PracticeDossiersDirectoryPageState
     onlyWithoutRegistry: _onlyWithoutRegistry,
     onlyDocsIncomplete: _onlyDocsIncomplete,
     onlyMedicalAttention: _onlyMedicalAttention,
+    onlyOpenBalance: _onlyOpenBalance,
   );
 
   void _applyFilterState(PracticeDirectoryFilterState next) {
@@ -97,6 +101,7 @@ class _PracticeDossiersDirectoryPageState
       _onlyWithoutRegistry = next.onlyWithoutRegistry;
       _onlyDocsIncomplete = next.onlyDocsIncomplete;
       _onlyMedicalAttention = next.onlyMedicalAttention;
+      _onlyOpenBalance = next.onlyOpenBalance;
     });
   }
 
@@ -109,6 +114,7 @@ class _PracticeDossiersDirectoryPageState
         _onlyWithoutRegistry = false;
         _onlyDocsIncomplete = false;
         _onlyMedicalAttention = false;
+        _onlyOpenBalance = false;
       });
       return;
     }
@@ -135,6 +141,7 @@ class _PracticeDossiersDirectoryPageState
       _onlyWithoutRegistry = false;
       _onlyDocsIncomplete = false;
       _onlyMedicalAttention = false;
+      _onlyOpenBalance = false;
     });
   }
 
@@ -236,6 +243,7 @@ class _PracticeDossiersDirectoryPageState
           !practiceNeedsMedicalAttention(i.documentChecklistSummary)) {
         continue;
       }
+      if (_onlyOpenBalance && !practiceHasOpenBalance(i)) continue;
       if (q.isNotEmpty) {
         final regNum = i.registryNumber?.toString() ?? '';
         final regYear = i.registryYear?.toString() ?? '';
@@ -263,152 +271,178 @@ class _PracticeDossiersDirectoryPageState
 
     return ColoredBox(
       color: AppVisual.canvas,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!widget.embedded)
-            Material(
-              color: AppVisual.logoBlue,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                child: Text(
-                  'Pratiche',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Text(
-              'Elenco fascicoli da database. Il dettaglio completo è nella Scheda 360 dell’allievo.',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppVisual.inkMuted,
-                height: 1.35,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: const InputDecoration(
-                      hintText:
-                          'Cerca per nome, email, telefono, codice registro, n. pratica…',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Priorità'),
-                  selected: _sortByPriority,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: (v) => setState(() => _sortByPriority = v),
-                ),
-                const SizedBox(width: 4),
-                IconButton.filledTonal(
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: 'Aggiorna elenco',
-                ),
-              ],
-            ),
-          ),
-          if (_items != null && !_loading && _error == null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: _PracticeDirectoryDashboard(
-                overview: PracticeDirectoryOverview.fromItems(_items!),
-                active: _filterState.activeDashboardCard,
-                onTap: _onDashboardTap,
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                LayoutBuilder(
-                  builder: (context, c) {
-                    final dropW = (c.maxWidth - 8) / 2;
-                    final w = dropW.clamp(220.0, 360.0);
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Solo filtri: maxHeight se Wrap cresce (mobile + Saldo aperto).
+          // Header resta intrinseco; lista Expanded sul resto (layout 8D).
+          final filtersMaxH =
+              (constraints.maxHeight * 0.28).clamp(96.0, 200.0);
 
-                    return Wrap(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!widget.embedded)
+                Material(
+                  color: AppVisual.logoBlue,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    child: Text(
+                      'Pratiche',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  'Elenco fascicoli da database. Il dettaglio completo è nella Scheda 360 dell’allievo.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppVisual.inkMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Cerca per nome, email, telefono, codice registro, n. pratica…',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Priorità'),
+                      selected: _sortByPriority,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onSelected: (v) => setState(() => _sortByPriority = v),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton.filledTonal(
+                      onPressed: _loading ? null : _load,
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: 'Aggiorna elenco',
+                    ),
+                  ],
+                ),
+              ),
+              if (_items != null && !_loading && _error == null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: _PracticeDirectoryDashboard(
+                    overview: PracticeDirectoryOverview.fromItems(_items!),
+                    active: _filterState.activeDashboardCard,
+                    onTap: _onDashboardTap,
+                  ),
+                ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: filtersMaxH),
+                child: ListView(
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  children: [
+                    Wrap(
                       spacing: 8,
-                      runSpacing: 10,
-                      crossAxisAlignment: WrapCrossAlignment.end,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        _PracticeFilterField<String?>(
-                          key: ValueKey(
-                            'ptype_${_practiceTypeFilter ?? 'all'}',
-                          ),
-                          label: 'Tipo pratica',
-                          width: w,
-                          value: _practiceTypeFilter,
-                          options: _practiceTypeFilterOptions,
-                          menuMaxHeight: 220,
-                          onChanged: (v) =>
-                              setState(() => _practiceTypeFilter = v),
-                        ),
-                        _PracticeFilterField<PracticeFileStatus?>(
-                          key: ValueKey(
-                            'pstat_${_practiceStatusFilter?.name ?? 'all'}',
-                          ),
-                          label: 'Avanzamento pratica',
-                          width: w,
-                          value: _practiceStatusFilter,
-                          options: _practiceAdvancementFilterOptions,
-                          menuMaxHeight: 260,
-                          onChanged: (v) =>
-                              setState(() => _practiceStatusFilter = v),
-                        ),
-                        FilterChip(
-                          label: const Text('Senza n. registro'),
-                          selected: _onlyWithoutRegistry,
-                          onSelected: (v) =>
-                              setState(() => _onlyWithoutRegistry = v),
-                        ),
-                        FilterChip(
-                          label: const Text('Documenti da completare'),
-                          selected: _onlyDocsIncomplete,
-                          onSelected: (v) => setState(() {
-                            _onlyDocsIncomplete = v;
-                            if (v) _onlyMedicalAttention = false;
-                          }),
-                        ),
-                        FilterChip(
-                          label: const Text('Medico in attenzione'),
-                          selected: _onlyMedicalAttention,
-                          onSelected: (v) => setState(() {
-                            _onlyMedicalAttention = v;
-                            if (v) _onlyDocsIncomplete = false;
-                          }),
-                        ),
-                        TextButton(
-                          onPressed: _clearFilters,
-                          child: const Text('Reimposta filtri'),
+                        LayoutBuilder(
+                          builder: (context, c) {
+                            final dropW = (c.maxWidth - 8) / 2;
+                            final w = dropW.clamp(220.0, 360.0);
+
+                            return Wrap(
+                              spacing: 8,
+                              runSpacing: 10,
+                              crossAxisAlignment: WrapCrossAlignment.end,
+                              children: [
+                                _PracticeFilterField<String?>(
+                                  key: ValueKey(
+                                    'ptype_${_practiceTypeFilter ?? 'all'}',
+                                  ),
+                                  label: 'Tipo pratica',
+                                  width: w,
+                                  value: _practiceTypeFilter,
+                                  options: _practiceTypeFilterOptions,
+                                  menuMaxHeight: 220,
+                                  onChanged: (v) => setState(
+                                    () => _practiceTypeFilter = v,
+                                  ),
+                                ),
+                                _PracticeFilterField<PracticeFileStatus?>(
+                                  key: ValueKey(
+                                    'pstat_${_practiceStatusFilter?.name ?? 'all'}',
+                                  ),
+                                  label: 'Avanzamento pratica',
+                                  width: w,
+                                  value: _practiceStatusFilter,
+                                  options: _practiceAdvancementFilterOptions,
+                                  menuMaxHeight: 260,
+                                  onChanged: (v) => setState(
+                                    () => _practiceStatusFilter = v,
+                                  ),
+                                ),
+                                FilterChip(
+                                  label: const Text('Senza n. registro'),
+                                  selected: _onlyWithoutRegistry,
+                                  onSelected: (v) => setState(
+                                    () => _onlyWithoutRegistry = v,
+                                  ),
+                                ),
+                                FilterChip(
+                                  label: const Text('Documenti da completare'),
+                                  selected: _onlyDocsIncomplete,
+                                  onSelected: (v) => setState(() {
+                                    _onlyDocsIncomplete = v;
+                                    if (v) _onlyMedicalAttention = false;
+                                  }),
+                                ),
+                                FilterChip(
+                                  label: const Text('Medico in attenzione'),
+                                  selected: _onlyMedicalAttention,
+                                  onSelected: (v) => setState(() {
+                                    _onlyMedicalAttention = v;
+                                    if (v) _onlyDocsIncomplete = false;
+                                  }),
+                                ),
+                                FilterChip(
+                                  label: const Text('Saldo aperto'),
+                                  selected: _onlyOpenBalance,
+                                  onSelected: (v) => setState(
+                                    () => _onlyOpenBalance = v,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _clearFilters,
+                                  child: const Text('Reimposta filtri'),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          Expanded(child: _buildBody(textTheme)),
-        ],
+              ),
+              Expanded(child: _buildBody(textTheme)),
+            ],
+          );
+        },
       ),
     );
   }
@@ -471,6 +505,7 @@ class _PracticeDossiersDirectoryPageState
     );
   }
 }
+
 
 /// Dashboard compatta 6 indicatori (PRATICHE.8A).
 class _PracticeDirectoryDashboard extends StatelessWidget {
@@ -1140,16 +1175,18 @@ abstract final class _PracticeDocumentSummaryChips {
   }) {
     final summary = item.documentChecklistSummary;
     if (!summary.applicable) {
-      if (!item.isDocumentFlowIncomplete) return const [];
-      return [
-        _pill(
-          label: 'Documenti da completare',
-          bg: const Color(0xFFFFF4E5),
-          fg: const Color(0xFFB45309),
-          textTheme: textTheme,
-          onTap: onMissingDocumentsTap,
-        ),
+      final chips = <Widget>[
+        if (item.isDocumentFlowIncomplete)
+          _pill(
+            label: 'Documenti da completare',
+            bg: const Color(0xFFFFF4E5),
+            fg: const Color(0xFFB45309),
+            textTheme: textTheme,
+            onTap: onMissingDocumentsTap,
+          ),
+        _financialPill(item, textTheme),
       ];
+      return chips;
     }
 
     final chips = <Widget>[];
@@ -1193,7 +1230,33 @@ abstract final class _PracticeDocumentSummaryChips {
       );
     }
 
+    // PRATICHE.8E: un solo indicatore economico sintetico.
+    chips.add(_financialPill(item, textTheme));
+
     return chips;
+  }
+
+  static Widget _financialPill(PracticeListItem item, TextTheme textTheme) {
+    final status = practiceFinancialStatus(item);
+    final Color bg;
+    final Color fg;
+    switch (status) {
+      case PracticeFinancialStatus.open:
+        bg = const Color(0xFFFFF4E5);
+        fg = const Color(0xFFB45309);
+      case PracticeFinancialStatus.settled:
+        bg = const Color(0xFFEEF7F1);
+        fg = const Color(0xFF2E7D4F);
+      case PracticeFinancialStatus.feeNotSet:
+        bg = const Color(0xFFF3F4F6);
+        fg = const Color(0xFF6B7280);
+    }
+    return _pill(
+      label: practiceFinancialLabel(item),
+      bg: bg,
+      fg: fg,
+      textTheme: textTheme,
+    );
   }
 
   static Widget _missingCountPill({

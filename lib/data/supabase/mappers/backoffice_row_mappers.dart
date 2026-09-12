@@ -256,6 +256,7 @@ PracticeListItem mapPracticeListItemFromRows(
   StudentRow? student, {
   PracticeDocumentChecklistSummary documentChecklistSummary =
       PracticeDocumentChecklistSummary.notApplicable,
+  StudentFinancialSummary? financialSummary,
 }) {
   final name = student == null
       ? 'Allievo (dati non caricati)'
@@ -283,6 +284,7 @@ PracticeListItem mapPracticeListItemFromRows(
       PracticeFileStatus.notOpen,
     ),
     documentChecklistSummary: documentChecklistSummary,
+    financialSummary: financialSummary,
   );
 }
 
