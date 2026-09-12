@@ -1,4 +1,6 @@
 import 'ids.dart';
+import 'practice_document.dart';
+import 'practice_list_item.dart';
 import 'student_profile.dart';
 
 /// Esito RPC [assign_practice_registry_number] (jsonb).
@@ -62,3 +64,36 @@ class BackofficeNewStudentOutcome {
   final String? assignedRegistryCode;
   final String? registryAssignmentNote;
 }
+
+// --- PRATICHE.8D: eligibility assegnazione / retry numero registro ---
+
+/// Stessa semantica di [PracticeListItem.hasRegistryNumberAssigned].
+bool practiceDossierHasRegistryNumberAssigned(PracticeLicenseDossier d) =>
+    d.registryNumber != null &&
+    d.registryCode != null &&
+    d.registryCode!.trim().isNotEmpty;
+
+/// True SOLO per conseguimento (`new_license`) senza numero registro.
+bool canAssignPracticeRegistryNumber({
+  required String? practiceType,
+  required bool hasRegistryNumberAssigned,
+}) =>
+    practiceType == 'new_license' && !hasRegistryNumberAssigned;
+
+bool canAssignPracticeRegistryNumberToListItem(PracticeListItem item) =>
+    canAssignPracticeRegistryNumber(
+      practiceType: item.practiceType,
+      hasRegistryNumberAssigned: item.hasRegistryNumberAssigned,
+    );
+
+bool canAssignPracticeRegistryNumberToDossier(PracticeLicenseDossier? d) {
+  if (d == null) return false;
+  return canAssignPracticeRegistryNumber(
+    practiceType: d.practiceType,
+    hasRegistryNumberAssigned: practiceDossierHasRegistryNumberAssigned(d),
+  );
+}
+
+/// Anno registro previsto: stesso criterio della create/RPC (`registrationDate.year`).
+int? practiceRegistryYearFromRegistrationDate(DateTime? registrationDate) =>
+    registrationDate?.year;

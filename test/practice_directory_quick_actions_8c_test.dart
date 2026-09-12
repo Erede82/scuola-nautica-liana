@@ -10,6 +10,8 @@ PracticeListItem _item({
   PracticeDocumentChecklistSummary summary =
       PracticeDocumentChecklistSummary.notApplicable,
   DateTime? registrationDate,
+  int? registryNumber = 1,
+  String? registryCode = '2026/00001',
 }) {
   return PracticeListItem(
     practiceDossierId: id,
@@ -19,6 +21,8 @@ PracticeListItem _item({
     studentEmail: email,
     practiceType: practiceType,
     registrationDate: registrationDate,
+    registryNumber: registryNumber,
+    registryCode: registryCode,
     documentStatus: LicenseDocumentStatus.collected,
     practiceStatus: PracticeFileStatus.inProgress,
     documentChecklistSummary: summary,

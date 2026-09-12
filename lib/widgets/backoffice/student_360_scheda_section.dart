@@ -4,6 +4,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import '../../theme/app_visual_tokens.dart';
+import 'assign_practice_registry_dialog.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
 import 'edit_student_phone_dialog.dart';
@@ -381,6 +382,55 @@ class Student360SchedaSection extends StatelessWidget {
               labelWidth: 140,
               bottomPadding: 8,
             ),
+            if (canAssignPracticeRegistryNumberToDossier(d)) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('student-360-assign-registry'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: BackofficeUiTokens.primary,
+                  ),
+                  onPressed: () async {
+                    final regDate = d.registrationDate;
+                    if (regDate == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Data iscrizione mancante: impossibile assegnare il numero di registro.',
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      return;
+                    }
+                    final assignment =
+                        await showAssignPracticeRegistryNumberDialog(
+                      context: context,
+                      repository: repository,
+                      practiceDossierId: d.id,
+                      registrationDate: regDate,
+                      studentFullName: view.profile.displayName,
+                    );
+                    if (!context.mounted) return;
+                    if (assignment == null) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Numero registro assegnato: ${assignment.registryCode}',
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    await onRefreshDetail();
+                  },
+                  icon: const Icon(Icons.tag_outlined, size: 18),
+                  label: const Text('Assegna n. registro'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (d.practiceNumber != null && d.practiceNumber!.trim().isNotEmpty)
               student360KvRow(
                 'N. pratica',

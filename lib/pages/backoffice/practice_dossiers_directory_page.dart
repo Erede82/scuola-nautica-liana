@@ -4,6 +4,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_registry.dart';
 import '../../utils/school_contact_launcher.dart';
+import '../../widgets/backoffice/assign_practice_registry_dialog.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 import '../../theme/app_visual_tokens.dart';
@@ -143,6 +144,41 @@ class _PracticeDossiersDirectoryPageState
   }) async {
     await widget.onOpenStudent360(studentId, initialTabIndex: initialTabIndex);
     if (!mounted) return;
+    await _load();
+  }
+
+  Future<void> _assignRegistryFromDirectory(PracticeListItem item) async {
+    if (!canAssignPracticeRegistryNumberToListItem(item)) return;
+    final regDate = item.registrationDate;
+    if (regDate == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Data iscrizione mancante: impossibile assegnare il numero di registro.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final assignment = await showAssignPracticeRegistryNumberDialog(
+      context: context,
+      repository: backofficeRepository,
+      practiceDossierId: item.practiceDossierId,
+      registrationDate: regDate,
+      studentFullName: item.studentFullName,
+    );
+    if (!mounted) return;
+    if (assignment == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Numero registro assegnato: ${assignment.registryCode}',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     await _load();
   }
 
@@ -427,6 +463,7 @@ class _PracticeDossiersDirectoryPageState
                 i.studentId,
                 initialTabIndex: Student360DetailView.tabIndexDocumenti,
               ),
+              onAssignRegistry: () => _assignRegistryFromDirectory(i),
             );
           },
         );
@@ -611,6 +648,7 @@ class _PracticeRowCard extends StatelessWidget {
     required this.typeLabel,
     required this.onOpen360,
     required this.onOpenDocuments360,
+    required this.onAssignRegistry,
   });
 
   final PracticeListItem item;
@@ -618,6 +656,7 @@ class _PracticeRowCard extends StatelessWidget {
   final String typeLabel;
   final VoidCallback onOpen360;
   final VoidCallback onOpenDocuments360;
+  final VoidCallback onAssignRegistry;
 
   void _onQuickAction(BuildContext context, PracticeQuickAction action) {
     switch (action) {
@@ -635,6 +674,8 @@ class _PracticeRowCard extends StatelessWidget {
         if (practiceContactFieldPresent(email)) {
           SchoolContactLauncher.sendEmail(context, email!);
         }
+      case PracticeQuickAction.assignRegistry:
+        onAssignRegistry();
     }
   }
 
@@ -881,6 +922,8 @@ class _PracticeQuickActionsMenu extends StatelessWidget {
         return 'Chiama';
       case PracticeQuickAction.email:
         return 'Email';
+      case PracticeQuickAction.assignRegistry:
+        return 'Assegna n. registro';
     }
   }
 
@@ -894,6 +937,8 @@ class _PracticeQuickActionsMenu extends StatelessWidget {
         return Icons.phone_outlined;
       case PracticeQuickAction.email:
         return Icons.email_outlined;
+      case PracticeQuickAction.assignRegistry:
+        return Icons.tag_outlined;
     }
   }
 

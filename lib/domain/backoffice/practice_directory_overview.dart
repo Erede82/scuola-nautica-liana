@@ -1,6 +1,7 @@
 import 'backoffice_enums.dart';
 import 'practice_document_requirements.dart';
 import 'practice_list_item.dart';
+import 'practice_registry.dart';
 
 /// Card della dashboard operativa Directory Pratiche (PRATICHE.8A).
 enum PracticeDirectoryDashboardCard {
@@ -366,6 +367,7 @@ enum PracticeQuickAction {
   openDocuments,
   call,
   email,
+  assignRegistry,
 }
 
 /// Tab Scheda 360 allineati a [Student360DetailView] (0 = Scheda, 1 = Documenti).
@@ -375,17 +377,22 @@ const int practiceQuickActionTabDocumenti = 1;
 bool practiceContactFieldPresent(String? raw) =>
     raw != null && raw.trim().isNotEmpty;
 
-/// Voci menu disponibili per la card (sempre Scheda + Documenti; Chiama/Email se contatto).
+/// Voci menu disponibili per la card.
+///
+/// Sempre Scheda + Documenti; Chiama/Email se contatto;
+/// «Assegna n. registro» SOLO per new_license senza registro (8D).
 List<PracticeQuickAction> availablePracticeQuickActions(PracticeListItem item) {
   return [
     PracticeQuickAction.openOverview,
     PracticeQuickAction.openDocuments,
     if (practiceContactFieldPresent(item.studentPhone)) PracticeQuickAction.call,
     if (practiceContactFieldPresent(item.studentEmail)) PracticeQuickAction.email,
+    if (canAssignPracticeRegistryNumberToListItem(item))
+      PracticeQuickAction.assignRegistry,
   ];
 }
 
-/// Tab iniziale per azioni di navigazione 360; `null` per Chiama/Email.
+/// Tab iniziale per azioni di navigazione 360; `null` per contatto/assegnazione.
 int? practiceQuickActionInitialTabIndex(PracticeQuickAction action) {
   switch (action) {
     case PracticeQuickAction.openOverview:
@@ -394,6 +401,7 @@ int? practiceQuickActionInitialTabIndex(PracticeQuickAction action) {
       return practiceQuickActionTabDocumenti;
     case PracticeQuickAction.call:
     case PracticeQuickAction.email:
+    case PracticeQuickAction.assignRegistry:
       return null;
   }
 }
