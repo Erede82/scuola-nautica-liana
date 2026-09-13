@@ -43,6 +43,8 @@ class Student360DetailView extends StatelessWidget {
 
   static const int tabIndexScheda = 0;
   static const int tabIndexDocumenti = 1;
+  static const int tabIndexStudio = 2;
+  static const int tabIndexGuide = 3;
   static const int tabIndexContabilita = 5;
 
   static const Color _primary = AppVisual.logoBlue;
@@ -881,6 +883,21 @@ class _SectionGuide extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const ValueKey('student-360-book-guidance'),
+                onPressed: () => showBookGuidanceFromStudent360Dialog(
+                  context,
+                  view: view,
+                  repository: repository,
+                  onRefreshDetail: onRefreshDetail,
+                ),
+                icon: const Icon(Icons.event_available_outlined, size: 18),
+                label: const Text('Prenota guida'),
+              ),
+            ),
+            const SizedBox(height: 12),
             if (!hasAppointments)
               Text(
                 'Nessun appuntamento registrato.',

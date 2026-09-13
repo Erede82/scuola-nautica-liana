@@ -1082,6 +1082,69 @@ Future<AgendaSeaPracticePersistOutcome> persistNewAgendaSeaPractice({
   }
 }
 
+/// Prenota guida dalla Scheda 360 (tab Guide) — stesso write path dell’Agenda.
+///
+/// Studente precompilato e non modificabile. Usa [AgendaSeaPracticeFormPanel] +
+/// [persistNewAgendaSeaPractice] (non il dialog orfano [_AddGuidanceDialogBody]).
+Future<void> showBookGuidanceFromStudent360Dialog(
+  BuildContext context, {
+  required StudentAdmin360View view,
+  required BackofficeRepository repository,
+  required BackofficeDetailRefresh onRefreshDetail,
+}) async {
+  final students = <StudentProfile>[view.profile];
+  final studentId = view.profile.id;
+
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      var saving = false;
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Nuova guida — pratica in mare'),
+            content: SizedBox(
+              width: 420,
+              height: 460,
+              child: AgendaSeaPracticeFormPanel(
+                students: students,
+                lockedStudentId: studentId,
+                showHeader: false,
+                isSaving: saving,
+                onCancel: () {
+                  if (!saving) Navigator.pop(dialogContext);
+                },
+                onSave: (result) async {
+                  if (saving) return;
+                  setDialogState(() => saving = true);
+                  final outcome = await persistNewAgendaSeaPractice(
+                    context: context,
+                    repository: repository,
+                    result: result,
+                    onSaved: () async {
+                      final fresh = await repository.getStudentAdmin360(
+                        studentId,
+                      );
+                      if (fresh != null) await onRefreshDetail(fresh);
+                    },
+                  );
+                  if (!context.mounted) return;
+                  setDialogState(() => saving = false);
+                  if (outcome == AgendaSeaPracticePersistOutcome.success &&
+                      dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                },
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 /// Pratica in mare da modulo Guide / Agenda — tipo lezione sempre [GuidanceLessonType.practiceSea].
 Future<void> showAgendaSeaPracticeDialog(
   BuildContext context, {
@@ -1276,6 +1339,7 @@ class AgendaSeaPracticeFormPanel extends StatefulWidget {
     this.scrollController,
     this.isSaving = false,
     this.showHeader = true,
+    this.lockedStudentId,
   });
 
   final List<StudentProfile> students;
@@ -1286,6 +1350,9 @@ class AgendaSeaPracticeFormPanel extends StatefulWidget {
   final ScrollController? scrollController;
   final bool isSaving;
   final bool showHeader;
+
+  /// Se valorizzato (es. Scheda 360), precompila e blocca la selezione allievo.
+  final StudentId? lockedStudentId;
 
   @override
   State<AgendaSeaPracticeFormPanel> createState() =>
@@ -1333,7 +1400,12 @@ class _AgendaSeaPracticeFormPanelState
         _notesCtrl.text = edit.notes!.trim();
       }
     } else {
-      _studentId = widget.students.first.id;
+      final locked = widget.lockedStudentId;
+      if (locked != null && widget.students.any((s) => s.id == locked)) {
+        _studentId = locked;
+      } else {
+        _studentId = widget.students.first.id;
+      }
       final slot = widget.initialSlot;
       if (slot != null) {
         _day = DateTime(slot.day.year, slot.day.month, slot.day.day);
@@ -1385,7 +1457,7 @@ class _AgendaSeaPracticeFormPanelState
       mainAxisSize: MainAxisSize.min,
       children: [
         DropdownButtonFormField<StudentId>(
-          key: ValueKey(_studentId),
+          key: const ValueKey('agenda-sea-practice-student'),
           initialValue: _studentId,
           isExpanded: true,
           decoration: const InputDecoration(
@@ -1403,9 +1475,11 @@ class _AgendaSeaPracticeFormPanelState
                 ),
               )
               .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) setState(() => _studentId = v);
-          },
+          onChanged: widget.lockedStudentId != null
+              ? null
+              : (v) {
+                  if (v != null) setState(() => _studentId = v);
+                },
         ),
         const SizedBox(height: 10),
         ListTile(
@@ -1463,7 +1537,7 @@ class _AgendaSeaPracticeFormPanelState
           ),
         ),
         DropdownButtonFormField<String>(
-          key: ValueKey(_instructorName ?? '__none__'),
+          key: const ValueKey('agenda-sea-practice-instructor'),
           initialValue: _instructorName,
           isExpanded: true,
           decoration: const InputDecoration(
