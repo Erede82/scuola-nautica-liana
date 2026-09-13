@@ -135,6 +135,15 @@ class Student360DetailView extends StatelessWidget {
               ),
               child: _SummaryCardsRow(view: view),
             ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.sizeOf(context).width < 720 ? 10 : 16,
+                0,
+                MediaQuery.sizeOf(context).width < 720 ? 10 : 16,
+                2,
+              ),
+              child: _PracticeNextActionStrip(view: view),
+            ),
             const SizedBox(height: 2),
             const _Student360ScrollableTabBar(),
             Expanded(
@@ -292,6 +301,81 @@ class _SummaryCardsRow extends StatelessWidget {
               .toList(),
         );
       },
+    );
+  }
+}
+
+class _PracticeNextActionStrip extends StatelessWidget {
+  const _PracticeNextActionStrip({required this.view});
+
+  final StudentAdmin360View view;
+
+  static (Color bg, Color fg, IconData icon) _style(PracticeNextActionKind kind) {
+    switch (kind) {
+      case PracticeNextActionKind.medicalExpired:
+        return (const Color(0xFFFDECEA), const Color(0xFFB3261E), Icons.medical_services_outlined);
+      case PracticeNextActionKind.documentsIncomplete:
+        return (const Color(0xFFFFF4E5), const Color(0xFFB25E09), Icons.folder_open_outlined);
+      case PracticeNextActionKind.registryMissing:
+        return (const Color(0xFFE8F2F6), const Color(0xFF005E83), Icons.tag_outlined);
+      case PracticeNextActionKind.feeNotSet:
+        return (const Color(0xFFF5F5F5), const Color(0xFF5F6368), Icons.payments_outlined);
+      case PracticeNextActionKind.medicalExpiringSoon:
+        return (const Color(0xFFFFF8E1), const Color(0xFF9A6700), Icons.event_busy_outlined);
+      case PracticeNextActionKind.openBalance:
+        return (const Color(0xFFFFF4E5), const Color(0xFFB25E09), Icons.account_balance_wallet_outlined);
+      case PracticeNextActionKind.none:
+        return (const Color(0xFFE8F5E9), const Color(0xFF2E7D32), Icons.check_circle_outline);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final action = derivePracticeNextActionFromView(view);
+    final (bg, fg, icon) = _style(action.kind);
+    final textTheme = Theme.of(context).textTheme;
+    final compact = MediaQuery.sizeOf(context).width < 720;
+
+    final content = Row(
+      children: [
+        Icon(icon, size: compact ? 16 : 18, color: fg),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Prossima azione: ${action.label}',
+            style: textTheme.labelMedium?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              fontSize: compact ? 12 : 13,
+              height: 1.25,
+            ),
+          ),
+        ),
+        if (action.isClickable)
+          Icon(Icons.chevron_right_rounded, size: 18, color: fg.withValues(alpha: 0.7)),
+      ],
+    );
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        key: const ValueKey('student-360-next-action'),
+        borderRadius: BorderRadius.circular(8),
+        onTap: action.isClickable
+            ? () {
+                final tab = action.targetTabIndex!;
+                DefaultTabController.of(context).animateTo(tab);
+              }
+            : null,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 12,
+            vertical: compact ? 7 : 8,
+          ),
+          child: content,
+        ),
+      ),
     );
   }
 }
