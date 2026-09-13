@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../config/supabase_config.dart';
 import '../data/license_catalog.dart';
 import '../domain/backoffice/backoffice.dart';
 import '../models/license_models.dart';
@@ -105,7 +106,20 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     implements StudyAccessWritableRepository {
   /// Default seed quando non c’è override (come prima dell’intro admin).
   /// Si applica a categorie con catalogo teoria completo (motore entro 12, D1).
+  /// Solo in demo locale (`!SupabaseConfig.isConfigured`); mai in produzione.
   static const bool kDemoUnlockEntireExamForTheory = false;
+
+  /// Override test-only: `true`/`false` forza seed demo; `null` → `!SupabaseConfig.isConfigured`.
+  @visibleForTesting
+  static bool? debugAllowDemoAccessSeedOverride;
+
+  /// Produzione (Supabase configurato): DB authoritative, nessun seed che inventa grant.
+  /// Demo locale (Supabase assente): seed demo consentito per sviluppo/QA.
+  bool get _allowDemoAccessSeed {
+    final override = debugAllowDemoAccessSeedOverride;
+    if (override != null) return override;
+    return !SupabaseConfig.isConfigured;
+  }
 
   final Map<String, bool> _lessonSheetOverrides = {};
   final Map<LicenseCategoryId, bool> _examOverrides = {};
@@ -333,8 +347,9 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       );
     }
 
-    /// Sblocco a **livello lezione**: basta un’abilitazione scuola (true su almeno una scheda)
-    /// oppure, se la segreteria non ha mai impostato righe per questa lezione, il seed demo.
+    /// Sblocco a **livello lezione**: basta un’abilitazione scuola (true su almeno una scheda).
+    /// Seed demo solo se Supabase non è configurato e non esistono override memorizzati.
+    /// In produzione (Supabase configurato) assenza DB → locked.
     /// Se esiste **qualsiasi** override memorizzato per la lezione (`true` o `false`), il demo
     /// non si applica: così «Blocca tutta la lezione» (tutte le schede a `false`) resta effettivo.
     final schoolUnlockedLesson = _anyLessonSheetOverrideTrue(
@@ -347,7 +362,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       lessonNumber,
       maxSheets,
     );
-    final demoLessonUnlocked = !schoolStoredAnySheetForLesson &&
+    final demoLessonUnlocked = _allowDemoAccessSeed &&
+        !schoolStoredAnySheetForLesson &&
         _demoEntireLessonUnlockedForStudent(category, lessonNumber);
     final lessonUnlocked = schoolUnlockedLesson || demoLessonUnlocked;
 
@@ -402,7 +418,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     return false;
   }
 
-  /// Demo: prime N lezioni del catalogo interamente sbloccate (stessa “porzione” del vecchio seed).
+  /// Demo locale only: prime N lezioni del catalogo interamente sbloccate.
+  /// Mai chiamato in produzione (`_allowDemoAccessSeed == false`).
   bool _demoEntireLessonUnlockedForStudent(
     LicenseCategory category,
     int lessonNumber,
@@ -473,13 +490,15 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       );
     }
 
-    if (!kDemoUnlockEntireExamForTheory) {
+    // Seed demo esame solo in locale; in produzione assenza grant → locked.
+    if (_allowDemoAccessSeed && kDemoUnlockEntireExamForTheory) {
       return StudyContentAccessSnapshot(
         contentType: StudyContentType.examQuiz,
         categoryId: categoryId,
         contentId: contentId,
-        isUnlocked: false,
-        lockedMessage: _examLockedTheoryMessage(categoryId),
+        isUnlocked: true,
+        unlockSource: StudyUnlockSource.manualBySchool,
+        unlockMessage: _examUnlockedLabel(categoryId),
       );
     }
 
@@ -487,9 +506,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       contentType: StudyContentType.examQuiz,
       categoryId: categoryId,
       contentId: contentId,
-      isUnlocked: true,
-      unlockSource: StudyUnlockSource.manualBySchool,
-      unlockMessage: _examUnlockedLabel(categoryId),
+      isUnlocked: false,
+      lockedMessage: _examLockedTheoryMessage(categoryId),
     );
   }
 
@@ -532,7 +550,8 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     }
 
     final o = _errorTopicOverride(categoryId, lessonNumber);
-    final unlocked = o ?? (lessonNumber != 7);
+    // Demo locale: sblocca quasi tutti i topic (eccetto L7). Produzione: null → locked.
+    final unlocked = o ?? (_allowDemoAccessSeed && lessonNumber != 7);
 
     if (unlocked) {
       return StudyContentAccessSnapshot(
