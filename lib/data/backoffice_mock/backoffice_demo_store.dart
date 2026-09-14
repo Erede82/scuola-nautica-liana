@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../domain/anagrafica/codice_fiscale.dart';
+import '../../domain/anagrafica/student_fiscal_code_write_error.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
 import '../../models/license_models.dart';
@@ -461,13 +463,15 @@ class BackofficeDemoStore extends ChangeNotifier {
   }) {
     final i = _profiles.indexWhere((p) => p.id == studentId);
     if (i < 0) return;
+    final normalizedCf = CodiceFiscale.normalizza(fiscalCode);
+    _ensureFiscalCodeAvailable(normalizedCf, exceptStudentId: studentId);
     final p = _profiles[i];
     final em = email?.trim();
     final prevAddr = p.address;
     _profiles[i] = p.copyWith(
       firstName: firstName,
       lastName: lastName,
-      taxCode: fiscalCode,
+      taxCode: normalizedCf.isEmpty ? null : normalizedCf,
       birthDate: birthDate,
       birthPlace: birthPlace,
       gender: gender,
@@ -490,6 +494,20 @@ class BackofficeDemoStore extends ChangeNotifier {
       title: 'Anagrafica aggiornata',
     );
     notifyListeners();
+  }
+
+  void _ensureFiscalCodeAvailable(
+    String normalizedCf, {
+    StudentId? exceptStudentId,
+  }) {
+    if (normalizedCf.isEmpty) return;
+    for (final p in _profiles) {
+      if (exceptStudentId != null && p.id == exceptStudentId) continue;
+      final other = CodiceFiscale.normalizza(p.taxCode ?? '');
+      if (other.isNotEmpty && other == normalizedCf) {
+        throw StateError(StudentFiscalCodeWriteError.userMessage);
+      }
+    }
   }
 
   void updateProfileLegacyInternalNote({
@@ -1272,6 +1290,9 @@ class BackofficeDemoStore extends ChangeNotifier {
       }
     }
 
+    final normalizedCf = CodiceFiscale.normalizza(fiscalCode ?? '');
+    _ensureFiscalCodeAvailable(normalizedCf);
+
     final licRaw = enrolledLicenseCategory?.trim();
     if (licRaw != null && licRaw.isNotEmpty) {
       final valid = LicenseCategoryId.values.any((e) => e.name == licRaw);
@@ -1324,9 +1345,7 @@ class BackofficeDemoStore extends ChangeNotifier {
           : phoneCountryIso2.trim().toUpperCase(),
       email: email == null || email.trim().isEmpty ? null : email.trim(),
       birthDate: birthDate,
-      taxCode: fiscalCode == null || fiscalCode.trim().isEmpty
-          ? null
-          : fiscalCode.trim(),
+      taxCode: normalizedCf.isEmpty ? null : normalizedCf,
       birthPlace: bp == null || bp.isEmpty ? null : bp,
       gender: g == null || g.isEmpty ? null : g,
       address: addr,

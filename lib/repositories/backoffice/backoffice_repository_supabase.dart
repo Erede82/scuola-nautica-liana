@@ -7,6 +7,7 @@ import '../../config/supabase_config.dart';
 import '../../data/supabase/dto/backoffice_rows.dart';
 import '../../data/supabase/mappers/backoffice_row_mappers.dart';
 import '../../data/supabase/mappers/study_progress_row_mappers.dart';
+import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
 import '../../domain/enrollment_content_mapping.dart';
@@ -15,6 +16,7 @@ import '../../repositories/study_access_repository.dart';
 import '../../services/demo_student_enrollment.dart';
 import 'backoffice_repository.dart';
 import 'backoffice_supabase_write_helpers.dart';
+import 'student_fiscal_code_write_error.dart';
 
 /// Lettura e **scrittura** backoffice su Supabase (PostgREST).
 ///
@@ -197,6 +199,10 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   }
 
   String _formatCreateStudentError(Object e) {
+    final duplicateCf = friendlyStudentWriteError(e);
+    if (duplicateCf != null) {
+      return duplicateCf;
+    }
     if (e is PostgrestException) {
       final code = e.code?.toString() ?? '';
       final msg = e.message;
@@ -310,7 +316,16 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     putNonEmpty(insertPayload, 'phone', phone);
     putNonEmpty(insertPayload, 'phone_country_iso2', phoneCountryIso2);
     putNonEmpty(insertPayload, 'email', email);
-    putNonEmpty(insertPayload, 'fiscal_code', fiscalCode);
+    final normalizedFiscal = fiscalCode == null
+        ? null
+        : CodiceFiscale.normalizza(fiscalCode);
+    putNonEmpty(
+      insertPayload,
+      'fiscal_code',
+      (normalizedFiscal == null || normalizedFiscal.isEmpty)
+          ? null
+          : normalizedFiscal,
+    );
     putNonEmpty(insertPayload, 'notes', notes);
     putNonEmpty(insertPayload, 'birth_place', birthPlace);
     putNonEmpty(insertPayload, 'gender', gender);
@@ -1950,7 +1965,7 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     try {
       await _client.from('students').update(payload).eq('id', studentId);
     } on PostgrestException catch (e) {
-      throw StateError(e.message);
+      throw StateError(friendlyStudentWriteError(e) ?? e.message);
     }
 
     await _insertActivity(

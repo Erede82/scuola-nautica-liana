@@ -6,6 +6,7 @@ import '../../domain/anagrafica/anagrafica_format.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../international_phone_field.dart';
 
@@ -188,11 +189,12 @@ class _EditStudentAnagraficaDialogState
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = 'Impossibile aggiornare l’anagrafica. Riprova tra poco.';
+        _error = friendlyStudentWriteError(e) ??
+            'Impossibile aggiornare l’anagrafica. Riprova tra poco.';
       });
     }
   }

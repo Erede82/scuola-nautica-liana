@@ -13,6 +13,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../international_phone_field.dart';
@@ -771,7 +772,7 @@ class _BackofficeNewPracticeDialogBodyState
         email: _emailAppCtrl.text.trim().isEmpty
             ? null
             : _emailAppCtrl.text.trim(),
-        fiscalCode: _fiscalCtrl.text.trim().toUpperCase(),
+        fiscalCode: CodiceFiscale.normalizza(_fiscalCtrl.text),
         birthDate: _birthDate,
         birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
         gender: _gender == _StudentGender.male ? 'Maschio' : 'Femmina',
@@ -922,11 +923,12 @@ class _BackofficeNewPracticeDialogBodyState
         Navigator.of(context).pop(outcome);
       }
     } catch (e) {
-      final msg = e is StateError
-          ? e.message
-          : e is ArgumentError
-          ? (e.message?.toString() ?? 'Dati non validi.')
-          : 'Operazione non riuscita. Controlla i campi e riprova.';
+      final msg = friendlyStudentWriteError(e) ??
+          (e is StateError
+              ? e.message
+              : e is ArgumentError
+              ? (e.message?.toString() ?? 'Dati non validi.')
+              : 'Operazione non riuscita. Controlla i campi e riprova.');
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),

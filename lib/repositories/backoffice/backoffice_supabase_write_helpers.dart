@@ -1,3 +1,4 @@
+import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../models/license_models.dart';
 
@@ -16,6 +17,7 @@ String? dateOnlyIso(DateTime? d) {
 /// Payload UPDATE `students` per ALLIEVI.P1A — solo colonne anagrafiche (§1).
 ///
 /// Nessun campo pratica / auth / onboarding / notes.
+/// [fiscalCode] viene normalizzato con [CodiceFiscale.normalizza] (allineato a P1B DB).
 Map<String, dynamic> studentAnagraficaUpdatePayload({
   required String firstName,
   required String lastName,
@@ -35,7 +37,7 @@ Map<String, dynamic> studentAnagraficaUpdatePayload({
   return <String, dynamic>{
     'first_name': firstName,
     'last_name': lastName,
-    'fiscal_code': fiscalCode,
+    'fiscal_code': CodiceFiscale.normalizza(fiscalCode),
     'birth_date': dateOnlyIso(birthDate),
     'birth_place': birthPlace,
     'gender': gender,
