@@ -7,6 +7,7 @@ import '../../theme/app_visual_tokens.dart';
 import 'assign_practice_registry_dialog.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
+import 'edit_student_anagrafica_dialog.dart';
 import 'edit_student_phone_dialog.dart';
 import 'student_360_activity_log_section.dart';
 import 'student_360_photo_signature_section.dart';
@@ -511,6 +512,33 @@ class Student360SchedaSection extends StatelessWidget {
 
           final schedaAllievo = Student360InfoCard(
             title: 'Scheda allievo',
+            titleTrailing: IconButton(
+              key: const ValueKey('student-360-edit-anagrafica'),
+              tooltip: 'Modifica anagrafica',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: () async {
+                final ok = await showEditStudentAnagraficaDialog(
+                  context: context,
+                  repository: repository,
+                  profile: p,
+                );
+                if (!context.mounted) return;
+                if (ok) {
+                  final fresh = await repository.getStudentAdmin360(p.id);
+                  if (fresh != null) {
+                    await onRefreshDetail(fresh);
+                  } else {
+                    await onRefreshDetail();
+                  }
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Anagrafica aggiornata.')),
+                  );
+                }
+              },
+            ),
             child: wide
                 ? Student360ResponsiveRow(
                     spacing: 20,

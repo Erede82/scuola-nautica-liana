@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../data/anagrafica/comuni_cap_repository.dart';
 import '../../data/anagrafica/comuni_repository.dart';
+import '../../domain/anagrafica/anagrafica_field_validation.dart';
 import '../../domain/anagrafica/anagrafica_format.dart';
 import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/anagrafica/comune_catastale.dart';
@@ -197,28 +198,6 @@ String _generateReadablePassword() {
   return List.generate(14, (_) => chars[r.nextInt(chars.length)]).join();
 }
 
-String? _validateBirthProvince(String raw) {
-  final p = raw.trim().toUpperCase();
-  if (p.isEmpty) {
-    return 'Inserisci la provincia di nascita.';
-  }
-  if (!RegExp(r'^[A-Z]{2}$').hasMatch(p)) {
-    return 'La provincia di nascita deve essere una sigla di 2 lettere (es. NA, SA, RM).';
-  }
-  return null;
-}
-
-String? _validateItalianCap(String raw) {
-  final cap = raw.replaceAll(RegExp(r'\s'), '');
-  if (cap.isEmpty) {
-    return 'Inserisci il CAP.';
-  }
-  if (!RegExp(r'^\d{5}$').hasMatch(cap)) {
-    return 'Il CAP deve essere di 5 cifre (solo numeri).';
-  }
-  return null;
-}
-
 String? _validateNewPracticeFields({
   required String lastName,
   required String firstName,
@@ -257,7 +236,8 @@ String? _validateNewPracticeFields({
   if (birthPlace.trim().isEmpty) {
     return 'Inserisci il luogo di nascita.';
   }
-  final birthProvinceErr = _validateBirthProvince(birthProvince);
+  final birthProvinceErr =
+      AnagraficaFieldValidation.validateBirthProvince(birthProvince);
   if (birthProvinceErr != null) {
     return birthProvinceErr;
   }
@@ -280,7 +260,7 @@ String? _validateNewPracticeFields({
   if (cap.trim().isEmpty) {
     return 'Inserisci il CAP.';
   }
-  final capErr = _validateItalianCap(cap);
+  final capErr = AnagraficaFieldValidation.validateItalianCap(cap);
   if (capErr != null) {
     return capErr;
   }
@@ -304,21 +284,18 @@ String? _validateNewPracticeFields({
       return 'Verifica la data di iscrizione al registro.';
     }
   }
-  final em = email.trim();
+  final emailErr = AnagraficaFieldValidation.validateEmail(
+    email,
+    requireNonEmpty: createAppAccess,
+    emptyMessage: 'Inserisci l’email per l’accesso app.',
+  );
+  if (emailErr != null) {
+    return emailErr;
+  }
   if (createAppAccess) {
-    if (em.isEmpty) {
-      return 'Inserisci l’email per l’accesso app.';
-    }
-    if (!em.contains('@')) {
-      return 'L’email deve contenere il simbolo @.';
-    }
     final ap = accessPasswordDraft.trim();
     if (ap.isNotEmpty && ap.length < 8) {
       return 'La password temporanea deve avere almeno 8 caratteri (oppure lascia vuoto per generarla).';
-    }
-  } else {
-    if (em.isNotEmpty && !em.contains('@')) {
-      return 'L’email deve contenere il simbolo @.';
     }
   }
   return null;

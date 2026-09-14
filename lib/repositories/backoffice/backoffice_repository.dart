@@ -64,6 +64,26 @@ abstract class BackofficeRepository {
     required String phoneCountryIso2,
   });
 
+  /// Aggiorna anagrafica allievo (scope ALLIEVI.P1A). Solo `students` UPDATE.
+  ///
+  /// Non tocca Auth, pratiche, documenti, grants, notes, onboarding.
+  Future<void> updateStudentAnagrafica({
+    required StudentId studentId,
+    required String firstName,
+    required String lastName,
+    required String fiscalCode,
+    required DateTime birthDate,
+    required String birthPlace,
+    required String gender,
+    required String address,
+    required String city,
+    required String province,
+    required String cap,
+    required String phoneE164,
+    required String phoneCountryIso2,
+    String? email,
+  });
+
   /// Vista aggregata 360° (stesso significato di [StudentAdmin360View] nel dominio).
   Future<StudentAdmin360View?> getStudentAdmin360(StudentId studentId);
 

@@ -13,6 +13,42 @@ String? dateOnlyIso(DateTime? d) {
   return '$y-$m-$day';
 }
 
+/// Payload UPDATE `students` per ALLIEVI.P1A — solo colonne anagrafiche (§1).
+///
+/// Nessun campo pratica / auth / onboarding / notes.
+Map<String, dynamic> studentAnagraficaUpdatePayload({
+  required String firstName,
+  required String lastName,
+  required String fiscalCode,
+  required DateTime birthDate,
+  required String birthPlace,
+  required String gender,
+  required String address,
+  required String city,
+  required String province,
+  required String cap,
+  required String phoneE164,
+  required String phoneCountryIso2,
+  required String? email,
+}) {
+  final em = email?.trim();
+  return <String, dynamic>{
+    'first_name': firstName,
+    'last_name': lastName,
+    'fiscal_code': fiscalCode,
+    'birth_date': dateOnlyIso(birthDate),
+    'birth_place': birthPlace,
+    'gender': gender,
+    'address': address,
+    'city': city,
+    'province': province,
+    'cap': cap,
+    'phone': phoneE164,
+    'phone_country_iso2': phoneCountryIso2,
+    'email': (em == null || em.isEmpty) ? null : em,
+  };
+}
+
 String practiceDocumentWaiverActivityDescription({
   required String requirementLabel,
   String? note,

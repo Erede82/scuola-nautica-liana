@@ -442,6 +442,56 @@ class BackofficeDemoStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Aggiorna anagrafica (ALLIEVI.P1A). Non tocca dossier / grants / note.
+  void updateStudentAnagrafica({
+    required StudentId studentId,
+    required String firstName,
+    required String lastName,
+    required String fiscalCode,
+    required DateTime birthDate,
+    required String birthPlace,
+    required String gender,
+    required String address,
+    required String city,
+    required String province,
+    required String cap,
+    required String phoneE164,
+    required String phoneCountryIso2,
+    String? email,
+  }) {
+    final i = _profiles.indexWhere((p) => p.id == studentId);
+    if (i < 0) return;
+    final p = _profiles[i];
+    final em = email?.trim();
+    final prevAddr = p.address;
+    _profiles[i] = p.copyWith(
+      firstName: firstName,
+      lastName: lastName,
+      taxCode: fiscalCode,
+      birthDate: birthDate,
+      birthPlace: birthPlace,
+      gender: gender,
+      phone: phoneE164.trim(),
+      phoneCountryIso2: phoneCountryIso2.trim().toUpperCase(),
+      email: em,
+      clearEmail: em == null || em.isEmpty,
+      address: PostalAddress(
+        streetLine1: address,
+        streetLine2: prevAddr?.streetLine2,
+        postalCode: cap,
+        city: city,
+        provinceCode: province,
+        countryCode: prevAddr?.countryCode ?? 'IT',
+      ),
+    );
+    _appendActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.profileInternalNoteUpdated,
+      title: 'Anagrafica aggiornata',
+    );
+    notifyListeners();
+  }
+
   void updateProfileLegacyInternalNote({
     required StudentId studentId,
     String? internalNotes,

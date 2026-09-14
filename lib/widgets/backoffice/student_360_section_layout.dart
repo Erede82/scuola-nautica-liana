@@ -57,10 +57,14 @@ class Student360InfoCard extends StatelessWidget {
     required this.child,
     this.stretch = false,
     this.minHeight,
+    this.titleTrailing,
   });
 
   final String title;
   final Widget child;
+
+  /// Azione opzionale a destra del titolo (es. Modifica anagrafica).
+  final Widget? titleTrailing;
 
   /// Riempie l’altezza quando la card è in una riga [Student360SiblingCardsRow].
   final bool stretch;
@@ -98,13 +102,20 @@ class Student360InfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: stretch ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Text(
-            title,
-            style: textTheme.titleMedium?.copyWith(
-              color: AppVisual.ink,
-              fontWeight: FontWeight.w800,
-              fontSize: compact ? 15 : null,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: AppVisual.ink,
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 15 : null,
+                  ),
+                ),
+              ),
+              ?titleTrailing,
+            ],
           ),
           SizedBox(height: titleGap),
           body,

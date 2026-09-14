@@ -1916,6 +1916,51 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   }
 
   @override
+  Future<void> updateStudentAnagrafica({
+    required StudentId studentId,
+    required String firstName,
+    required String lastName,
+    required String fiscalCode,
+    required DateTime birthDate,
+    required String birthPlace,
+    required String gender,
+    required String address,
+    required String city,
+    required String province,
+    required String cap,
+    required String phoneE164,
+    required String phoneCountryIso2,
+    String? email,
+  }) async {
+    final payload = studentAnagraficaUpdatePayload(
+      firstName: firstName,
+      lastName: lastName,
+      fiscalCode: fiscalCode,
+      birthDate: birthDate,
+      birthPlace: birthPlace,
+      gender: gender,
+      address: address,
+      city: city,
+      province: province,
+      cap: cap,
+      phoneE164: phoneE164,
+      phoneCountryIso2: phoneCountryIso2,
+      email: email,
+    );
+    try {
+      await _client.from('students').update(payload).eq('id', studentId);
+    } on PostgrestException catch (e) {
+      throw StateError(e.message);
+    }
+
+    await _insertActivity(
+      studentId: studentId,
+      type: BackofficeActivityType.profileInternalNoteUpdated,
+      title: 'Anagrafica aggiornata',
+    );
+  }
+
+  @override
   Future<void> updateProfileLegacyInternalNote({
     required StudentId studentId,
     String? internalNotes,
