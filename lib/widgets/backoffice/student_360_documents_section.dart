@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import '../../theme/app_visual_tokens.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
@@ -62,7 +63,7 @@ class Student360DocumentsSection extends StatelessWidget {
 
   Future<void> _showLargeImageDialog(BuildContext context, String imageUrl) async {
     if (!context.mounted) return;
-    await showDialog<void>(
+    await showUpdateProtectedDialog<void>(
       context: context,
       barrierColor: Colors.black87,
       builder: (dialogContext) {
@@ -271,7 +272,7 @@ class Student360DocumentsSection extends StatelessWidget {
   ) async {
     final controller = TextEditingController();
     try {
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showUpdateProtectedDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Documento non necessario'),
@@ -362,7 +363,7 @@ class Student360DocumentsSection extends StatelessWidget {
     }
 
     final label = _requirementLabel(requirementId);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Ripristina documento richiesto'),
@@ -453,7 +454,7 @@ class Student360DocumentsSection extends StatelessWidget {
     Student360PickedUploadFile? pickedFile;
     var uploading = false;
 
-    await showDialog<void>(
+    await showUpdateProtectedDialog<void>(
         context: context,
         builder: (dialogContext) {
           return StatefulBuilder(
@@ -620,7 +621,7 @@ class Student360DocumentsSection extends StatelessWidget {
     BuildContext context,
     StudentDocument doc,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Elimina documento'),
@@ -694,7 +695,7 @@ class Student360DocumentsSection extends StatelessWidget {
     }
 
     try {
-      await showDialog<void>(
+      await showUpdateProtectedDialog<void>(
         context: context,
         builder: (dialogContext) {
           return StatefulBuilder(

@@ -6,6 +6,7 @@ import '../data/extra_content_mapper.dart';
 import '../data/extra_content_mock.dart';
 import '../models/extra_content_item.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
+import '../services/app_update/stripe_checkout_guard.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/student_area_context.dart';
 import '../widgets/branded_app_bar_title.dart';
@@ -46,9 +47,10 @@ class _ExtraPageState extends State<ExtraPage> {
     final checkout = params['extraCheckout'];
     if (checkout == null) return;
 
+    final kind = protectExtraCheckoutReturn(checkout);
     final productId = params['productId'];
-    if (checkout == 'success') {
-      _reload();
+    if (kind == ExtraCheckoutReturnKind.success) {
+      _reload().whenComplete(StripeCheckoutGuard.endCheckout);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -60,7 +62,7 @@ class _ExtraPageState extends State<ExtraPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } else if (checkout == 'cancel') {
+    } else if (kind == ExtraCheckoutReturnKind.cancel) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

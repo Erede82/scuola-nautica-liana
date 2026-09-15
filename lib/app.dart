@@ -11,6 +11,7 @@ import 'pages/student_registration_page.dart';
 import 'services/startup_diagnostics.dart';
 import 'services/startup_diagnostics_host.dart';
 import 'theme/app_visual_tokens.dart';
+import 'widgets/app_update/app_update_host.dart';
 import 'widgets/international_phone_field.dart';
 
 /// Named routes dell'app. Su web, `/login` usa durata transizione zero
@@ -345,9 +346,11 @@ class ScuolaNauticaLianaApp extends StatelessWidget {
       onGenerateRoute: generateAppRoute,
       home: const AppAuthGate(),
       builder: (context, child) {
-        final content = child ?? const SizedBox.shrink();
-        if (!StartupDiagnostics.enabled) return content;
-        return StartupDiagnosticsHost(child: content);
+        var content = child ?? const SizedBox.shrink();
+        if (StartupDiagnostics.enabled) {
+          content = StartupDiagnosticsHost(child: content);
+        }
+        return AppUpdateHost(child: content);
       },
     );
   }

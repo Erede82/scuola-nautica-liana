@@ -8,6 +8,7 @@ import '../../data/license_catalog.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../models/license_models.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import 'lesson_study_access_ui.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
@@ -92,7 +93,7 @@ Future<void> showManageLessonSheetsDialog(
   final busyLessons = <int>{};
   final optimisticLessonUnlock = <int, bool>{};
   try {
-    await showDialog<void>(
+    await showUpdateProtectedDialog<void>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -276,7 +277,7 @@ Future<void> showExamAccessManageDialog(
   var busy = false;
   try {
     final categoryId = initialView.profile.enrolledLicenseCategory;
-    await showDialog<void>(
+    await showUpdateProtectedDialog<void>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -454,7 +455,7 @@ Future<void> showErrorReviewAssignDialog(
     final categoryId = initialView.profile.enrolledLicenseCategory;
     final category = LicenseCatalog.byId(categoryId);
 
-    await showDialog<void>(
+    await showUpdateProtectedDialog<void>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -612,7 +613,7 @@ class _AddPaymentDialogBodyState extends State<_AddPaymentDialogBody> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (c2) => AlertDialog(
         title: const Text('Conferma registrazione'),
@@ -760,7 +761,7 @@ Future<void> showAddPaymentDialog(
 }) async {
   final studentId = view.profile.id;
 
-  final result = await showDialog<_PaymentResult>(
+  final result = await showUpdateProtectedDialog<_PaymentResult>(
     context: context,
     builder: (ctx) => const _AddPaymentDialogBody(),
   );
@@ -971,7 +972,7 @@ Future<void> showAddGuidanceAppointmentDialog(
   final studentId = view.profile.id;
   final now = DateTime.now();
 
-  final result = await showDialog<_GuidanceResult>(
+  final result = await showUpdateProtectedDialog<_GuidanceResult>(
     context: context,
     builder: (ctx) => _AddGuidanceDialogBody(initialDay: now),
   );
@@ -1095,7 +1096,7 @@ Future<void> showBookGuidanceFromStudent360Dialog(
   final students = <StudentProfile>[view.profile];
   final studentId = view.profile.id;
 
-  await showDialog<void>(
+  await showUpdateProtectedDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (dialogContext) {
@@ -1160,7 +1161,7 @@ Future<void> showAgendaSeaPracticeDialog(
   }
   final sorted = sortAgendaSeaPracticeStudents(students);
 
-  final result = await showDialog<AgendaSeaPracticeResult>(
+  final result = await showUpdateProtectedDialog<AgendaSeaPracticeResult>(
     context: context,
     builder: (ctx) => _AgendaSeaPracticeDialogBody(students: sorted),
   );
@@ -1240,7 +1241,7 @@ Future<void> showEditAgendaSeaPracticeDialog(
   }
   final sorted = sortAgendaSeaPracticeStudents(students);
 
-  final result = await showDialog<AgendaSeaPracticeResult>(
+  final result = await showUpdateProtectedDialog<AgendaSeaPracticeResult>(
     context: context,
     builder: (ctx) =>
         _AgendaSeaPracticeDialogBody(students: sorted, editItem: item),
@@ -1290,7 +1291,7 @@ Future<void> showDeleteGuidanceAppointmentDialog(
   required BackofficeRepository repository,
   required Future<void> Function() onSaved,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Cancella guida'),
@@ -1703,7 +1704,7 @@ Future<void> showOnboardingRegistrationFeeDialog(
     text: (view.financialSummary.registrationFeeCents / 100).toStringAsFixed(2),
   );
 
-  final saved = await showDialog<bool>(
+  final saved = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Quota pratica'),

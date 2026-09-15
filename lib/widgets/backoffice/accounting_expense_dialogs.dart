@@ -6,6 +6,7 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import 'student_backoffice_dialogs.dart';
 
 const _instructorCategorySlug = 'pagamento-istruttori';
@@ -33,7 +34,7 @@ Future<bool> showCreateExpenseDialog(
   BuildContext context, {
   required List<ExpenseCategory> categories,
 }) async {
-  return await showDialog<bool>(
+  return await showUpdateProtectedDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => _ExpenseFormDialog(categories: _sortedCategories(categories)),
@@ -49,7 +50,7 @@ Future<bool> showEditExpenseDialog(
   required List<ExpenseCategory> categories,
   required NauticalExpense expense,
 }) async {
-  return await showDialog<bool>(
+  return await showUpdateProtectedDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => _ExpenseFormDialog(
@@ -214,7 +215,7 @@ class _ExpenseFormDialogState extends State<_ExpenseFormDialog> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (c2) => AlertDialog(
         title: Text(_isEdit ? 'Conferma modifiche' : 'Conferma registrazione'),

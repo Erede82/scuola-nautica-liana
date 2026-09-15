@@ -3,6 +3,7 @@ import 'package:postgrest/postgrest.dart';
 
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import 'backoffice_formatters.dart';
 import 'backoffice_ui_tokens.dart';
 
@@ -30,7 +31,7 @@ Future<void> showAddStaffNoteDialog(
   final authorCtrl = TextEditingController();
   var category = StaffNoteCategory.general;
 
-  final saved = await showDialog<bool>(
+  final saved = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (context, setLocal) {
@@ -141,7 +142,7 @@ Future<void> showEditProfileInternalNotesDialog(
 }) async {
   final ctrl = TextEditingController(text: view.profile.internalNotes ?? '');
 
-  final saved = await showDialog<bool>(
+  final saved = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Modifica note anagrafiche'),
@@ -207,7 +208,7 @@ Future<void> showRegisterExamOutcomeDialog(
       ? 'Registra esito teoria'
       : 'Registra esito pratica';
 
-  final saved = await showDialog<bool>(
+  final saved = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (context, setLocal) {
@@ -350,7 +351,7 @@ Future<void> showUpdatePracticeDossierDialog(
   var issue = d?.issueDate;
   var expiry = d?.expirationDate;
 
-  final saved = await showDialog<bool>(
+  final saved = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (context, setLocal) {

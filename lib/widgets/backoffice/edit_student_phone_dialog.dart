@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../domain/backoffice/ids.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
+import '../../services/app_update/update_protected_mutation.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../international_phone_field.dart';
 
@@ -14,7 +16,7 @@ Future<bool> showEditStudentPhoneDialog({
   required String? currentPhone,
   required String? currentPhoneCountryIso2,
 }) async {
-  final result = await showDialog<bool>(
+  final result = await showUpdateProtectedDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _EditStudentPhoneDialog(
@@ -81,10 +83,12 @@ class _EditStudentPhoneDialogState extends State<_EditStudentPhoneDialog> {
       _error = null;
     });
     try {
-      await widget.repository.updateStudentPhone(
-        studentId: widget.studentId,
-        phoneE164: value.e164,
-        phoneCountryIso2: value.countryIso2,
+      await runUpdateProtectedMutation(
+        () => widget.repository.updateStudentPhone(
+          studentId: widget.studentId,
+          phoneE164: value.e164,
+          phoneCountryIso2: value.countryIso2,
+        ),
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);

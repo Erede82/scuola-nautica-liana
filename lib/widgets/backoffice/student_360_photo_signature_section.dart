@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import '../../theme/app_visual_tokens.dart';
 import 'backoffice_ui_tokens.dart';
 import 'student_360_storage_thumbnail.dart';
@@ -241,7 +242,7 @@ class Student360PhotoSignatureSection extends StatelessWidget {
     }
 
     try {
-      await showDialog<void>(
+      await showUpdateProtectedDialog<void>(
         context: context,
         builder: (dialogContext) {
           return StatefulBuilder(

@@ -6,6 +6,7 @@ import '../domain/backoffice/backoffice.dart';
 import '../domain/international_phone.dart';
 import '../models/license_models.dart';
 import '../repositories/backoffice/backoffice_registry.dart';
+import '../services/app_update/update_protected_mutation.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/backoffice/backoffice_formatters.dart';
 import '../widgets/backoffice/lesson_study_access_ui.dart';
@@ -154,7 +155,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   }) async {
     setBusy(true);
     try {
-      await action();
+      await runUpdateProtectedMutation(action);
       await _refreshView();
       if (mounted) _snack(success);
     } catch (e, st) {
@@ -184,12 +185,14 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     }
 
     try {
-      await backofficeRepository.setLessonSheetsUnlockedForLesson(
-        studentId: view.profile.id,
-        categoryId: _categoryId,
-        lessonNumber: lessonNumber,
-        sheetCount: quizSheets,
-        unlocked: unlocked,
+      await runUpdateProtectedMutation(
+        () => backofficeRepository.setLessonSheetsUnlockedForLesson(
+          studentId: view.profile.id,
+          categoryId: _categoryId,
+          lessonNumber: lessonNumber,
+          sheetCount: quizSheets,
+          unlocked: unlocked,
+        ),
       );
       await _refreshView();
       if (mounted) {

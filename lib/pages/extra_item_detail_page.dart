@@ -9,6 +9,7 @@ import '../domain/backoffice/backoffice.dart';
 import '../models/extra_content_item.dart';
 import '../repositories/backoffice/management_repository.dart';
 import '../repositories/backoffice/management_repository_registry.dart';
+import '../services/app_update/stripe_checkout_guard.dart';
 import '../services/demo_student_enrollment.dart';
 import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
@@ -178,11 +179,17 @@ class _ExtraItemDetailPageState extends State<ExtraItemDetailPage>
     if (uri == null || uri.host.isEmpty) {
       throw StateError('checkout_url_invalid');
     }
-    final ok = kIsWeb
-        ? await launchUrl(uri, webOnlyWindowName: '_self')
-        : await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) {
-      throw StateError('checkout_launch_failed');
+    StripeCheckoutGuard.beginCheckout();
+    try {
+      final ok = kIsWeb
+          ? await launchUrl(uri, webOnlyWindowName: '_self')
+          : await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) {
+        throw StateError('checkout_launch_failed');
+      }
+    } catch (e) {
+      StripeCheckoutGuard.endCheckout();
+      rethrow;
     }
   }
 

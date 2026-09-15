@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 
 /// Controller unico per assegnazione/retry numero registro (PRATICHE.8D).
 ///
@@ -51,7 +52,7 @@ Future<PracticeRegistryAssignment?> showAssignPracticeRegistryNumberDialog({
       controller ?? PracticeRegistryAssignController(repository: repository);
   final year = practiceRegistryYearFromRegistrationDate(registrationDate);
 
-  return showDialog<PracticeRegistryAssignment>(
+  return showUpdateProtectedDialog<PracticeRegistryAssignment>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../repositories/backoffice/backoffice_repositories.dart';
 import '../../theme/app_visual_tokens.dart';
+import '../../services/app_update/update_protected_dialog.dart';
+import '../../widgets/app_update/app_version_info.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 
@@ -277,6 +279,12 @@ class _SettingsDirectoryPageState extends State<SettingsDirectoryPage> {
                   ),
                 ),
                 ..._buildBodySlivers(textTheme, constraints.maxWidth),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    child: AppVersionInfo(),
+                  ),
+                ),
               ],
             );
           },
@@ -609,7 +617,7 @@ Future<bool?> showPracticeServiceTemplateDialog(
   BuildContext context, {
   PracticeServiceTemplate? existing,
 }) {
-  return showDialog<bool>(
+  return showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => _PracticeServiceTemplateDialog(existing: existing),
   );

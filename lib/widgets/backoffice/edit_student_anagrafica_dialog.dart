@@ -7,6 +7,8 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
 import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
+import '../../services/app_update/update_protected_dialog.dart';
+import '../../services/app_update/update_protected_mutation.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../international_phone_field.dart';
 
@@ -16,7 +18,7 @@ Future<bool> showEditStudentAnagraficaDialog({
   required BackofficeRepository repository,
   required StudentProfile profile,
 }) async {
-  final result = await showDialog<bool>(
+  final result = await showUpdateProtectedDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _EditStudentAnagraficaDialog(
@@ -169,23 +171,25 @@ class _EditStudentAnagraficaDialogState
     });
 
     try {
-      await widget.repository.updateStudentAnagrafica(
-        studentId: widget.profile.id,
-        firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
-        lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
-        fiscalCode: AnagraficaFieldValidation.normalizeFiscalCode(
-          _fiscalCtrl.text,
+      await runUpdateProtectedMutation(
+        () => widget.repository.updateStudentAnagrafica(
+          studentId: widget.profile.id,
+          firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
+          lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
+          fiscalCode: AnagraficaFieldValidation.normalizeFiscalCode(
+            _fiscalCtrl.text,
+          ),
+          birthDate: birthDate,
+          birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
+          gender: genderLabel!,
+          address: AnagraficaFormat.titleCase(_addressCtrl.text),
+          city: AnagraficaFormat.titleCase(_cityCtrl.text),
+          province: _provinceCtrl.text.trim().toUpperCase(),
+          cap: _capCtrl.text.replaceAll(RegExp(r'\s'), ''),
+          phoneE164: phone.e164,
+          phoneCountryIso2: phone.countryIso2,
+          email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         ),
-        birthDate: birthDate,
-        birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
-        gender: genderLabel!,
-        address: AnagraficaFormat.titleCase(_addressCtrl.text),
-        city: AnagraficaFormat.titleCase(_cityCtrl.text),
-        province: _provinceCtrl.text.trim().toUpperCase(),
-        cap: _capCtrl.text.replaceAll(RegExp(r'\s'), ''),
-        phoneE164: phone.e164,
-        phoneCountryIso2: phone.countryIso2,
-        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);

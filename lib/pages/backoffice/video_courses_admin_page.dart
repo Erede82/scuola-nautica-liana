@@ -7,6 +7,7 @@ import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repositories.dart';
 import '../../theme/app_visual_tokens.dart';
 import '../../widgets/backoffice/backoffice_formatters.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import '../../widgets/backoffice/backoffice_ui_tokens.dart';
 
 /// Modulo backoffice Videocorsi — prodotti, video e accessi allievo (Fase H1).
@@ -218,7 +219,7 @@ class _VideoCoursesAdminPageState extends State<VideoCoursesAdminPage>
   }
 
   Future<void> _revokeAccess(StudentId studentId, String productId) async {
-    final ok = await showDialog<bool>(
+    final ok = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Revoca accesso'),
@@ -925,7 +926,7 @@ class _ProductVideosPageState extends State<_ProductVideosPage> {
   }
 
   Future<void> _openForm({ExtraVideoItem? existing}) async {
-    final saved = await showDialog<bool>(
+    final saved = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (ctx) => _ExtraVideoFormDialog(
         product: widget.product,
@@ -951,7 +952,7 @@ class _ProductVideosPageState extends State<_ProductVideosPage> {
   }
 
   Future<void> _deactivate(ExtraVideoItem item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showUpdateProtectedDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Disattiva video'),

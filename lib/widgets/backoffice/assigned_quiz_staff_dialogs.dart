@@ -8,6 +8,7 @@ import '../../models/license_models.dart';
 import '../../repositories/assigned_quiz_repository.dart';
 import 'assigned_quiz_staff_labels.dart';
 import 'backoffice_ui_tokens.dart';
+import '../../services/app_update/update_protected_dialog.dart';
 import 'student_backoffice_dialogs.dart';
 
 void _assignedQuizSnack(BuildContext context, String message) {
@@ -28,7 +29,7 @@ Future<AssignedQuizGenerationResult?> showAssignedQuizGenerateDialog(
   required AssignedQuizRepository repository,
 }) {
   final supported = dbLicenseCategoryFor(licenseCategoryId) != null;
-  return showDialog<AssignedQuizGenerationResult>(
+  return showUpdateProtectedDialog<AssignedQuizGenerationResult>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _AssignedQuizGenerateDialog(
@@ -632,7 +633,7 @@ Future<bool> showAssignedQuizEditMetadataDialog(
   required AssignedQuizSummary assignment,
   required AssignedQuizRepository repository,
 }) async {
-  final result = await showDialog<bool>(
+  final result = await showUpdateProtectedDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => _AssignedQuizEditMetadataDialog(
@@ -879,7 +880,7 @@ class _AssignedQuizEditMetadataDialogState
 }
 
 Future<bool> confirmAssignedQuizArchive(BuildContext context) async {
-  final result = await showDialog<bool>(
+  final result = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Archivia quiz'),
@@ -903,7 +904,7 @@ Future<bool> confirmAssignedQuizArchive(BuildContext context) async {
 }
 
 Future<bool> confirmAssignedQuizDeleteDraft(BuildContext context) async {
-  final result = await showDialog<bool>(
+  final result = await showUpdateProtectedDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Elimina bozza'),

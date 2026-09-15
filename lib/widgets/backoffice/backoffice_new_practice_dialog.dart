@@ -13,6 +13,8 @@ import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
 import '../../domain/international_phone.dart';
 import '../../repositories/backoffice/backoffice_repository.dart';
+import '../../services/app_update/update_protected_dialog.dart';
+import '../../services/app_update/update_protected_mutation.dart';
 import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../theme/app_visual_tokens.dart';
@@ -127,7 +129,7 @@ Future<void> showAppAccessCredentialsDialog(
   BuildContext context,
   StudentAppAccessCredentials credentials,
 ) async {
-  await showDialog<void>(
+  await showUpdateProtectedDialog<void>(
     context: context,
     builder: (ctx) {
       Future<void> copyToClipboard() async {
@@ -308,7 +310,7 @@ Future<BackofficeNewStudentOutcome?> showBackofficeNewPracticeDialog(
   BuildContext context, {
   required BackofficeRepository repository,
 }) async {
-  return showDialog<BackofficeNewStudentOutcome>(
+  return showUpdateProtectedDialog<BackofficeNewStudentOutcome>(
     context: context,
     builder: (ctx) => _BackofficeNewPracticeDialogBody(repository: repository),
   );
@@ -746,6 +748,7 @@ class _BackofficeNewPracticeDialogBodyState
 
     setState(() => _busy = true);
     try {
+      final submitResult = await runUpdateProtectedMutation(() async {
       final pathRaw = _enrolledCoursePath?.trim();
       final licenseRaw = _enrolledLicenseCategory?.trim();
       final path = _requiresEnrollmentSelection
@@ -865,6 +868,15 @@ class _BackofficeNewPracticeDialogBodyState
           }
         }
       }
+      return (
+        outcome: outcome,
+        feeSetOk: feeSetOk,
+        feeCents: feeCents,
+      );
+      });
+      final outcome = submitResult.outcome;
+      final feeSetOk = submitResult.feeSetOk;
+      final feeCents = submitResult.feeCents;
 
       if (mounted &&
           _createPracticeDossierForSubmit &&
