@@ -9,6 +9,7 @@ import 'package:scuola_nautica_liana/services/app_update/remote_app_version.dart
 import 'package:scuola_nautica_liana/services/app_update/stripe_checkout_guard.dart';
 import 'package:scuola_nautica_liana/services/app_update/update_protected_dialog.dart';
 import 'package:scuola_nautica_liana/services/app_update/update_protected_mutation.dart';
+import 'package:scuola_nautica_liana/services/app_update/update_protected_page.dart';
 import 'package:scuola_nautica_liana/services/app_update/version_fetcher.dart';
 import 'package:scuola_nautica_liana/widgets/app_update/app_version_info.dart';
 import 'package:scuola_nautica_liana/widgets/app_update/update_available_banner.dart';
@@ -406,6 +407,35 @@ void main() {
       expect(await future, 42);
       expect(coordinator.activeMutationCount, 0);
     });
+
+    testWidgets(
+      'full-page quiz player mixin blocks auto-reload until dispose',
+      (tester) async {
+        final coordinator = _freshCoordinator();
+        var reloads = 0;
+        coordinator
+          ..safeApplyDebounceDuration = Duration.zero
+          ..unsafeCloseDebounceDuration = Duration.zero
+          ..reloadAdapter = () => reloads++;
+
+        await tester.pumpWidget(
+          const MaterialApp(home: _UpdateProtectedProbe()),
+        );
+        expect(coordinator.unsavedWorkCount, 1);
+
+        coordinator
+          ..setRemoteForTest('2099.01.01.1')
+          ..scheduleAutoApplyForTest();
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(reloads, 0);
+        expect(coordinator.bannerVisible, isTrue);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(coordinator.unsavedWorkCount, 0);
+        expect(reloads, 1);
+      },
+    );
   });
 
   group('Update banner UI', () {
@@ -484,4 +514,17 @@ AppUpdateCoordinator _freshCoordinator() {
     ..resetForTest()
     ..debugForceCheckerEnabled = true;
   return coordinator;
+}
+
+class _UpdateProtectedProbe extends StatefulWidget {
+  const _UpdateProtectedProbe();
+
+  @override
+  State<_UpdateProtectedProbe> createState() => _UpdateProtectedProbeState();
+}
+
+class _UpdateProtectedProbeState extends State<_UpdateProtectedProbe>
+    with UpdateProtectedPageMixin {
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
