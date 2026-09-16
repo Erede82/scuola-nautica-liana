@@ -17,6 +17,7 @@ import '../models/quiz_question.dart';
 import '../pages/quiz_exam_error_review_page.dart';
 import '../repositories/exam_quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
+import '../services/app_update/update_protected_page.dart';
 import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import '../widgets/nautical_answer_marker.dart';
@@ -64,7 +65,8 @@ class QuizExamPlayerPage extends StatefulWidget {
   State<QuizExamPlayerPage> createState() => _QuizExamPlayerPageState();
 }
 
-class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
+class _QuizExamPlayerPageState extends State<QuizExamPlayerPage>
+    with UpdateProtectedPageMixin {
   static const Color _primaryColor = QuizPlayerVisual.accent;
   static const Color _backgroundColor = QuizPlayerVisual.pageBackground;
   static const Color _cardColor = QuizPlayerVisual.cardSurface;

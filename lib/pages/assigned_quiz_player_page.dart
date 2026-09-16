@@ -4,6 +4,7 @@ import '../data/supabase/mappers/assigned_quiz_mapper.dart';
 import '../models/assigned_quiz_models.dart';
 import '../models/quiz_question.dart';
 import '../repositories/assigned_quiz_repository.dart';
+import '../services/app_update/update_protected_page.dart';
 import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/branded_app_bar_title.dart';
@@ -34,7 +35,8 @@ class AssignedQuizPlayerPage extends StatefulWidget {
 }
 
 @visibleForTesting
-class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
+class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage>
+    with UpdateProtectedPageMixin {
   late List<AssignedQuizQuestion> _questions;
   late final Map<String, String?> _answers;
   late final Map<String, _SaveUiStatus> _saveStatus;

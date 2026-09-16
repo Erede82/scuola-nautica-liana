@@ -9,6 +9,7 @@ import '../domain/quiz_sheet_player_navigation.dart';
 import '../repositories/quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
+import '../services/app_update/update_protected_page.dart';
 import '../services/student_area_context.dart';
 import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
@@ -140,7 +141,8 @@ class _QuizSheetPlayer extends StatefulWidget {
   State<_QuizSheetPlayer> createState() => _QuizSheetPlayerState();
 }
 
-class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
+class _QuizSheetPlayerState extends State<_QuizSheetPlayer>
+    with UpdateProtectedPageMixin {
   static const Color _primaryColor = QuizPlayerVisual.accent;
   static const Color _backgroundColor = QuizPlayerVisual.pageBackground;
   static const Color _cardColor = QuizPlayerVisual.cardSurface;
