@@ -13,8 +13,18 @@ abstract final class ExtraBundleCatalog {
 
   static bool isBundle(String productId) => productId == bundleId;
 
-  /// Righe `student_extra_purchases` da creare/aggiornare quando lo staff abilita un prodotto.
+  /// Righe `student_extra_purchases` da creare/aggiornare quando lo staff
+  /// abilita un prodotto.
   static List<String> productsToGrantOnAccess(String productId) {
+    if (isBundle(productId)) {
+      return <String>[bundleId, ...bundleIncludedProductIds];
+    }
+    return <String>[productId];
+  }
+
+  /// Righe `student_extra_purchases` da revocare quando lo staff disabilita un
+  /// prodotto.
+  static List<String> productsToRevokeOnAccess(String productId) {
     if (isBundle(productId)) {
       return <String>[bundleId, ...bundleIncludedProductIds];
     }
