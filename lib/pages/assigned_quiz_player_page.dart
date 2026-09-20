@@ -39,6 +39,7 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
   late final Map<String, String?> _answers;
   late final Map<String, _SaveUiStatus> _saveStatus;
   late final Map<String, int> _saveGeneration;
+  final Map<String, Future<void>> _saveQueues = {};
   int _index = 0;
   bool _submitting = false;
   bool _abandoning = false;
@@ -86,6 +87,33 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
     }
   }
 
+  Future<void> _queueAnswerSave({
+    required String itemId,
+    required String? selectedOption,
+    required int generation,
+  }) {
+    final previous = _saveQueues[itemId] ?? Future<void>.value();
+    final queued = previous.then((_) async {
+      try {
+        await widget.repository.saveAnswer(
+          attemptId: widget.start.attemptId,
+          assignmentItemId: itemId,
+          selectedOption: selectedOption,
+        );
+        if (!mounted || _saveGeneration[itemId] != generation) return;
+        setState(() => _saveStatus[itemId] = _SaveUiStatus.saved);
+      } catch (error) {
+        if (!mounted || _saveGeneration[itemId] != generation) return;
+        setState(() {
+          _saveStatus[itemId] = _SaveUiStatus.error;
+          _globalError = assignedQuizExceptionFrom(error).message;
+        });
+      }
+    });
+    _saveQueues[itemId] = queued;
+    return queued;
+  }
+
   Future<void> _selectOption(QuizAnswerOption option) async {
     if (_submitting || _abandoning) return;
     if (StudentAreaContext.blocksWrites(context)) {
@@ -109,21 +137,11 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
       _globalError = null;
     });
 
-    try {
-      await widget.repository.saveAnswer(
-        attemptId: widget.start.attemptId,
-        assignmentItemId: itemId,
-        selectedOption: letter,
-      );
-      if (!mounted || _saveGeneration[itemId] != gen) return;
-      setState(() => _saveStatus[itemId] = _SaveUiStatus.saved);
-    } catch (error) {
-      if (!mounted || _saveGeneration[itemId] != gen) return;
-      setState(() {
-        _saveStatus[itemId] = _SaveUiStatus.error;
-        _globalError = assignedQuizExceptionFrom(error).message;
-      });
-    }
+    await _queueAnswerSave(
+      itemId: itemId,
+      selectedOption: letter,
+      generation: gen,
+    );
   }
 
   Future<void> _clearAnswer() async {
@@ -137,21 +155,11 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
       _answers[itemId] = null;
       _saveStatus[itemId] = _SaveUiStatus.saving;
     });
-    try {
-      await widget.repository.saveAnswer(
-        attemptId: widget.start.attemptId,
-        assignmentItemId: itemId,
-        selectedOption: null,
-      );
-      if (!mounted || _saveGeneration[itemId] != gen) return;
-      setState(() => _saveStatus[itemId] = _SaveUiStatus.saved);
-    } catch (error) {
-      if (!mounted || _saveGeneration[itemId] != gen) return;
-      setState(() {
-        _saveStatus[itemId] = _SaveUiStatus.error;
-        _globalError = assignedQuizExceptionFrom(error).message;
-      });
-    }
+    await _queueAnswerSave(
+      itemId: itemId,
+      selectedOption: null,
+      generation: gen,
+    );
   }
 
   Future<bool> _awaitPendingSaves() async {
