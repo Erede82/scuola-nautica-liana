@@ -329,6 +329,8 @@ void main() {
 
       expect(source, contains(".eq('user_id', userId)"));
       expect(QuizAttemptHistoryDataSourceSupabase.answerCountInChunkSize, 100);
+      expect(source, contains('fetchAllSupabasePages'));
+      expect(source, contains(".range(from, to)"));
     });
   });
 }
