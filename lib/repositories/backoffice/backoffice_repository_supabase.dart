@@ -7,6 +7,7 @@ import '../../config/supabase_config.dart';
 import '../../data/supabase/dto/backoffice_rows.dart';
 import '../../data/supabase/mappers/backoffice_row_mappers.dart';
 import '../../data/supabase/mappers/study_progress_row_mappers.dart';
+import '../../data/supabase/supabase_select_pagination.dart';
 import '../../domain/anagrafica/codice_fiscale.dart';
 import '../../domain/backoffice/backoffice.dart';
 import '../../domain/course_taxonomy.dart';
@@ -540,15 +541,17 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
 
   @override
   Future<List<PracticeListItem>> listPracticeDossiers() async {
-    final dossiersRes = await _client
-        .from('practice_dossiers')
-        .select(
-          'id, student_id, practice_type, registration_date, registry_year, '
-          'registry_number, registry_code, practice_number, document_status, practice_status',
-        )
-        .order('registration_date', ascending: false);
-
-    final rawList = dossiersRes as List<dynamic>;
+    // Paginato: senza `.range()` PostgREST tronca silenziosamente a ~1000 righe.
+    final rawList = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from('practice_dossiers')
+          .select(
+            'id, student_id, practice_type, registration_date, registry_year, '
+            'registry_number, registry_code, practice_number, document_status, practice_status',
+          )
+          .order('id', ascending: true)
+          .range(from, to);
+    });
     if (rawList.isEmpty) return [];
 
     final dossierRows = <PracticeDossierRow>[];
@@ -564,17 +567,32 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
       }
     }
 
+    // UI “iscrizione recente”: riordina in memoria dopo paginazione stabile su id.
+    dossierRows.sort((a, b) {
+      final ad = a.registrationDate;
+      final bd = b.registrationDate;
+      if (ad == null && bd == null) return a.id.compareTo(b.id);
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      final byDate = bd.compareTo(ad);
+      if (byDate != 0) return byDate;
+      return a.id.compareTo(b.id);
+    });
+
     final studentIds = dossierRows
         .map((d) => d.studentId)
         .toSet()
         .toList(growable: false);
     final studentById = <String, StudentRow>{};
     if (studentIds.isNotEmpty) {
-      final studentsRes = await _client
-          .from('students')
-          .select('id, first_name, last_name, email, phone')
-          .inFilter('id', studentIds);
-      final sList = studentsRes as List<dynamic>;
+      final sList = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from('students')
+            .select('id, first_name, last_name, email, phone')
+            .inFilter('id', studentIds)
+            .order('id', ascending: true)
+            .range(from, to);
+      });
       for (final e in sList) {
         try {
           final r = StudentRow.fromJson(Map<String, dynamic>.from(e as Map));
@@ -629,20 +647,24 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     return out;
   }
 
-  /// Batch `student_financial_summaries` per Directory (PRATICHE.8E). +1 SELECT.
+  /// Batch `student_financial_summaries` per Directory (PRATICHE.8E).
   Future<Map<String, StudentFinancialSummary>>
   _loadFinancialSummariesByStudentIds(List<String> studentIds) async {
     if (studentIds.isEmpty) return {};
     try {
-      final res = await _client
-          .from('student_financial_summaries')
-          .select(
-            'student_id, registration_fee_cents, total_paid_cents, '
-            'remaining_balance_cents, currency_code',
-          )
-          .inFilter('student_id', studentIds);
+      final res = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from('student_financial_summaries')
+            .select(
+              'student_id, registration_fee_cents, total_paid_cents, '
+              'remaining_balance_cents, currency_code',
+            )
+            .inFilter('student_id', studentIds)
+            .order('student_id', ascending: true)
+            .range(from, to);
+      });
       final out = <String, StudentFinancialSummary>{};
-      for (final e in res as List<dynamic>) {
+      for (final e in res) {
         try {
           final row = StudentFinancialSummaryRow.fromJson(
             Map<String, dynamic>.from(e as Map),
@@ -669,16 +691,20 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
   _loadDocumentWaiversByDossierIds(List<String> dossierIds) async {
     if (dossierIds.isEmpty) return {};
     try {
-      final res = await _client
-          .from('practice_document_waivers')
-          .select(
-            'id, practice_dossier_id, requirement_id, note, '
-            'waived_by_staff_id, created_at, updated_at',
-          )
-          .inFilter('practice_dossier_id', dossierIds);
+      final res = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from('practice_document_waivers')
+            .select(
+              'id, practice_dossier_id, requirement_id, note, '
+              'waived_by_staff_id, created_at, updated_at',
+            )
+            .inFilter('practice_dossier_id', dossierIds)
+            .order('id', ascending: true)
+            .range(from, to);
+      });
 
       final out = <String, List<PracticeDocumentWaiver>>{};
-      for (final item in res as List<dynamic>) {
+      for (final item in res) {
         try {
           final mapped = mapPracticeDocumentWaiverRowToDomain(
             PracticeDocumentWaiverRow.fromJson(
@@ -715,18 +741,24 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     List<String> studentIds,
   ) async {
     if (studentIds.isEmpty) return {};
-    final res = await _client
-        .from('student_documents')
-        .select(
-          'id, student_id, practice_dossier_id, document_type, title, '
-          'storage_path, file_name, mime_type, status, expires_at, notes, '
-          'uploaded_by_staff_id, created_at, updated_at',
-        )
-        .inFilter('student_id', studentIds);
+    // Critico: N documenti × M allievi supera facilmente il tetto 1000 senza
+    // paginazione → checklist Directory “documenti incompleti” falsa.
+    final res = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from('student_documents')
+          .select(
+            'id, student_id, practice_dossier_id, document_type, title, '
+            'storage_path, file_name, mime_type, status, expires_at, notes, '
+            'uploaded_by_staff_id, created_at, updated_at',
+          )
+          .inFilter('student_id', studentIds)
+          .order('id', ascending: true)
+          .range(from, to);
+    });
 
     final out = <String, List<StudentDocument>>{};
     for (final row in _mapRowsSafe(
-      res as List<dynamic>,
+      res,
       (j) => mapStudentDocumentRowToDomain(StudentDocumentRow.fromJson(j)),
       'listPracticeDossiers student_documents',
     )) {
@@ -739,17 +771,21 @@ class BackofficeRepositorySupabase implements BackofficeRepository {
     List<String> studentIds,
   ) async {
     if (studentIds.isEmpty) return {};
-    final res = await _client
-        .from('student_photos')
-        .select(
-          'id, student_id, photo_kind, storage_path, file_name, mime_type, '
-          'notes, uploaded_by_staff_id, created_at, updated_at',
-        )
-        .inFilter('student_id', studentIds);
+    final res = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from('student_photos')
+          .select(
+            'id, student_id, photo_kind, storage_path, file_name, mime_type, '
+            'notes, uploaded_by_staff_id, created_at, updated_at',
+          )
+          .inFilter('student_id', studentIds)
+          .order('id', ascending: true)
+          .range(from, to);
+    });
 
     final out = <String, List<StudentPhoto>>{};
     for (final row in _mapRowsSafe(
-      res as List<dynamic>,
+      res,
       (j) => mapStudentPhotoRowToDomain(StudentPhotoRow.fromJson(j)),
       'listPracticeDossiers student_photos',
     )) {
