@@ -302,7 +302,13 @@ PracticeDocumentChecklistItem _evaluateRequirement({
   required DateTime reference,
   required int expiringWithinDays,
 }) {
-  final match = _findMatch(requirement: requirement, documents: documents, photos: photos);
+  final match = _findMatch(
+    requirement: requirement,
+    documents: documents,
+    photos: photos,
+    reference: reference,
+    expiringWithinDays: expiringWithinDays,
+  );
 
   if (match.document == null && match.photo == null) {
     if (waiver != null) {
@@ -363,6 +369,8 @@ _RequirementMatch _findMatch({
   required PracticeDocumentRequirementDef requirement,
   required List<StudentDocument> documents,
   required List<StudentPhoto> photos,
+  required DateTime reference,
+  required int expiringWithinDays,
 }) {
   switch (requirement.id) {
     case PracticeDocumentRequirementId.identityDocument:
@@ -375,9 +383,10 @@ _RequirementMatch _findMatch({
       );
     case PracticeDocumentRequirementId.medicalCertificate:
       return _RequirementMatch(
-        document: _firstDocument(
+        document: _bestMedicalCertificate(
           documents,
-          StudentDocumentTypes.dbMedicalCertificate,
+          reference: reference,
+          expiringWithinDays: expiringWithinDays,
         ),
       );
     case PracticeDocumentRequirementId.practiceForm:
@@ -419,6 +428,85 @@ _RequirementMatch _findMatch({
         ),
       );
   }
+}
+
+/// Tra più certificati medici vince la validità migliore, non la prima riga.
+///
+/// L'upload inserisce una nuova riga e lascia quella precedente. Senza ORDER BY
+/// PostgREST può restituire prima il certificato scaduto (heap / bitmap scan),
+/// e la checklist lo tratta come unico documento.
+StudentDocument? _bestMedicalCertificate(
+  List<StudentDocument> documents, {
+  required DateTime reference,
+  required int expiringWithinDays,
+}) {
+  StudentDocument? best;
+  var bestRank = 1 << 30;
+  DateTime? bestExpiry;
+  DateTime? bestCreatedAt;
+
+  for (final doc in documents) {
+    if (StudentDocumentTypes.normalizeDocumentDbValue(doc.documentType) !=
+        StudentDocumentTypes.dbMedicalCertificate) {
+      continue;
+    }
+
+    final expiry = doc.expiresAt != null ? _dateOnly(doc.expiresAt!) : null;
+    final rank = _medicalValidityRank(
+      expiry: expiry,
+      reference: reference,
+      expiringWithinDays: expiringWithinDays,
+    );
+    if (best == null ||
+        rank < bestRank ||
+        (rank == bestRank &&
+            _medicalTieBreaksBetter(
+              expiry: expiry,
+              createdAt: doc.createdAt,
+              bestExpiry: bestExpiry,
+              bestCreatedAt: bestCreatedAt,
+            ))) {
+      best = doc;
+      bestRank = rank;
+      bestExpiry = expiry;
+      bestCreatedAt = doc.createdAt;
+    }
+  }
+  return best;
+}
+
+/// 0 = valido, 1 = in scadenza, 2 = scaduto. Senza data di scadenza è valido.
+int _medicalValidityRank({
+  required DateTime? expiry,
+  required DateTime reference,
+  required int expiringWithinDays,
+}) {
+  if (expiry == null) return 0;
+  if (expiry.isBefore(reference)) return 2;
+  final limit = reference.add(Duration(days: expiringWithinDays));
+  if (!expiry.isAfter(limit)) return 1;
+  return 0;
+}
+
+bool _medicalTieBreaksBetter({
+  required DateTime? expiry,
+  required DateTime? createdAt,
+  required DateTime? bestExpiry,
+  required DateTime? bestCreatedAt,
+}) {
+  if (expiry != null && bestExpiry != null) {
+    if (expiry.isAfter(bestExpiry)) return true;
+    if (expiry.isBefore(bestExpiry)) return false;
+  } else if (expiry != null && bestExpiry == null) {
+    return true;
+  } else if (expiry == null && bestExpiry != null) {
+    return false;
+  }
+
+  if (createdAt != null && bestCreatedAt != null) {
+    return createdAt.isAfter(bestCreatedAt);
+  }
+  return false;
 }
 
 StudentDocument? _firstDocument(List<StudentDocument> documents, String dbType) {
