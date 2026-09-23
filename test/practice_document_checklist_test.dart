@@ -114,6 +114,125 @@ void main() {
       expect(medical.countsAsMissingRequired, isTrue);
     });
 
+    test('newer valid medical certificate wins over an older expired one', () {
+      final documents = [
+        StudentDocument(
+          id: 'doc-med-old',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico scaduto',
+          status: 'expired',
+          expiresAt: DateTime(2026, 4, 1),
+          createdAt: DateTime(2026, 1, 10),
+        ),
+        StudentDocument(
+          id: 'doc-med-new',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico rinnovato',
+          status: 'uploaded',
+          expiresAt: DateTime(2027, 3, 1),
+          createdAt: DateTime(2026, 5, 2),
+        ),
+      ];
+
+      final checklist = evaluatePracticeDocumentChecklist(
+        practiceType: practiceType,
+        documents: documents,
+        photos: const [],
+        now: reference,
+      );
+
+      final medical = checklist.items.firstWhere(
+        (i) =>
+            i.requirement.id == PracticeDocumentRequirementId.medicalCertificate,
+      );
+      expect(medical.status, PracticeDocumentChecklistItemStatus.present);
+      expect(medical.matchedDocument?.id, 'doc-med-new');
+      expect(medical.countsAsMissingRequired, isFalse);
+      expect(checklist.missingRequiredCount, 4);
+    });
+
+    test('long-valid medical certificate beats an earlier expiring one', () {
+      final documents = [
+        StudentDocument(
+          id: 'doc-med-soon',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico in scadenza',
+          status: 'uploaded',
+          expiresAt: DateTime(2026, 6, 10),
+          createdAt: DateTime(2025, 6, 10),
+        ),
+        StudentDocument(
+          id: 'doc-med-long',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico lungo',
+          status: 'uploaded',
+          expiresAt: DateTime(2027, 8, 1),
+          createdAt: DateTime(2026, 5, 20),
+        ),
+      ];
+
+      final checklist = evaluatePracticeDocumentChecklist(
+        practiceType: practiceType,
+        documents: documents,
+        photos: const [],
+        now: reference,
+      );
+      final summary = PracticeDocumentChecklistSummary.fromChecklist(checklist);
+
+      final medical = checklist.items.firstWhere(
+        (i) =>
+            i.requirement.id == PracticeDocumentRequirementId.medicalCertificate,
+      );
+      expect(medical.status, PracticeDocumentChecklistItemStatus.present);
+      expect(medical.matchedDocument?.id, 'doc-med-long');
+      expect(
+        summary.medicalCertificate,
+        PracticeMedicalCertificateSummaryKind.ok,
+      );
+    });
+
+    test('expired medical stays expired when every copy is expired', () {
+      final documents = [
+        StudentDocument(
+          id: 'doc-med-older',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico 2024',
+          status: 'expired',
+          expiresAt: DateTime(2025, 1, 1),
+          createdAt: DateTime(2024, 6, 1),
+        ),
+        StudentDocument(
+          id: 'doc-med-newer',
+          studentId: 'stu-1',
+          documentType: 'medicalCertificate',
+          title: 'Medico 2025',
+          status: 'expired',
+          expiresAt: DateTime(2026, 4, 1),
+          createdAt: DateTime(2025, 6, 1),
+        ),
+      ];
+
+      final checklist = evaluatePracticeDocumentChecklist(
+        practiceType: practiceType,
+        documents: documents,
+        photos: const [],
+        now: reference,
+      );
+
+      final medical = checklist.items.firstWhere(
+        (i) =>
+            i.requirement.id == PracticeDocumentRequirementId.medicalCertificate,
+      );
+      expect(medical.status, PracticeDocumentChecklistItemStatus.expired);
+      expect(medical.matchedDocument?.id, 'doc-med-newer');
+      expect(medical.countsAsMissingRequired, isTrue);
+    });
+
     test('summary excludes waived items from missingRequiredCount', () {
       const waiver = PracticeDocumentWaiver(
         id: 'w4',
