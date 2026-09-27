@@ -7,21 +7,16 @@ import '../domain/enrollment_content_mapping.dart';
 import '../models/license_models.dart';
 import '../services/demo_student_enrollment.dart';
 import 'lesson_list_page.dart';
+import 'multi_topic_quiz_setup_page.dart';
 import 'quiz_exam_page.dart';
 import 'statistics_page.dart';
 import '../theme/app_visual_tokens.dart';
+import '../domain/multi_topic_quiz_support.dart';
 
-enum CategoryDestination {
-  lessons,
-  quizExam,
-  statistics,
-}
+enum CategoryDestination { lessons, quizExam, statistics, multiTopic }
 
 class CategorySelectionPage extends StatefulWidget {
-  const CategorySelectionPage({
-    super.key,
-    required this.destination,
-  });
+  const CategorySelectionPage({super.key, required this.destination});
 
   final CategoryDestination destination;
 
@@ -37,9 +32,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
   @override
   void initState() {
     super.initState();
-    qfLog(
-      'route: CategorySelectionPage init dest=${widget.destination}',
-    );
+    qfLog('route: CategorySelectionPage init dest=${widget.destination}');
   }
 
   @override
@@ -58,7 +51,13 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
       body: ValueListenableBuilder<EnrollmentCoursePath>(
         valueListenable: demoStudentEnrollmentPath,
         builder: (context, enrollmentPath, _) {
-          final categories = _categoriesVisibleForEnrollment(enrollmentPath);
+          final categories = _categoriesVisibleForEnrollment(enrollmentPath)
+              .where(
+                (c) =>
+                    widget.destination != CategoryDestination.multiTopic ||
+                    isMultiTopicCategorySupported(c.id),
+              )
+              .toList();
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
@@ -118,6 +117,31 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
             builder: (_) => StatisticsPage(categoryId: category.id),
           ),
         );
+      case CategoryDestination.multiTopic:
+        if (!isMultiTopicCategorySupported(category.id)) {
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Non disponibile'),
+              content: const Text(
+                'La Multischeda è disponibile solo per Patente Motore (A12) e D1.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => MultiTopicQuizSetupPage(categoryId: category.id),
+          ),
+        );
     }
   }
 
@@ -129,11 +153,15 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         return 'Categoria Quiz Esame';
       case CategoryDestination.statistics:
         return 'Categoria Statistiche';
+      case CategoryDestination.multiTopic:
+        return 'Categoria Multischeda';
     }
   }
 }
 
-List<LicenseCategory> _categoriesVisibleForEnrollment(EnrollmentCoursePath path) {
+List<LicenseCategory> _categoriesVisibleForEnrollment(
+  EnrollmentCoursePath path,
+) {
   return EnrollmentContentMapping.contentModulesForPath(path)
       .map(
         (m) => LicenseCatalog.byId(
@@ -144,10 +172,7 @@ List<LicenseCategory> _categoriesVisibleForEnrollment(EnrollmentCoursePath path)
 }
 
 class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({
-    required this.category,
-    required this.onOpenActive,
-  });
+  const _CategoryCard({required this.category, required this.onOpenActive});
 
   final LicenseCategory category;
   final VoidCallback onOpenActive;
@@ -183,10 +208,7 @@ class _CategoryCard extends StatelessWidget {
           }
           onOpenActive();
         },
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         leading: Container(
           width: 42,
           height: 42,
@@ -196,10 +218,7 @@ class _CategoryCard extends StatelessWidget {
                 : _neutralColor.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            _iconForCategory(category.id),
-            color: iconColor,
-          ),
+          child: Icon(_iconForCategory(category.id), color: iconColor),
         ),
         title: Text(
           category.name,
@@ -216,7 +235,9 @@ class _CategoryCard extends StatelessWidget {
           ),
         ),
         trailing: Icon(
-          isEnabled ? Icons.arrow_forward_ios_rounded : Icons.lock_outline_rounded,
+          isEnabled
+              ? Icons.arrow_forward_ios_rounded
+              : Icons.lock_outline_rounded,
           size: 18,
           color: trailingColor,
         ),
@@ -251,7 +272,7 @@ class _CategoryCard extends StatelessWidget {
         content: Text(
           category.id == LicenseCategoryId.vela
               ? 'Contenuti vela in preparazione. Stiamo completando le lezioni e le schede: '
-                  'ti avviseremo quando saranno pronti.'
+                    'ti avviseremo quando saranno pronti.'
               : 'Questa area non è ancora disponibile.',
         ),
         actions: [

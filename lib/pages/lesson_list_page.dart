@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../config/supabase_config.dart';
 import '../data/license_catalog.dart';
+import '../data/supabase/quiz_attempt_history_data_source.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/lesson_sheet_catalog_filter.dart';
+import '../domain/quiz_license_category.dart';
 import '../models/license_models.dart';
 import 'lesson_quiz_list_page.dart';
 import '../widgets/app_empty_state.dart';
@@ -9,9 +13,17 @@ import '../widgets/staff_preview_app_bar_badge.dart';
 import '../theme/app_visual_tokens.dart';
 
 class LessonListPage extends StatefulWidget {
-  const LessonListPage({super.key, this.categoryId = LicenseCategoryId.motore});
+  const LessonListPage({
+    super.key,
+    this.categoryId = LicenseCategoryId.motore,
+    @visibleForTesting this.historyDataSourceOverride,
+  });
 
   final LicenseCategoryId categoryId;
+
+  /// Solo test: catalogo `quiz_sets` in-memory.
+  @visibleForTesting
+  final QuizAttemptHistoryDataSource? historyDataSourceOverride;
 
   @override
   State<LessonListPage> createState() => _LessonListPageState();
@@ -24,18 +36,86 @@ class _LessonListPageState extends State<LessonListPage> {
   static const Color _cardColor = Color(0xFFFFFFFF);
   static const Color _textPrimaryColor = AppVisual.ink;
 
+  bool _loading = true;
+  String? _loadError;
+  List<LessonItem> _lessons = const [];
+
+  QuizAttemptHistoryDataSource get _history =>
+      widget.historyDataSourceOverride ?? quizAttemptHistoryDataSource;
+
   @override
   void initState() {
     super.initState();
     qfLog('route: LessonListPage init categoryId=${widget.categoryId}');
+    _loadLessons();
+  }
+
+  Future<void> _loadLessons() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+
+    final category = LicenseCatalog.byId(widget.categoryId);
+    final dbCategory = dbLicenseCategoryFor(widget.categoryId);
+
+    if (!category.isAvailable || category.lessons.isEmpty) {
+      setState(() {
+        _lessons = const [];
+        _loading = false;
+      });
+      return;
+    }
+
+    if (dbCategory == null) {
+      setState(() {
+        _lessons = const [];
+        _loading = false;
+      });
+      return;
+    }
+
+    // Demo locale senza Supabase: nessun catalogo remoto → mostra catalogo statico.
+    // Produzione: source of truth = quiz_sets (kind=lesson).
+    if (!SupabaseConfig.isConfigured &&
+        widget.historyDataSourceOverride == null) {
+      setState(() {
+        _lessons = category.lessons;
+        _loading = false;
+      });
+      return;
+    }
+
+    try {
+      final catalog = await _history.fetchLessonSheetCatalog(
+        licenseCategoryDb: dbCategory,
+      );
+      final withSheets = lessonNumbersWithRealSheets(catalog);
+      final filtered = filterLessonsWithRealSheets(
+        catalogLessons: category.lessons,
+        lessonNumbersWithSheets: withSheets,
+      );
+      if (!mounted) return;
+      setState(() {
+        _lessons = filtered;
+        _loading = false;
+      });
+    } catch (err, st) {
+      debugPrint('LessonListPage catalog load error: $err\n$st');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'Impossibile caricare le lezioni con schede quiz.';
+        _lessons = const [];
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final category = LicenseCatalog.byId(widget.categoryId);
-    final lessons = category.lessons;
-    final hasActiveLessons = category.isAvailable && lessons.isNotEmpty;
+    final hasActiveLessons = category.isAvailable && _lessons.isNotEmpty;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -46,7 +126,18 @@ class _LessonListPageState extends State<LessonListPage> {
         centerTitle: true,
         actions: const [StaffPreviewAppBarBadge()],
       ),
-      body: hasActiveLessons
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? AppEmptyState(
+              title: 'Errore',
+              message: _loadError!,
+              icon: Icons.error_outline_rounded,
+              primaryActionLabel: 'Riprova',
+              primaryActionIcon: Icons.refresh_rounded,
+              onPrimaryActionPressed: _loadLessons,
+            )
+          : hasActiveLessons
           ? ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
@@ -61,8 +152,8 @@ class _LessonListPageState extends State<LessonListPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...List.generate(lessons.length, (index) {
-                  final lesson = lessons[index];
+                ...List.generate(_lessons.length, (index) {
+                  final lesson = _lessons[index];
 
                   return Card(
                     color: _cardColor,
@@ -146,7 +237,7 @@ class _LessonsEmptyState extends StatelessWidget {
         ? 'Nessun contenuto'
         : 'Disponibile prossimamente';
     final message = isAvailable
-        ? 'Nessuna lezione disponibile per questa categoria.'
+        ? 'Nessuna lezione con schede quiz disponibile per questa categoria.'
         : (categoryId == LicenseCategoryId.vela
               ? 'Contenuti vela in preparazione. Le lezioni e le schede saranno disponibili '
                     'non appena completati i materiali didattici.'

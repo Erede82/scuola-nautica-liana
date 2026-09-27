@@ -60,6 +60,12 @@ class _FakeStudentQuizRepo implements StudentQuizRepository {
   Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
     required LicenseCategoryId categoryId,
   }) async => {};
+
+  @override
+  Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
+    required LicenseCategoryId categoryId,
+    required List<int> lessonNumbers,
+  }) async => {};
 }
 
 class _FakeAttemptRepo implements QuizAttemptRepository {

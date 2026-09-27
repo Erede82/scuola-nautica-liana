@@ -2,17 +2,25 @@ import 'package:flutter/material.dart';
 
 import '../theme/quiz_player_visual_tokens.dart';
 
-/// Feedback compatto dopo selezione risposta (schede lezione).
+/// Feedback compatto dopo selezione risposta (schede lezione + review storico).
+///
+/// Tre stati: corretta / errata / non risposta.
 class QuizAnswerResultChip extends StatelessWidget {
   const QuizAnswerResultChip({
     super.key,
     required this.isCorrect,
+    this.unanswered = false,
     this.correctLetter,
     this.explanation,
     this.dense = false,
   });
 
+  /// True se la risposta selezionata è corretta (ignorato se [unanswered]).
   final bool isCorrect;
+
+  /// True se la domanda non è stata risposta (`selected_option == null`).
+  final bool unanswered;
+
   final String? correctLetter;
   final String? explanation;
   final bool dense;
@@ -20,13 +28,31 @@ class QuizAnswerResultChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final color = isCorrect
-        ? QuizPlayerVisual.correctBorder
-        : QuizPlayerVisual.wrongBorder;
-    final fill = isCorrect
-        ? QuizPlayerVisual.correctFill
-        : QuizPlayerVisual.wrongFill;
-    final label = isCorrect ? 'Risposta corretta' : 'Risposta errata';
+
+    final Color color;
+    final Color fill;
+    final String label;
+    final IconData icon;
+
+    if (unanswered) {
+      color = const Color(0xFF6B7280);
+      fill = const Color(0xFFF3F4F6);
+      label = 'Non risposta';
+      icon = Icons.radio_button_unchecked_rounded;
+    } else if (isCorrect) {
+      color = QuizPlayerVisual.correctBorder;
+      fill = QuizPlayerVisual.correctFill;
+      label = 'Risposta corretta';
+      icon = Icons.check_circle_rounded;
+    } else {
+      color = QuizPlayerVisual.wrongBorder;
+      fill = QuizPlayerVisual.wrongFill;
+      label = 'Risposta errata';
+      icon = Icons.cancel_rounded;
+    }
+
+    final showCorrectHint =
+        !isCorrect && correctLetter != null && correctLetter!.isNotEmpty;
 
     return Semantics(
       liveRegion: true,
@@ -47,11 +73,7 @@ class QuizAnswerResultChip extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                  size: dense ? 18 : 20,
-                  color: color,
-                ),
+                Icon(icon, size: dense ? 18 : 20, color: color),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -66,7 +88,7 @@ class QuizAnswerResultChip extends StatelessWidget {
                 ),
               ],
             ),
-            if (!isCorrect && correctLetter != null) ...[
+            if (showCorrectHint) ...[
               SizedBox(height: dense ? 4 : 6),
               Text(
                 'La risposta corretta è $correctLetter.',

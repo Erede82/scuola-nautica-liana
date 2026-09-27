@@ -10,9 +10,11 @@ import '../services/student_content_navigation.dart';
 import 'assigned_quiz_list_page.dart';
 import 'category_selection_page.dart';
 import 'lesson_list_page.dart';
+import 'multi_topic_quiz_setup_page.dart';
 import 'quiz_exam_page.dart';
 import 'quiz_statistics_review_hub_page.dart';
 import '../theme/app_visual_tokens.dart';
+import '../domain/multi_topic_quiz_support.dart';
 
 class QuizDashboardPage extends StatefulWidget {
   const QuizDashboardPage({super.key});
@@ -71,6 +73,16 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
             ),
           );
         },
+      ),
+      DashboardActionCard(
+        dense: true,
+        title: 'Multischede argomento',
+        subtitle: 'Combina più argomenti e allenati con schede miste.',
+        icon: Icons.layers_rounded,
+        useStudentBrandStyle: true,
+        titleMaxLines: 2,
+        compactContent: true,
+        onTap: () => _openMultiTopic(),
       ),
       DashboardActionCard(
         dense: true,
@@ -142,6 +154,41 @@ class _QuizDashboardPageState extends State<QuizDashboardPage> {
         },
       ),
     ];
+  }
+
+  void _openMultiTopic() {
+    final categoryId =
+        StudentContentNavigation.directLessonsCategoryForCurrentUser();
+    if (categoryId != null) {
+      if (!isMultiTopicCategorySupported(categoryId)) {
+        qfLog('QuizDashboard: Multischeda non supportata per $categoryId');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Multischeda disponibile solo per Patente Motore (A12) e D1.',
+            ),
+          ),
+        );
+        return;
+      }
+      qfLog('QuizDashboard: Multischeda diretta categoryId=$categoryId');
+      Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => MultiTopicQuizSetupPage(categoryId: categoryId),
+        ),
+      );
+      return;
+    }
+    qfLog('QuizDashboard: tap Multischede → CategorySelection(multiTopic)');
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => const CategorySelectionPage(
+          destination: CategoryDestination.multiTopic,
+        ),
+      ),
+    );
   }
 
   Widget _introText(TextStyle? base, double maxWidth) {

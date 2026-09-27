@@ -53,6 +53,14 @@ abstract class StudentQuizRepository {
   Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
     required LicenseCategoryId categoryId,
   });
+
+  /// Domande Multischeda per categoria e elenco `lesson_number`.
+  ///
+  /// Esclude naturalmente le domande con `lesson_number IS NULL` (non nel filtro).
+  Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
+    required LicenseCategoryId categoryId,
+    required List<int> lessonNumbers,
+  });
 }
 
 class StudentQuizRepositorySupabase implements StudentQuizRepository {
@@ -297,6 +305,44 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
 
     return poolByTopic;
   }
+
+  @override
+  Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
+    required LicenseCategoryId categoryId,
+    required List<int> lessonNumbers,
+  }) async {
+    final dbCategory = _dbLicenseCategory(categoryId);
+    if (dbCategory == null) return {};
+    final lessons = lessonNumbers.where((n) => n > 0).toSet().toList()..sort();
+    if (lessons.isEmpty) return {};
+
+    final res = await _client
+        .from('questions')
+        .select(_questionSelectColumns)
+        .eq('license_category', dbCategory)
+        .inFilter('lesson_number', lessons);
+
+    final poolByLesson = <int, List<QuizQuestion>>{
+      for (final lesson in lessons) lesson: <QuizQuestion>[],
+    };
+    for (final row in res as List<dynamic>) {
+      try {
+        final map = Map<String, dynamic>.from(row as Map);
+        final questionRow = QuestionRow.fromJson(map);
+        final question = QuizQuestionMapper.fromRow(questionRow);
+        if (question == null) continue;
+        final lesson = question.lessonNumber;
+        if (!poolByLesson.containsKey(lesson)) continue;
+        poolByLesson[lesson]!.add(question);
+      } catch (err, st) {
+        debugPrint(
+          'StudentQuizRepository.fetchQuestionsForLessons: skip row: '
+          '$err\n$st',
+        );
+      }
+    }
+    return poolByLesson;
+  }
 }
 
 String? _dbLicenseCategory(LicenseCategoryId categoryId) {
@@ -337,6 +383,12 @@ class StudentQuizRepositoryEmpty implements StudentQuizRepository {
   @override
   Future<Map<String, List<QuizQuestion>>> fetchExamQuestionsByTopic({
     required LicenseCategoryId categoryId,
+  }) async => {};
+
+  @override
+  Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
+    required LicenseCategoryId categoryId,
+    required List<int> lessonNumbers,
   }) async => {};
 }
 

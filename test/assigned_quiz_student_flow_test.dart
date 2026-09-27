@@ -8,6 +8,7 @@ import 'package:scuola_nautica_liana/pages/assigned_quiz_result_page.dart';
 import 'package:scuola_nautica_liana/pages/assigned_quiz_review_page.dart';
 import 'package:scuola_nautica_liana/pages/category_selection_page.dart';
 import 'package:scuola_nautica_liana/pages/error_review_page.dart';
+import 'package:scuola_nautica_liana/pages/multi_topic_quiz_setup_page.dart';
 import 'package:scuola_nautica_liana/pages/quiz_dashboard_page.dart';
 import 'package:scuola_nautica_liana/pages/quiz_statistics_review_hub_page.dart';
 import 'package:scuola_nautica_liana/pages/statistics_page.dart';
@@ -746,7 +747,7 @@ void main() {
     });
   });
 
-  group('QuizDashboard four cards', () {
+  group('QuizDashboard cards', () {
     List<String> tileTitlesInOrder(WidgetTester tester) {
       final cards = tester.widgetList<DashboardActionCard>(
         find.byType(DashboardActionCard),
@@ -754,16 +755,40 @@ void main() {
       return cards.map((c) => c.title).toList(growable: false);
     }
 
-    testWidgets('esattamente quattro card nell’ordine approvato', (
-      tester,
-    ) async {
+    Future<void> ensureCardVisible(WidgetTester tester, String title) async {
+      final finder = find.text(title);
+      final scrollables = find.descendant(
+        of: find.byType(QuizDashboardPage),
+        matching: find.byType(Scrollable),
+      );
+      if (scrollables.evaluate().isNotEmpty) {
+        await tester.scrollUntilVisible(
+          finder,
+          120,
+          scrollable: scrollables.first,
+        );
+      } else {
+        await tester.ensureVisible(finder);
+      }
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapDashboardCard(WidgetTester tester, String title) async {
+      await ensureCardVisible(tester, title);
+      // Titolo stabile (non indice) — hit-test sul Text della card.
+      await tester.tap(find.text(title));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('cinque card nell’ordine approvato', (tester) async {
       _surface(tester);
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
-      expect(find.byType(DashboardActionCard), findsNWidgets(4));
+      expect(find.byType(DashboardActionCard), findsNWidgets(5));
       expect(tileTitlesInOrder(tester), [
         'Lezioni e schede',
+        'Multischede argomento',
         'Quiz esame',
         'Statistiche e ripasso errori',
         'Quiz assegnati dalla scuola',
@@ -772,14 +797,28 @@ void main() {
       expect(find.text('Ripasso errori'), findsNothing);
     });
 
-    testWidgets('quarta card apre AssignedQuizListPage', (tester) async {
+    testWidgets('card Assigned apre AssignedQuizListPage', (tester) async {
       _surface(tester);
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Quiz assegnati dalla scuola'));
-      await tester.pumpAndSettle();
+      await tapDashboardCard(tester, 'Quiz assegnati dalla scuola');
       expect(find.byType(AssignedQuizListPage), findsOneWidget);
+    });
+
+    testWidgets('card Multischede apre setup Multischeda', (tester) async {
+      _surface(tester);
+      demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
+      addTearDown(() {
+        demoStudentEnrollmentPath.value = EnrollmentCoursePath.entro12Miglia;
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
+      await tester.pumpAndSettle();
+
+      await tapDashboardCard(tester, 'Multischede argomento');
+      // Demo enrollment Motore → setup diretto (niente CategorySelection).
+      expect(find.byType(MultiTopicQuizSetupPage), findsOneWidget);
     });
 
     testWidgets('hub Statistiche e ripasso errori e routing', (tester) async {
@@ -792,8 +831,7 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: QuizDashboardPage()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Statistiche e ripasso errori'));
-      await tester.pumpAndSettle();
+      await tapDashboardCard(tester, 'Statistiche e ripasso errori');
       expect(find.byType(QuizStatisticsReviewHubPage), findsOneWidget);
       expect(find.byKey(quizStatisticsReviewHubMacroCardKey), findsOneWidget);
       // Un solo contenitore principale: nessuna DashboardActionCard nell’hub.
@@ -841,7 +879,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(DashboardActionCard), findsNWidgets(4));
+      expect(find.byType(DashboardActionCard), findsNWidgets(5));
       expect(
         find.descendant(
           of: find.byType(DashboardActionCard),
@@ -850,11 +888,37 @@ void main() {
         findsNothing,
       );
 
+      // Tutte le card restano raggiungibili (scroll se necessario).
+      for (final title in [
+        'Lezioni e schede',
+        'Multischede argomento',
+        'Quiz esame',
+        'Statistiche e ripasso errori',
+        'Quiz assegnati dalla scuola',
+      ]) {
+        await ensureCardVisible(tester, title);
+        expect(find.text(title), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+
+      // Scroll disponibile sulla dashboard mobile.
+      expect(
+        find.byType(SingleChildScrollView).evaluate().isNotEmpty ||
+            find.byType(Scrollable).evaluate().isNotEmpty,
+        isTrue,
+      );
+
       final assigned = tester.widget<DashboardActionCard>(
         find.widgetWithText(DashboardActionCard, 'Quiz assegnati dalla scuola'),
       );
       expect(assigned.titleMaxLines, 2);
       expect(assigned.compactContent, isTrue);
+
+      final multi = tester.widget<DashboardActionCard>(
+        find.widgetWithText(DashboardActionCard, 'Multischede argomento'),
+      );
+      expect(multi.titleMaxLines, 2);
+      expect(multi.compactContent, isTrue);
     });
 
     testWidgets('hub macro-card desktop affiancato e mobile sovrapposto', (
