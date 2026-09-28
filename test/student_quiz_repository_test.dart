@@ -288,4 +288,56 @@ void main() {
       },
     );
   });
+
+  group('collectPagedRows', () {
+    test('banco A12 oltre 1000 righe: legge tutte le pagine', () async {
+      const total = 1424;
+      const pageSize = studentQuizPostgrestPageSize;
+      final requested = <(int, int)>[];
+
+      final rows = await collectPagedRows<int>(
+        pageSize: pageSize,
+        fetchPage: (from, to) async {
+          requested.add((from, to));
+          if (from >= total) return const [];
+          final end = to + 1 > total ? total : to + 1;
+          return [for (var i = from; i < end; i++) i];
+        },
+      );
+
+      expect(rows, hasLength(total));
+      expect(rows.first, 0);
+      expect(rows.last, total - 1);
+      expect(requested, [
+        (0, 999),
+        (1000, 1999),
+      ]);
+    });
+
+    test('pagina esatta da 1000 non viene scambiata per la fine', () async {
+      final requested = <int>[];
+      final rows = await collectPagedRows<int>(
+        pageSize: 1000,
+        fetchPage: (from, to) async {
+          requested.add(from);
+          if (from == 0) return List<int>.generate(1000, (i) => i);
+          return const [];
+        },
+      );
+
+      expect(rows, hasLength(1000));
+      expect(requested, [0, 1000]);
+    });
+
+    test('oltre maxPages fallisce invece di restituire un pool parziale', () {
+      expect(
+        collectPagedRows<int>(
+          pageSize: 2,
+          maxPages: 2,
+          fetchPage: (from, to) async => [from, to],
+        ),
+        throwsStateError,
+      );
+    });
+  });
 }
