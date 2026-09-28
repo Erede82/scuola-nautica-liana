@@ -23,6 +23,44 @@ List<QuizQuestion> applyOptionalLessonSheetQuestionLimit(
   return questions.take(limit).toList(growable: false);
 }
 
+/// PostgREST db-max-rows (default Supabase: 1000). Una select senza
+/// range tronca in silenzio oltre questo tetto.
+@visibleForTesting
+const studentQuizPostgrestPageSize = 1000;
+
+/// Legge tutte le pagine inclusive `[from, to]` finché una pagina è corta.
+///
+/// Se l'ultima pagina è piena, richiede la successiva: una pagina esatta
+/// non va scambiata per la fine del catalogo. Oltre [maxPages] fallisce
+/// invece di restituire un pool parziale.
+@visibleForTesting
+Future<List<T>> collectPagedRows<T>({
+  required int pageSize,
+  required Future<List<T>> Function(int fromInclusive, int toInclusive)
+  fetchPage,
+  int maxPages = 100,
+}) async {
+  if (pageSize < 1) {
+    throw ArgumentError.value(pageSize, 'pageSize', 'pageSize deve essere >= 1');
+  }
+  if (maxPages < 1) {
+    throw ArgumentError.value(maxPages, 'maxPages', 'maxPages deve essere >= 1');
+  }
+
+  final out = <T>[];
+  for (var page = 0; page < maxPages; page++) {
+    final from = page * pageSize;
+    final to = from + pageSize - 1;
+    final rows = await fetchPage(from, to);
+    out.addAll(rows);
+    if (rows.length < pageSize) return out;
+  }
+
+  throw StateError(
+    'Lettura interrotta: oltre $maxPages pagine da $pageSize righe.',
+  );
+}
+
 /// Lettura domande quiz per area studente (`quiz_sets` + `quiz_set_items`).
 abstract class StudentQuizRepository {
   Future<LessonQuizSheetContent?> fetchLessonSheetContent({
@@ -316,21 +354,33 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
     final lessons = lessonNumbers.where((n) => n > 0).toSet().toList()..sort();
     if (lessons.isEmpty) return {};
 
-    final res = await _client
-        .from('questions')
-        .select(_questionSelectColumns)
-        .eq('license_category', dbCategory)
-        .inFilter('lesson_number', lessons);
+    // Il banco A12 operativo è ~1424 domande (P9C.1). Una sola select
+    // si ferma a 1000 righe e fa sparire lezioni intere dal setup.
+    final res = await collectPagedRows<dynamic>(
+      pageSize: studentQuizPostgrestPageSize,
+      fetchPage: (from, to) async {
+        final page = await _client
+            .from('questions')
+            .select(_questionSelectColumns)
+            .eq('license_category', dbCategory)
+            .inFilter('lesson_number', lessons)
+            .order('id', ascending: true)
+            .range(from, to);
+        return page as List<dynamic>;
+      },
+    );
 
     final poolByLesson = <int, List<QuizQuestion>>{
       for (final lesson in lessons) lesson: <QuizQuestion>[],
     };
-    for (final row in res as List<dynamic>) {
+    final seenIds = <String>{};
+    for (final row in res) {
       try {
         final map = Map<String, dynamic>.from(row as Map);
         final questionRow = QuestionRow.fromJson(map);
         final question = QuizQuestionMapper.fromRow(questionRow);
         if (question == null) continue;
+        if (!seenIds.add(question.id)) continue;
         final lesson = question.lessonNumber;
         if (!poolByLesson.containsKey(lesson)) continue;
         poolByLesson[lesson]!.add(question);

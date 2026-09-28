@@ -13,6 +13,7 @@ import '../domain/quiz_sheet_exit_policy.dart';
 import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/quiz_question.dart';
 import '../repositories/multi_topic_quiz_attempt_repository.dart';
+import '../services/app_update/app_update_coordinator.dart';
 import '../services/student_area_context.dart';
 import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
@@ -80,11 +81,20 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
   @override
   void initState() {
     super.initState();
+    // Le risposte vivono solo in memoria fino al submit. Un reload PWA
+    // non passa da PopScope e cancellerebbe la scheda in corso.
+    AppUpdateCoordinator.instance.beginUnsafeWork();
     qfLog(
       'route: MultiTopicQuizPlayerPage session=${_session.sessionId} '
       'total=${_session.totalSheets}',
     );
     _openNextSheet();
+  }
+
+  @override
+  void dispose() {
+    AppUpdateCoordinator.instance.endUnsafeWork();
+    super.dispose();
   }
 
   LessonQuizRules? get _rules =>

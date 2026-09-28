@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scuola_nautica_liana/data/license_catalog.dart';
 import 'package:scuola_nautica_liana/data/supabase/dto/quiz_sheet_catalog_row.dart';
@@ -19,7 +20,9 @@ import 'package:scuola_nautica_liana/domain/quiz_license_category.dart';
 import 'package:scuola_nautica_liana/data/supabase/mappers/multi_topic_quiz_attempt_mapper.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_question.dart';
+import 'package:scuola_nautica_liana/pages/multi_topic_quiz_player_page.dart';
 import 'package:scuola_nautica_liana/repositories/multi_topic_quiz_attempt_repository.dart';
+import 'package:scuola_nautica_liana/services/app_update/app_update_coordinator.dart';
 
 QuizQuestion _q(
   String id, {
@@ -907,6 +910,41 @@ void main() {
 
         // Submit path (write) unused by history read — no ghost lesson completion.
         expect(fake.submitCalls, isEmpty);
+      },
+    );
+  });
+
+  group('PWA auto-update', () {
+    testWidgets(
+      'il player tiene il reload bloccato finché la scheda è aperta',
+      (tester) async {
+        final coordinator = AppUpdateCoordinator.instance..resetForTest();
+        addTearDown(coordinator.resetForTest);
+
+        final session = MultiTopicQuizSession(
+          sessionId: 'sess-reload',
+          licenseCategory: LicenseCategoryId.motore,
+          selectedLessonNumbers: const [1, 2],
+          totalSheets: 1,
+          poolByLesson: const {},
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MultiTopicQuizPlayerPage(
+              session: session,
+              attemptRepositoryOverride:
+                  const MultiTopicQuizAttemptRepositoryEmpty(),
+            ),
+          ),
+        );
+
+        expect(coordinator.unsavedWorkCount, 1);
+
+        await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+        await tester.pump();
+
+        expect(coordinator.unsavedWorkCount, 0);
       },
     );
   });
