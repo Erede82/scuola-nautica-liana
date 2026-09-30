@@ -444,6 +444,37 @@ class BackofficeDemoStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Collega accesso app (mock): `students.user_id` + email Auth.
+  void linkStudentAppAccess({
+    required StudentId studentId,
+    required String userId,
+    required String email,
+  }) {
+    final i = _profiles.indexWhere((p) => p.id == studentId);
+    if (i < 0) {
+      throw StateError('Allievo non trovato.');
+    }
+    final p = _profiles[i];
+    if (p.linkedAuthUserId != null &&
+        p.linkedAuthUserId!.trim().isNotEmpty &&
+        p.linkedAuthUserId != userId) {
+      throw StateError('Anagrafica già collegata ad altro account.');
+    }
+    _profiles[i] = p.copyWith(
+      linkedAuthUserId: userId,
+      email: email.trim().toLowerCase(),
+    );
+    notifyListeners();
+  }
+
+  /// Solo test/demo: rimuove il collegamento Auth mock.
+  void clearStudentAppAccessLink(StudentId studentId) {
+    final i = _profiles.indexWhere((p) => p.id == studentId);
+    if (i < 0) return;
+    _profiles[i] = _profiles[i].copyWith(clearLinkedAuthUserId: true);
+    notifyListeners();
+  }
+
   /// Aggiorna anagrafica (ALLIEVI.P1A). Non tocca dossier / grants / note.
   void updateStudentAnagrafica({
     required StudentId studentId,

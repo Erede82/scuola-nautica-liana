@@ -97,9 +97,23 @@ class BackofficeRepositoryMock implements BackofficeRepository {
     if (em.isEmpty || !em.contains('@')) {
       throw ArgumentError('Email non valida.');
     }
+    final i = _store.profiles.indexWhere((p) => p.id == studentId);
+    if (i >= 0) {
+      final existing = _store.profiles[i];
+      if (existing.linkedAuthUserId != null &&
+          existing.linkedAuthUserId!.trim().isNotEmpty) {
+        throw StateError('Questa anagrafica ha già un accesso app attivo.');
+      }
+    }
+    const userId = '00000000-0000-4000-8000-00000000c001';
+    _store.linkStudentAppAccess(
+      studentId: studentId,
+      userId: userId,
+      email: em,
+    );
     return StudentAppAccessCredentials(
       studentId: studentId,
-      userId: '00000000-0000-4000-8000-00000000c001',
+      userId: userId,
       email: em,
       temporaryPassword: temporaryPassword,
     );

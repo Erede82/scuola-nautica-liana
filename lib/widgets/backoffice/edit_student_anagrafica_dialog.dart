@@ -10,9 +10,15 @@ import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
 import '../../services/app_update/update_protected_dialog.dart';
 import '../../services/app_update/update_protected_mutation.dart';
 import '../../theme/app_visual_tokens.dart';
+import '../../utils/app_access_password_generator.dart';
 import '../international_phone_field.dart';
+import 'backoffice_new_practice_dialog.dart'
+    show showAppAccessCredentialsDialog;
 
 /// Dialog Modifica anagrafica (ALLIEVI.P1A) dalla Scheda 360.
+///
+/// «Salva» aggiorna solo anagrafica. «Crea accesso app» è un’azione separata
+/// (Edge Function) per allievi senza `students.user_id`.
 Future<bool> showEditStudentAnagraficaDialog({
   required BuildContext context,
   required BackofficeRepository repository,
@@ -21,10 +27,8 @@ Future<bool> showEditStudentAnagraficaDialog({
   final result = await showUpdateProtectedDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => _EditStudentAnagraficaDialog(
-      repository: repository,
-      profile: profile,
-    ),
+    builder: (ctx) =>
+        _EditStudentAnagraficaDialog(repository: repository, profile: profile),
   );
   return result == true;
 }
@@ -57,14 +61,21 @@ class _EditStudentAnagraficaDialogState
   late final TextEditingController _capCtrl;
   late final TextEditingController _provinceCtrl;
   late final TextEditingController _emailCtrl;
+  late final TextEditingController _appEmailCtrl;
+  late final TextEditingController _appPasswordCtrl;
 
   DateTime? _birthDate;
   _GenderChoice? _gender;
   InternationalPhoneValue? _phoneValue;
   bool _busy = false;
+  bool _creatingAccess = false;
   String? _error;
   late final bool _ambiguousInitialPhone;
-  late final bool _hasLinkedAuth;
+  late bool _hasLinkedAuth;
+  late String? _linkedAuthEmail;
+  bool _obscureAppPassword = true;
+
+  bool get _interactionLocked => _busy || _creatingAccess;
 
   @override
   void initState() {
@@ -80,10 +91,13 @@ class _EditStudentAnagraficaDialogState
     _capCtrl = TextEditingController(text: addr?.postalCode ?? '');
     _provinceCtrl = TextEditingController(text: addr?.provinceCode ?? '');
     _emailCtrl = TextEditingController(text: p.email ?? '');
+    _appEmailCtrl = TextEditingController(text: (p.email ?? '').trim());
+    _appPasswordCtrl = TextEditingController();
     _birthDate = p.birthDate;
     _gender = _parseGender(p.gender);
-    _hasLinkedAuth = p.linkedAuthUserId != null &&
-        p.linkedAuthUserId!.trim().isNotEmpty;
+    _hasLinkedAuth =
+        p.linkedAuthUserId != null && p.linkedAuthUserId!.trim().isNotEmpty;
+    _linkedAuthEmail = _hasLinkedAuth ? (p.email?.trim()) : null;
 
     final parsed = InternationalPhoneRules.parseStored(
       phone: p.phone,
@@ -117,6 +131,8 @@ class _EditStudentAnagraficaDialogState
     _capCtrl.dispose();
     _provinceCtrl.dispose();
     _emailCtrl.dispose();
+    _appEmailCtrl.dispose();
+    _appPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -136,7 +152,7 @@ class _EditStudentAnagraficaDialogState
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-    if (_busy) return;
+    if (_interactionLocked) return;
 
     final genderLabel = _gender == null
         ? null
@@ -197,8 +213,79 @@ class _EditStudentAnagraficaDialogState
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = friendlyStudentWriteError(e) ??
+        _error =
+            friendlyStudentWriteError(e) ??
             'Impossibile aggiornare l’anagrafica. Riprova tra poco.';
+      });
+    }
+  }
+
+  Future<void> _createAppAccess() async {
+    FocusScope.of(context).unfocus();
+    if (_interactionLocked || _hasLinkedAuth) return;
+
+    final emailErr = AnagraficaFieldValidation.validateEmail(
+      _appEmailCtrl.text,
+      requireNonEmpty: true,
+      emptyMessage: 'Inserisci l’email per l’accesso app.',
+    );
+    if (emailErr != null) {
+      setState(() => _error = emailErr);
+      return;
+    }
+
+    var password = _appPasswordCtrl.text.trim();
+    if (password.isEmpty) {
+      password = generateReadableAppAccessPassword();
+      _appPasswordCtrl.text = password;
+    }
+    if (password.length < 8) {
+      setState(
+        () => _error =
+            'La password iniziale deve avere almeno 8 caratteri '
+            '(oppure usa «Genera password»).',
+      );
+      return;
+    }
+
+    setState(() {
+      _creatingAccess = true;
+      _error = null;
+    });
+
+    try {
+      final creds = await runUpdateProtectedMutation(
+        () => widget.repository.createStudentAppAccess(
+          studentId: widget.profile.id,
+          email: _appEmailCtrl.text.trim(),
+          temporaryPassword: password,
+        ),
+      );
+      if (!mounted) return;
+
+      _appPasswordCtrl.clear();
+      setState(() {
+        _creatingAccess = false;
+        _hasLinkedAuth = true;
+        _linkedAuthEmail = creds.email;
+        _obscureAppPassword = true;
+      });
+
+      await showAppAccessCredentialsDialog(context, creds);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      final detail = e is StateError
+          ? e.message.trim()
+          : e is ArgumentError
+          ? (e.message?.toString().trim() ?? '')
+          : '';
+      setState(() {
+        _creatingAccess = false;
+        _error = detail.isEmpty
+            ? 'Impossibile creare l’accesso app. Riprova tra poco.'
+            : detail;
       });
     }
   }
@@ -216,10 +303,7 @@ class _EditStudentAnagraficaDialogState
     );
   }
 
-  Widget _field({
-    required String label,
-    required Widget child,
-  }) {
+  Widget _field({required String label, required Widget child}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -228,14 +312,156 @@ class _EditStudentAnagraficaDialogState
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppVisual.inkMuted,
-                ),
+              fontWeight: FontWeight.w700,
+              color: AppVisual.inkMuted,
+            ),
           ),
           const SizedBox(height: 4),
           child,
         ],
       ),
+    );
+  }
+
+  Widget _buildAppAccessSection(TextTheme textTheme) {
+    return Column(
+      key: const ValueKey('edit-anagrafica-app-access-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        const Divider(height: 24),
+        _sectionTitle('Accesso app', textTheme),
+        if (_hasLinkedAuth) ...[
+          Container(
+            key: const ValueKey('edit-anagrafica-app-access-active'),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppVisual.logoBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppVisual.logoBlue.withValues(alpha: 0.22),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Accesso app attivo',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppVisual.logoBlueDeep,
+                  ),
+                ),
+                if (_linkedAuthEmail != null &&
+                    _linkedAuthEmail!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _linkedAuthEmail!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppVisual.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  'Non è possibile creare un secondo account da qui. '
+                  'La password non è recuperabile dalla Scheda 360.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppVisual.inkMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Text(
+            'Crea le credenziali Auth per questo allievo (senza signUp dal client). '
+            'La password non viene salvata in anagrafica.',
+            style: textTheme.bodySmall?.copyWith(
+              color: AppVisual.inkMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _field(
+            label: 'Email accesso app *',
+            child: TextField(
+              key: const ValueKey('edit-anagrafica-app-email'),
+              controller: _appEmailCtrl,
+              enabled: !_interactionLocked,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+                hintText: 'email@esempio.it',
+              ),
+            ),
+          ),
+          _field(
+            label: 'Password iniziale *',
+            child: TextField(
+              key: const ValueKey('edit-anagrafica-app-password'),
+              controller: _appPasswordCtrl,
+              enabled: !_interactionLocked,
+              obscureText: _obscureAppPassword,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                isDense: true,
+                hintText: 'Almeno 8 caratteri',
+                suffixIcon: IconButton(
+                  key: const ValueKey('edit-anagrafica-app-password-toggle'),
+                  tooltip: _obscureAppPassword ? 'Mostra' : 'Nascondi',
+                  onPressed: _interactionLocked
+                      ? null
+                      : () => setState(
+                          () => _obscureAppPassword = !_obscureAppPassword,
+                        ),
+                  icon: Icon(
+                    _obscureAppPassword
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const ValueKey('edit-anagrafica-app-generate-password'),
+              onPressed: _interactionLocked
+                  ? null
+                  : () {
+                      setState(() {
+                        _appPasswordCtrl.text =
+                            generateReadableAppAccessPassword();
+                        _obscureAppPassword = false;
+                      });
+                    },
+              icon: const Icon(Icons.password_rounded, size: 18),
+              label: const Text('Genera password'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonalIcon(
+              key: const ValueKey('edit-anagrafica-create-app-access'),
+              onPressed: _interactionLocked ? null : _createAppAccess,
+              icon: _creatingAccess
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.vpn_key_rounded, size: 18),
+              label: Text(_creatingAccess ? 'Creazione…' : 'Crea accesso app'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -265,7 +491,9 @@ class _EditStudentAnagraficaDialogState
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
-                        key: const ValueKey('edit-anagrafica-auth-email-disclaimer'),
+                        key: const ValueKey(
+                          'edit-anagrafica-auth-email-disclaimer',
+                        ),
                         'L’email di accesso all’app non viene modificata.',
                         style: textTheme.bodySmall?.copyWith(
                           color: AppVisual.inkMuted,
@@ -279,7 +507,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-first-name'),
                       controller: _firstNameCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -292,7 +520,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-last-name'),
                       controller: _lastNameCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -310,21 +538,21 @@ class _EditStudentAnagraficaDialogState
                           key: const ValueKey('edit-anagrafica-gender-male'),
                           label: const Text('Maschio'),
                           selected: _gender == _GenderChoice.male,
-                          onSelected: _busy
+                          onSelected: _interactionLocked
                               ? null
                               : (_) => setState(
-                                    () => _gender = _GenderChoice.male,
-                                  ),
+                                  () => _gender = _GenderChoice.male,
+                                ),
                         ),
                         ChoiceChip(
                           key: const ValueKey('edit-anagrafica-gender-female'),
                           label: const Text('Femmina'),
                           selected: _gender == _GenderChoice.female,
-                          onSelected: _busy
+                          onSelected: _interactionLocked
                               ? null
                               : (_) => setState(
-                                    () => _gender = _GenderChoice.female,
-                                  ),
+                                  () => _gender = _GenderChoice.female,
+                                ),
                         ),
                       ],
                     ),
@@ -334,15 +562,15 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-fiscal-code'),
                       controller: _fiscalCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.characters,
                       inputFormatters: [
                         TextInputFormatter.withFunction((oldValue, newValue) {
                           return newValue.copyWith(
                             text: newValue.text.toUpperCase().replaceAll(
-                                  RegExp(r'\s'),
-                                  '',
-                                ),
+                              RegExp(r'\s'),
+                              '',
+                            ),
                             selection: newValue.selection,
                             composing: TextRange.empty,
                           );
@@ -360,14 +588,17 @@ class _EditStudentAnagraficaDialogState
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         key: const ValueKey('edit-anagrafica-birth-date'),
-                        onPressed: _busy ? null : _pickBirthDate,
-                        icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                        onPressed: _interactionLocked ? null : _pickBirthDate,
+                        icon: const Icon(
+                          Icons.calendar_month_rounded,
+                          size: 20,
+                        ),
                         label: Text(
                           _birthDate == null
                               ? 'Seleziona data'
                               : '${_birthDate!.day.toString().padLeft(2, '0')}/'
-                                  '${_birthDate!.month.toString().padLeft(2, '0')}/'
-                                  '${_birthDate!.year}',
+                                    '${_birthDate!.month.toString().padLeft(2, '0')}/'
+                                    '${_birthDate!.year}',
                         ),
                         style: TextButton.styleFrom(
                           foregroundColor: AppVisual.logoBlue,
@@ -380,7 +611,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-birth-place'),
                       controller: _birthPlaceCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -394,7 +625,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-address'),
                       controller: _addressCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -407,7 +638,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-city'),
                       controller: _cityCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -420,7 +651,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-cap'),
                       controller: _capCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
@@ -437,7 +668,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-province'),
                       controller: _provinceCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       textCapitalization: TextCapitalization.characters,
                       maxLength: 2,
                       inputFormatters: [
@@ -462,7 +693,7 @@ class _EditStudentAnagraficaDialogState
                     key: const ValueKey('edit-anagrafica-phone'),
                     initialPhone: widget.profile.phone,
                     initialCountryIso2: widget.profile.phoneCountryIso2,
-                    enabled: !_busy,
+                    enabled: !_interactionLocked,
                     requiredField: true,
                     showAmbiguousHint: _ambiguousInitialPhone,
                     onValidChanged: (v) => _phoneValue = v,
@@ -473,7 +704,7 @@ class _EditStudentAnagraficaDialogState
                     child: TextField(
                       key: const ValueKey('edit-anagrafica-email'),
                       controller: _emailCtrl,
-                      enabled: !_busy,
+                      enabled: !_interactionLocked,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
@@ -481,6 +712,7 @@ class _EditStudentAnagraficaDialogState
                       ),
                     ),
                   ),
+                  _buildAppAccessSection(textTheme),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -500,12 +732,14 @@ class _EditStudentAnagraficaDialogState
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          onPressed: _interactionLocked
+              ? null
+              : () => Navigator.of(context).pop(false),
           child: const Text('Annulla'),
         ),
         FilledButton(
           key: const ValueKey('edit-anagrafica-save'),
-          onPressed: _busy ? null : _save,
+          onPressed: _interactionLocked ? null : _save,
           style: FilledButton.styleFrom(
             backgroundColor: AppVisual.logoBlue,
             foregroundColor: Colors.white,

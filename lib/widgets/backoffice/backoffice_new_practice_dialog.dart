@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +16,7 @@ import '../../services/app_update/update_protected_mutation.dart';
 import '../../repositories/backoffice/student_fiscal_code_write_error.dart';
 import '../../repositories/backoffice/management_repository_registry.dart';
 import '../../theme/app_visual_tokens.dart';
+import '../../utils/app_access_password_generator.dart';
 import '../international_phone_field.dart';
 import 'backoffice_formatters.dart';
 
@@ -195,12 +194,6 @@ Future<void> showAppAccessCredentialsDialog(
   );
 }
 
-String _generateReadablePassword() {
-  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  final r = math.Random();
-  return List.generate(14, (_) => chars[r.nextInt(chars.length)]).join();
-}
-
 String? _validateNewPracticeFields({
   required String lastName,
   required String firstName,
@@ -239,8 +232,9 @@ String? _validateNewPracticeFields({
   if (birthPlace.trim().isEmpty) {
     return 'Inserisci il luogo di nascita.';
   }
-  final birthProvinceErr =
-      AnagraficaFieldValidation.validateBirthProvince(birthProvince);
+  final birthProvinceErr = AnagraficaFieldValidation.validateBirthProvince(
+    birthProvince,
+  );
   if (birthProvinceErr != null) {
     return birthProvinceErr;
   }
@@ -749,130 +743,128 @@ class _BackofficeNewPracticeDialogBodyState
     setState(() => _busy = true);
     try {
       final submitResult = await runUpdateProtectedMutation(() async {
-      final pathRaw = _enrolledCoursePath?.trim();
-      final licenseRaw = _enrolledLicenseCategory?.trim();
-      final path = _requiresEnrollmentSelection
-          ? pathRaw
-          : (pathRaw != null && pathRaw.isNotEmpty ? pathRaw : null);
-      final licenseCat = _requiresEnrollmentSelection
-          ? licenseRaw
-          : (licenseRaw != null && licenseRaw.isNotEmpty ? licenseRaw : null);
-      final birthProvince = _birthProvinceCtrl.text.trim().toUpperCase();
-      final phone = _phoneValue!;
-      final cap = _capCtrl.text.replaceAll(RegExp(r'\s'), '');
-      final templateNotes = composeNewPracticeTemplateNotes(_selectedTemplate);
-      final mergedNotes = _composeInternalNotes(
-        operatorNotes: templateNotes,
-        usesGlasses: _usesGlasses!,
-        categoryReference: _categoryReferenceForNotes(),
-        birthProvince: birthProvince,
-      );
-      final outcome = await widget.repository.createBackofficeStudent(
-        firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
-        lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
-        phone: phone.e164,
-        phoneCountryIso2: phone.countryIso2,
-        email: _emailAppCtrl.text.trim().isEmpty
-            ? null
-            : _emailAppCtrl.text.trim(),
-        fiscalCode: CodiceFiscale.normalizza(_fiscalCtrl.text),
-        birthDate: _birthDate,
-        birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
-        gender: _gender == _StudentGender.male ? 'Maschio' : 'Femmina',
-        address: AnagraficaFormat.titleCase(_addressCtrl.text),
-        city: AnagraficaFormat.titleCase(_cityCtrl.text),
-        province: _provinceCtrl.text.trim().toUpperCase(),
-        cap: cap,
-        enrolledCoursePath: path,
-        enrolledLicenseCategory: licenseCat,
-        notes: mergedNotes,
-        createPracticeDossier: _createPracticeDossierForSubmit,
-        practiceType: _createPracticeDossierForSubmit
-            ? _registryPracticeType.dbValue
-            : null,
-        registrationDate: _createPracticeDossierForSubmit
-            ? _registrationDate
-            : null,
-        assignRegistryNumber: _assignRegistryForSubmit,
-      );
+        final pathRaw = _enrolledCoursePath?.trim();
+        final licenseRaw = _enrolledLicenseCategory?.trim();
+        final path = _requiresEnrollmentSelection
+            ? pathRaw
+            : (pathRaw != null && pathRaw.isNotEmpty ? pathRaw : null);
+        final licenseCat = _requiresEnrollmentSelection
+            ? licenseRaw
+            : (licenseRaw != null && licenseRaw.isNotEmpty ? licenseRaw : null);
+        final birthProvince = _birthProvinceCtrl.text.trim().toUpperCase();
+        final phone = _phoneValue!;
+        final cap = _capCtrl.text.replaceAll(RegExp(r'\s'), '');
+        final templateNotes = composeNewPracticeTemplateNotes(
+          _selectedTemplate,
+        );
+        final mergedNotes = _composeInternalNotes(
+          operatorNotes: templateNotes,
+          usesGlasses: _usesGlasses!,
+          categoryReference: _categoryReferenceForNotes(),
+          birthProvince: birthProvince,
+        );
+        final outcome = await widget.repository.createBackofficeStudent(
+          firstName: AnagraficaFormat.titleCase(_firstNameCtrl.text),
+          lastName: AnagraficaFormat.titleCase(_lastNameCtrl.text),
+          phone: phone.e164,
+          phoneCountryIso2: phone.countryIso2,
+          email: _emailAppCtrl.text.trim().isEmpty
+              ? null
+              : _emailAppCtrl.text.trim(),
+          fiscalCode: CodiceFiscale.normalizza(_fiscalCtrl.text),
+          birthDate: _birthDate,
+          birthPlace: AnagraficaFormat.titleCase(_birthPlaceCtrl.text),
+          gender: _gender == _StudentGender.male ? 'Maschio' : 'Femmina',
+          address: AnagraficaFormat.titleCase(_addressCtrl.text),
+          city: AnagraficaFormat.titleCase(_cityCtrl.text),
+          province: _provinceCtrl.text.trim().toUpperCase(),
+          cap: cap,
+          enrolledCoursePath: path,
+          enrolledLicenseCategory: licenseCat,
+          notes: mergedNotes,
+          createPracticeDossier: _createPracticeDossierForSubmit,
+          practiceType: _createPracticeDossierForSubmit
+              ? _registryPracticeType.dbValue
+              : null,
+          registrationDate: _createPracticeDossierForSubmit
+              ? _registrationDate
+              : null,
+          assignRegistryNumber: _assignRegistryForSubmit,
+        );
 
-      final feeCents = _selectedTemplate?.defaultRegistrationFeeCents ?? 0;
-      var feeSetOk = false;
-      if (feeCents > 0) {
-        try {
-          await widget.repository.setStudentRegistrationFeeCents(
-            studentId: outcome.profile.id,
-            registrationFeeCents: feeCents,
-          );
-          feeSetOk = true;
-        } catch (e) {
-          final detail = e is StateError
-              ? e.message.trim()
-              : e is ArgumentError
-              ? (e.message?.toString().trim() ?? '')
-              : '';
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  detail.isEmpty
-                      ? 'La pratica è stata creata, ma la quota iscrizione non '
-                            'è stata impostata. Puoi impostarla dalla Scheda 360.'
-                      : 'La pratica è stata creata, ma la quota iscrizione non '
-                            'è stata impostata. Puoi impostarla dalla Scheda 360.\n\n'
-                            '$detail',
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
+        final feeCents = _selectedTemplate?.defaultRegistrationFeeCents ?? 0;
+        var feeSetOk = false;
+        if (feeCents > 0) {
+          try {
+            await widget.repository.setStudentRegistrationFeeCents(
+              studentId: outcome.profile.id,
+              registrationFeeCents: feeCents,
             );
+            feeSetOk = true;
+          } catch (e) {
+            final detail = e is StateError
+                ? e.message.trim()
+                : e is ArgumentError
+                ? (e.message?.toString().trim() ?? '')
+                : '';
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    detail.isEmpty
+                        ? 'La pratica è stata creata, ma la quota iscrizione non '
+                              'è stata impostata. Puoi impostarla dalla Scheda 360.'
+                        : 'La pratica è stata creata, ma la quota iscrizione non '
+                              'è stata impostata. Puoi impostarla dalla Scheda 360.\n\n'
+                              '$detail',
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
         }
-      }
 
-      if (_createAppAccess) {
-        final draft = _passwordTempCtrl.text.trim();
-        final temporaryPassword = draft.length >= 8
-            ? draft
-            : _generateReadablePassword();
-        try {
-          final creds = await widget.repository.createStudentAppAccess(
-            studentId: outcome.profile.id,
-            email: _emailAppCtrl.text.trim(),
-            temporaryPassword: temporaryPassword,
-          );
-          if (mounted) {
-            await showAppAccessCredentialsDialog(context, creds);
-          }
-        } catch (e) {
-          final detail = e is StateError
-              ? e.message.trim()
-              : e is ArgumentError
-              ? (e.message?.toString().trim() ?? '')
-              : '';
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  detail.isEmpty
-                      ? 'La pratica è stata salvata, ma l’accesso app non è '
-                            'stato creato. Verifica il caso prima di consegnare '
-                            'le credenziali all’allievo.'
-                      : 'La pratica è stata salvata, ma l’accesso app non è '
-                            'stato creato. Verifica il caso prima di consegnare '
-                            'le credenziali all’allievo.\n\n'
-                            '$detail',
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
+        if (_createAppAccess) {
+          final draft = _passwordTempCtrl.text.trim();
+          final temporaryPassword = draft.length >= 8
+              ? draft
+              : generateReadableAppAccessPassword();
+          try {
+            final creds = await widget.repository.createStudentAppAccess(
+              studentId: outcome.profile.id,
+              email: _emailAppCtrl.text.trim(),
+              temporaryPassword: temporaryPassword,
             );
+            if (mounted) {
+              await showAppAccessCredentialsDialog(context, creds);
+            }
+          } catch (e) {
+            final detail = e is StateError
+                ? e.message.trim()
+                : e is ArgumentError
+                ? (e.message?.toString().trim() ?? '')
+                : '';
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    detail.isEmpty
+                        ? 'La pratica è stata salvata, ma l’accesso app non è '
+                              'stato creato. Verifica il caso prima di consegnare '
+                              'le credenziali all’allievo.'
+                        : 'La pratica è stata salvata, ma l’accesso app non è '
+                              'stato creato. Verifica il caso prima di consegnare '
+                              'le credenziali all’allievo.\n\n'
+                              '$detail',
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
         }
-      }
-      return (
-        outcome: outcome,
-        feeSetOk: feeSetOk,
-        feeCents: feeCents,
-      );
+        return (outcome: outcome, feeSetOk: feeSetOk, feeCents: feeCents);
       });
       final outcome = submitResult.outcome;
       final feeSetOk = submitResult.feeSetOk;
@@ -935,7 +927,8 @@ class _BackofficeNewPracticeDialogBodyState
         Navigator.of(context).pop(outcome);
       }
     } catch (e) {
-      final msg = friendlyStudentWriteError(e) ??
+      final msg =
+          friendlyStudentWriteError(e) ??
           (e is StateError
               ? e.message
               : e is ArgumentError
@@ -1878,7 +1871,7 @@ class _BackofficeNewPracticeDialogBodyState
                         : () {
                             setState(() {
                               _passwordTempCtrl.text =
-                                  _generateReadablePassword();
+                                  generateReadableAppAccessPassword();
                             });
                           },
                     icon: const Icon(Icons.key_rounded, size: 20),
