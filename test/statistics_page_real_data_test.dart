@@ -51,7 +51,7 @@ QuizCategoryStatistics _motoreStatsWithData({int ignored = 0}) {
       unansweredCount: 95,
       accuracyPercentage: 2.5,
       errorPercentage: 97.5,
-      averageErrorsPerSheet: 22 / 6,
+      averageErrorsPerSheet: 117 / 6,
       ignoredIncompleteAttempts: ignored,
       lastActivityAt: DateTime.utc(2026, 7, 10, 12),
       lastLessonNumber: 1,
@@ -169,7 +169,8 @@ void main() {
       expect(find.text('Storico non ancora disponibile'), findsOneWidget);
       expect(find.text('Risposte errate'), findsNothing);
       expect(find.text('Non risposte'), findsNothing);
-      expect(find.text('Entro la soglia'), findsOneWidget);
+      expect(find.text('Sopra la soglia'), findsOneWidget);
+      expect(find.text('Entro la soglia'), findsNothing);
       await _scrollPage(tester);
       expect(find.text('Argomenti da ripassare'), findsOneWidget);
       await _scrollPage(tester);

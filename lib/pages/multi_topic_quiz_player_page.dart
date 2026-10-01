@@ -220,24 +220,47 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
     _closeInProgress = true;
 
     try {
+      // STUDIO.QUIZ.UNANSWERED.1: scheda vuota → nessun salvataggio.
+      if (!quizSheetMayPersistAttempt(_userAnswers)) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Scheda vuota'),
+            content: const Text(
+              'Non hai risposto a nessuna domanda. '
+              'La scheda non può essere conclusa né salvata. '
+              'Rispondi ad almeno una domanda oppure esci senza salvare.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
       final unanswered = _unansweredCount;
       if (unanswered > 0) {
         final closeAnyway = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Domande non completate'),
+            title: const Text('Concludere la scheda?'),
             content: Text(
               'Hai lasciato $unanswered domande senza risposta. '
-              'Puoi ricontrollarle oppure chiudere comunque la scheda.',
+              'Le domande non risposte saranno considerate errori. '
+              'Vuoi concludere la scheda?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Ricontrolla'),
+                child: const Text('Annulla'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Chiudi scheda'),
+                child: const Text('Concludi'),
               ),
             ],
           ),
@@ -250,7 +273,6 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
           if (firstGap != null) {
             setState(() => _currentIndex = firstGap);
           }
-          _closeInProgress = false;
           return;
         }
       }
@@ -270,7 +292,6 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
           ),
         );
         if (!mounted) return;
-        _closeInProgress = false;
         Navigator.of(context).pop();
         return;
       }
@@ -278,7 +299,6 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
       // Non ricostruire mai se `_pendingSubmission` esiste già.
       final startedAt = _startedAt;
       if (startedAt == null) {
-        _closeInProgress = false;
         return;
       }
 
@@ -365,37 +385,16 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
   bool get _allowsImmediatePop =>
       !_isSaving && allowsImmediateQuizSheetExit(_userAnswers);
 
-  Future<bool> _confirmLeaveSheet() async {
-    if (_allowsImmediatePop) return true;
-    final leave = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Uscire dalla Multischeda?'),
-        content: const Text(
-          'Hai risposto ad alcune domande ma non hai completato la scheda. '
-          'Se esci ora, nessun risultato di questa scheda verrà salvato.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Resta nella scheda'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Esci senza salvare'),
-          ),
-        ],
-      ),
-    );
-    return leave == true;
-  }
-
+  /// Uscita: vuota → pop senza save; ≥1 risposta → conclude (unanswered = errori).
   Future<void> _leaveSheet() async {
     if (multiTopicBlocksExitWhileSaving(isSaving: _isSaving)) return;
-    if (!await _confirmLeaveSheet()) return;
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (_allowsImmediatePop) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      return;
+    }
+    // ≥1 risposta: stessa pipeline di Concludi (conferma unanswered → save).
+    await _closeSheet();
   }
 
   void _exitSummary() {

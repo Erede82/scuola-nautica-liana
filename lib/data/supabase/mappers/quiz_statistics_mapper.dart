@@ -122,7 +122,7 @@ double errorPercentageForCounts({
 }
 
 /// Media errori per scheda. [errorCount] è già calcolato per categoria
-/// (A12: solo errate; D1: errate + non risposte).
+/// (A12/D1: errate + non risposte — STUDIO.QUIZ.UNANSWERED.1).
 double averageWrongAnswersPerSheet({
   required int wrongCount,
   required int completedSheetsCount,

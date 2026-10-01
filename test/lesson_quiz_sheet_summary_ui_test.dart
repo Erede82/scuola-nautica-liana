@@ -107,7 +107,9 @@ void main() {
       expect(find.text('5 errori conteggiati · massimo 4'), findsOneWidget);
     });
 
-    testWidgets('non risposte non contano nella soglia', (tester) async {
+    testWidgets('non risposte contano nella soglia (4+14 → BOCCIATO)', (
+      tester,
+    ) async {
       await _pumpSummary(
         tester,
         categoryId: LicenseCategoryId.motore,
@@ -117,9 +119,25 @@ void main() {
         unanswered: 14,
       );
 
-      expect(find.text('PROMOSSO'), findsOneWidget);
-      expect(find.text('4 errori conteggiati · massimo 4'), findsOneWidget);
+      expect(find.text('BOCCIATO'), findsOneWidget);
+      expect(find.text('18 errori conteggiati · massimo 4'), findsOneWidget);
       expect(find.text('Percentuale'), findsNothing);
+    });
+
+    testWidgets('1 corretta + 19 non risposte → BOCCIATO 19 errori', (
+      tester,
+    ) async {
+      await _pumpSummary(
+        tester,
+        categoryId: LicenseCategoryId.motore,
+        total: 20,
+        correct: 1,
+        wrong: 0,
+        unanswered: 19,
+      );
+
+      expect(find.text('BOCCIATO'), findsOneWidget);
+      expect(find.text('19 errori conteggiati · massimo 4'), findsOneWidget);
     });
   });
 }

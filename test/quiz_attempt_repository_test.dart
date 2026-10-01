@@ -103,6 +103,39 @@ void main() {
       expect(payload.wrongCount, 0);
       expect(payload.unansweredCount, 0);
     });
+
+    test('10. all-null answers → ArgumentError (defense-in-depth)', () {
+      final questions = [_q('q1'), _q('q2'), _q('q3')];
+      final answers = <QuizAnswerOption?>[null, null, null];
+
+      expect(
+        () => buildQuizAttemptPayload(
+          questions: questions,
+          answers: answers,
+          startedAt: startedAt,
+          completedAt: completedAt,
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('11. almeno una answer → payload allowed', () {
+      final questions = [_q('q1'), _q('q2'), _q('q3')];
+      final answers = <QuizAnswerOption?>[QuizAnswerOption.a, null, null];
+
+      final payload = buildQuizAttemptPayload(
+        questions: questions,
+        answers: answers,
+        startedAt: startedAt,
+        completedAt: completedAt,
+      );
+
+      expect(payload.correctCount, 1);
+      expect(payload.unansweredCount, 2);
+      expect(payload.wrongCount, 0);
+      expect(payload.answerRows, hasLength(3));
+      expect(payload.answerRows[1].selectedOption, isNull);
+    });
   });
 
   group('shouldCreateQuizResultForSubmit', () {

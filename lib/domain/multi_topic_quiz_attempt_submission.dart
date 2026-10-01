@@ -157,6 +157,12 @@ MultiTopicQuizAttemptSubmission buildMultiTopicQuizAttemptSubmission({
       '(${questions.length}).',
     );
   }
+  // STUDIO.QUIZ.UNANSWERED.1: scheda vuota non è persistibile.
+  if (userAnswers.every((answer) => answer == null)) {
+    throw ArgumentError(
+      'Scheda vuota: impossibile salvare senza almeno una risposta.',
+    );
+  }
 
   final durationSeconds = completedAt.difference(startedAt).inSeconds;
   if (durationSeconds < 0) {

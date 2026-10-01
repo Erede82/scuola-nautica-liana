@@ -102,7 +102,7 @@ void main() {
       expect(stats.summary.correctCount, 3);
       expect(stats.summary.wrongCount, 22);
       expect(stats.summary.unansweredCount, 95);
-      expect(stats.summary.averageErrorsPerSheet, closeTo(22 / 6, 0.0001));
+      expect(stats.summary.averageErrorsPerSheet, closeTo(117 / 6, 0.0001));
       expect(stats.summary.ignoredIncompleteAttempts, 0);
       expect(stats.lessonSnapshots.single.lessonNumber, 1);
       expect(stats.recentAttempts.first.sheetNumber, 6);

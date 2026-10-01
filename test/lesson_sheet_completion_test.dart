@@ -206,4 +206,47 @@ void main() {
       expect(allowsImmediateQuizSheetExit([QuizAnswerOption.a, null]), isFalse);
     });
   });
+
+  group('quizSheetMayPersistAttempt — STUDIO.QUIZ.UNANSWERED.1', () {
+    test('0 answers → cannot persist', () {
+      expect(quizSheetMayPersistAttempt(const [null, null, null]), isFalse);
+      expect(quizSheetHasAnyAnswer(List<Object?>.filled(20, null)), isFalse);
+    });
+
+    test('≥1 answer → may persist', () {
+      expect(
+        quizSheetMayPersistAttempt([QuizAnswerOption.a, null, null]),
+        isTrue,
+      );
+      expect(quizSheetAnsweredCount([QuizAnswerOption.a, null, null]), 1);
+    });
+  });
+
+  group('quizSheetCloseMayProceed — STUDIO.QUIZ.UNANSWERED.1', () {
+    test('open only when idle', () {
+      expect(
+        quizSheetCloseMayProceed(
+          showSummary: false,
+          closeInProgress: false,
+          isSaving: false,
+          isSaved: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('blocked by closeInProgress / summary / saving / saved', () {
+      expect(
+        quizSheetCloseMayProceed(
+          showSummary: false,
+          closeInProgress: true,
+          isSaving: false,
+          isSaved: false,
+        ),
+        isFalse,
+      );
+      expect(quizSheetSaveMayProceed(isSaving: true, isSaved: false), isFalse);
+      expect(quizSheetSaveMayProceed(isSaving: false, isSaved: false), isTrue);
+    });
+  });
 }

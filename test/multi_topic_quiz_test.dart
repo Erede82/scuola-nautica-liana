@@ -16,6 +16,7 @@ import 'package:scuola_nautica_liana/domain/multi_topic_quiz_history_models.dart
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_session.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_support.dart';
 import 'package:scuola_nautica_liana/domain/quiz_license_category.dart';
+import 'package:scuola_nautica_liana/domain/quiz_sheet_exit_policy.dart';
 import 'package:scuola_nautica_liana/data/supabase/mappers/multi_topic_quiz_attempt_mapper.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_question.dart';
@@ -909,5 +910,212 @@ void main() {
         expect(fake.submitCalls, isEmpty);
       },
     );
+  });
+
+  group('STUDIO.QUIZ.UNANSWERED.1 — empty / partial Multischeda', () {
+    List<QuizQuestion> a12Questions() =>
+        List.generate(20, (i) => _q('q$i', lesson: i.isEven ? 1 : 2));
+
+    List<QuizQuestion> d1Questions() => List.generate(
+      15,
+      (i) => _q('d1-q$i', lesson: i.isEven ? 1 : 2, licenseCategory: 'D1'),
+    );
+
+    test('A. 0/20 A12 → cannot build submission (no persist)', () {
+      expect(
+        quizSheetMayPersistAttempt(List<Object?>.filled(20, null)),
+        isFalse,
+      );
+      expect(
+        () => buildMultiTopicQuizAttemptSubmission(
+          clientSubmissionId: 'c-empty',
+          sessionId: 's-empty',
+          licenseCategory: LicenseCategoryId.motore,
+          lessonNumbers: const [1, 2],
+          sheetIndex: 1,
+          totalSheets: 1,
+          startedAt: DateTime.utc(2026, 10, 1),
+          completedAt: DateTime.utc(2026, 10, 1, 0, 1),
+          questions: a12Questions(),
+          userAnswers: List<QuizAnswerOption?>.filled(20, null),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        lessonQuizOutcomeLabel(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 0,
+          unansweredCount: 20,
+        ),
+        isNot('PROMOSSO'),
+      );
+    });
+
+    test('B. 0/15 D1 → cannot build submission', () {
+      expect(
+        () => buildMultiTopicQuizAttemptSubmission(
+          clientSubmissionId: 'c-empty-d1',
+          sessionId: 's-empty-d1',
+          licenseCategory: LicenseCategoryId.d1,
+          lessonNumbers: const [1, 2],
+          sheetIndex: 1,
+          totalSheets: 1,
+          startedAt: DateTime.utc(2026, 10, 1),
+          completedAt: DateTime.utc(2026, 10, 1, 0, 1),
+          questions: d1Questions(),
+          userAnswers: List<QuizAnswerOption?>.filled(15, null),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('C. 1 correct + 19 unanswered A12 → effectiveErrors = 19', () {
+      expect(
+        lessonQuizErrorCountForResult(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 0,
+          unansweredCount: 19,
+        ),
+        19,
+      );
+      expect(
+        lessonQuizOutcomeLabel(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 0,
+          unansweredCount: 19,
+        ),
+        'BOCCIATO',
+      );
+    });
+
+    test('D. 1 wrong + 19 unanswered A12 → effectiveErrors = 20', () {
+      expect(
+        lessonQuizErrorCountForResult(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 1,
+          unansweredCount: 19,
+        ),
+        20,
+      );
+    });
+
+    test(
+      'E. partial exit policy: empty immediate; ≥1 requires confirm path',
+      () {
+        final empty = List<Object?>.filled(20, null);
+        final partial = <Object?>[QuizAnswerOption.a, ...List.filled(19, null)];
+        expect(allowsImmediateQuizSheetExit(empty), isTrue);
+        expect(quizSheetMayPersistAttempt(empty), isFalse);
+        expect(allowsImmediateQuizSheetExit(partial), isFalse);
+        expect(quizSheetMayPersistAttempt(partial), isTrue);
+        expect(shouldConfirmExitBeforeSummary(partial), isTrue);
+      },
+    );
+
+    test(
+      'F. partial submit keeps wrong/unanswered separate; pass/fail uses sum',
+      () {
+        final answers = <QuizAnswerOption?>[
+          QuizAnswerOption.a, // correct
+          QuizAnswerOption.b, // wrong (correct is a)
+          ...List<QuizAnswerOption?>.filled(18, null),
+        ];
+        final submission = buildMultiTopicQuizAttemptSubmission(
+          clientSubmissionId: 'c-partial',
+          sessionId: 's-partial',
+          licenseCategory: LicenseCategoryId.motore,
+          lessonNumbers: const [1, 2],
+          sheetIndex: 1,
+          totalSheets: 1,
+          startedAt: DateTime.utc(2026, 10, 1),
+          completedAt: DateTime.utc(2026, 10, 1, 0, 2),
+          questions: a12Questions(),
+          userAnswers: answers,
+        );
+        final rpcAnswers = submission.toRpcParams()['p_answers'] as List;
+        expect(rpcAnswers, hasLength(20));
+        expect((rpcAnswers[0] as Map)['selected_option'], 'A');
+        expect((rpcAnswers[1] as Map)['selected_option'], 'B');
+        expect((rpcAnswers[2] as Map)['selected_option'], isNull);
+        // Counts stay separate for history; outcome uses sum.
+        expect(
+          lessonQuizErrorCountForResult(
+            categoryId: LicenseCategoryId.motore,
+            wrongCount: 1,
+            unansweredCount: 18,
+          ),
+          19,
+        );
+        expect(
+          lessonQuizWithinErrorThreshold(
+            categoryId: LicenseCategoryId.motore,
+            wrongCount: 1,
+            unansweredCount: 18,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('G. fully answered sheet unchanged (4 wrong → PROMOSSO)', () {
+      expect(
+        lessonQuizOutcomeLabel(
+          categoryId: LicenseCategoryId.motore,
+          wrongCount: 4,
+          unansweredCount: 0,
+        ),
+        'PROMOSSO',
+      );
+      final answers = List<QuizAnswerOption?>.filled(20, QuizAnswerOption.a);
+      final submission = buildMultiTopicQuizAttemptSubmission(
+        clientSubmissionId: 'c-full',
+        sessionId: 's-full',
+        licenseCategory: LicenseCategoryId.motore,
+        lessonNumbers: const [1, 2],
+        sheetIndex: 1,
+        totalSheets: 1,
+        startedAt: DateTime.utc(2026, 10, 1),
+        completedAt: DateTime.utc(2026, 10, 1, 0, 3),
+        questions: a12Questions(),
+        userAnswers: answers,
+      );
+      expect(submission.answers, hasLength(20));
+      expect(submission.answers.every((a) => a.selectedOption != null), isTrue);
+    });
+
+    test('H. double close guard still blocks second conclude', () {
+      expect(
+        multiTopicCloseSheetMayProceed(
+          showSummary: false,
+          submitInFlight: false,
+          hasPendingSubmission: false,
+          closeInProgress: false,
+        ),
+        isTrue,
+      );
+      expect(
+        multiTopicCloseSheetMayProceed(
+          showSummary: false,
+          submitInFlight: false,
+          hasPendingSubmission: true,
+          closeInProgress: false,
+        ),
+        isFalse,
+      );
+      expect(
+        multiTopicCloseSheetMayProceed(
+          showSummary: false,
+          submitInFlight: false,
+          hasPendingSubmission: false,
+          closeInProgress: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('I. empty attempt not representable as valid submission', () {
+      // History must never receive empty builds from client domain.
+      expect(quizSheetMayPersistAttempt(List.filled(20, null)), isFalse);
+    });
   });
 }

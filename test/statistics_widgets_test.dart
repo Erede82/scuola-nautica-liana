@@ -80,10 +80,10 @@ List<QuizAttemptActivity> _recentAttempts() {
       lessonNumber: 1,
       sheetNumber: 6,
       totalQuestions: 20,
-      correctCount: 0,
+      correctCount: 17,
       wrongCount: 3,
-      unansweredCount: 17,
-      errorPercentage: 100,
+      unansweredCount: 0,
+      errorPercentage: 15,
       completedAt: DateTime.utc(2026, 7, 10, 6),
     ),
     QuizAttemptActivity(
@@ -91,10 +91,10 @@ List<QuizAttemptActivity> _recentAttempts() {
       lessonNumber: 1,
       sheetNumber: 5,
       totalQuestions: 20,
-      correctCount: 0,
+      correctCount: 16,
       wrongCount: 4,
-      unansweredCount: 16,
-      errorPercentage: 100,
+      unansweredCount: 0,
+      errorPercentage: 20,
       completedAt: DateTime.utc(2026, 7, 10, 5),
     ),
   ];
@@ -329,6 +329,38 @@ void main() {
       expect(find.text('18'), findsOneWidget);
       expect(find.textContaining('Soglia 3 errori'), findsOneWidget);
       expect(find.textContaining('Soglia 4 errori'), findsNothing);
+    });
+
+    testWidgets('A12 conta unanswered come errori (2+3 → 5)', (tester) async {
+      final attempts = [
+        QuizAttemptActivity(
+          quizResultId: 'a12-partial',
+          lessonNumber: 1,
+          sheetNumber: 1,
+          totalQuestions: 20,
+          correctCount: 15,
+          wrongCount: 2,
+          unansweredCount: 3,
+          errorPercentage: 25,
+          completedAt: DateTime.utc(2026, 10, 1, 10),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatisticsErrorTrend(
+              attempts: attempts,
+              categoryId: LicenseCategoryId.motore,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('5'), findsOneWidget);
+      expect(find.textContaining('Soglia 4 errori'), findsOneWidget);
+      // Wrong-only would be 2 — must not be the displayed effective count.
+      expect(find.text('2'), findsNothing);
     });
   });
 

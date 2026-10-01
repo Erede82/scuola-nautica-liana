@@ -160,6 +160,9 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   bool _loadFailed = false;
   int _currentIndex = 0;
   bool _showSummary = false;
+
+  /// Claim sincrono anti double-submit (filosofia Multischeda `_closeInProgress`).
+  bool _closeInProgress = false;
   _AttemptSaveStatus _saveStatus = _AttemptSaveStatus.idle;
   String? _saveErrorMessage;
   String? _partialQuizResultId;
@@ -278,65 +281,106 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   }
 
   Future<void> _closeSheet() async {
-    final unanswered = _unansweredCount;
-    if (unanswered > 0) {
-      final closeAnyway = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Domande non completate'),
-          content: Text(
-            'Hai lasciato $unanswered domande senza risposta. '
-            'Puoi ricontrollarle oppure chiudere comunque la scheda.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Ricontrolla'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Chiudi scheda'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted) return;
-      if (closeAnyway != true) {
-        final firstGap = QuizSheetPlayerNavigation.firstUnansweredIndex(
-          _userAnswers,
-        );
-        if (firstGap != null) {
-          setState(() => _currentIndex = firstGap);
-        }
-        return;
-      }
-    }
-
-    if (StudentAreaContext.blocksWrites(context)) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Anteprima staff'),
-          content: const Text(StudentAreaPreviewCopy.quizSaveBlockedMessage),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();
+    // Claim sincrono PRIMA di qualsiasi await (anti double-submit / Esci+Concludi).
+    if (!quizSheetCloseMayProceed(
+      showSummary: _showSummary,
+      closeInProgress: _closeInProgress,
+      isSaving: _saveStatus == _AttemptSaveStatus.saving,
+      isSaved: _saveStatus == _AttemptSaveStatus.saved,
+    )) {
       return;
     }
+    _closeInProgress = true;
 
-    setState(() {
-      _showSummary = true;
-      _completedAt = DateTime.now();
-      _saveStatus = _AttemptSaveStatus.saving;
-    });
-    await _saveAttempt();
+    try {
+      // STUDIO.QUIZ.UNANSWERED.1: scheda vuota → nessun salvataggio.
+      if (!quizSheetMayPersistAttempt(_userAnswers)) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Scheda vuota'),
+            content: const Text(
+              'Non hai risposto a nessuna domanda. '
+              'La scheda non può essere conclusa né salvata. '
+              'Rispondi ad almeno una domanda oppure esci senza salvare.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final unanswered = _unansweredCount;
+      if (unanswered > 0) {
+        final closeAnyway = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Concludere la scheda?'),
+            content: Text(
+              'Hai lasciato $unanswered domande senza risposta. '
+              'Le domande non risposte saranno considerate errori. '
+              'Vuoi concludere la scheda?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annulla'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Concludi'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (closeAnyway != true) {
+          final firstGap = QuizSheetPlayerNavigation.firstUnansweredIndex(
+            _userAnswers,
+          );
+          if (firstGap != null) {
+            setState(() => _currentIndex = firstGap);
+          }
+          return;
+        }
+      }
+
+      if (StudentAreaContext.blocksWrites(context)) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Anteprima staff'),
+            content: const Text(StudentAreaPreviewCopy.quizSaveBlockedMessage),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
+      }
+
+      setState(() {
+        _showSummary = true;
+        _completedAt = DateTime.now();
+      });
+      await _saveAttempt();
+    } finally {
+      // Successo: `_showSummary` (e saved/saving) bloccano un secondo submit.
+      // Cancel / empty / errori pre-summary: rilascia il claim per consentire retry.
+      if (!_showSummary) {
+        _closeInProgress = false;
+      }
+    }
   }
 
   Future<void> _saveAttempt() async {
@@ -344,7 +388,11 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       return;
     }
 
-    if (_saveStatus == _AttemptSaveStatus.saved) {
+    // Impossibile iniziare una seconda persistenza mentre `_saveStatus == saving`.
+    if (!quizSheetSaveMayProceed(
+      isSaving: _saveStatus == _AttemptSaveStatus.saving,
+      isSaved: _saveStatus == _AttemptSaveStatus.saved,
+    )) {
       return;
     }
 
@@ -360,6 +408,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
       return;
     }
 
+    // Claim sincrono prima di qualsiasi await.
     setState(() {
       _saveStatus = _AttemptSaveStatus.saving;
       _saveErrorMessage = null;
@@ -404,44 +453,16 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
 
   bool get _allowsImmediatePop => allowsImmediateQuizSheetExit(_userAnswers);
 
-  Future<bool> _confirmLeaveSheet() async {
-    if (_allowsImmediatePop) {
-      return true;
-    }
-
-    final leave = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Uscire dalla scheda?'),
-        content: const Text(
-          'Hai risposto ad alcune domande ma non hai completato la scheda. '
-          'Se esci ora, nessun risultato verrà salvato e la scheda resterà da svolgere.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Resta nella scheda'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Esci senza salvare'),
-          ),
-        ],
-      ),
-    );
-    return leave == true;
-  }
-
-  /// Uscita dal player senza salvataggio (dopo conferma se necessaria).
+  /// Uscita: vuota → pop senza save; ≥1 risposta → conclude (unanswered = errori).
   Future<void> _leaveSheet() async {
-    if (!await _confirmLeaveSheet()) {
-      qfLog('QuizSheetPlayer: stay on sheet (exit cancelled)');
+    if (_allowsImmediatePop) {
+      if (!mounted) return;
+      qfLog('QuizSheetPlayer: exit empty without save');
+      Navigator.of(context).pop();
       return;
     }
-    if (!mounted) return;
-    qfLog('QuizSheetPlayer: exit without save');
-    Navigator.of(context).pop();
+    qfLog('QuizSheetPlayer: exit with answers → conclude path');
+    await _closeSheet();
   }
 
   void _openNextSheet() {

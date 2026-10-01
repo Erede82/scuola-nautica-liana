@@ -14,13 +14,16 @@ final class LessonQuizRules {
   /// Soglia errori per indicatori statistici «entro soglia».
   final int maxErrors;
 
-  /// Se true, le non risposte contano come errori statistici.
+  /// Se true, le non risposte contano come errori per esito/soglia.
+  ///
+  /// STUDIO.QUIZ.UNANSWERED.1: true per A12 e D1
+  /// (`effectiveErrors = wrongCount + unansweredCount`).
   final bool countUnansweredAsErrors;
 
   static const LessonQuizRules a12 = LessonQuizRules(
     questionsPerSheet: 20,
     maxErrors: 4,
-    countUnansweredAsErrors: false,
+    countUnansweredAsErrors: true,
   );
 
   static const LessonQuizRules d1 = LessonQuizRules(
@@ -42,10 +45,10 @@ LessonQuizRules? lessonQuizRulesForCategory(LicenseCategoryId categoryId) {
   }
 }
 
-/// Errori statistici di una scheda secondo le regole della categoria.
+/// Errori conteggiati per esito/soglia secondo le regole della categoria.
 ///
-/// A12 → solo [wrongCount].
-/// D1 → [wrongCount] + [unansweredCount].
+/// A12/D1 (STUDIO.QUIZ.UNANSWERED.1): [wrongCount] + [unansweredCount].
+/// Categoria non supportata: solo [wrongCount].
 int lessonQuizErrorCountForResult({
   required LicenseCategoryId categoryId,
   required int wrongCount,

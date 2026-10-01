@@ -199,7 +199,7 @@ void main() {
       expect(summary.unansweredCount, 95);
       expect(summary.accuracyPercentage, closeTo(2.5, 0.01));
       expect(summary.errorPercentage, closeTo(97.5, 0.01));
-      expect(summary.averageErrorsPerSheet, closeTo(22 / 6, 0.0001));
+      expect(summary.averageErrorsPerSheet, closeTo(117 / 6, 0.0001));
       expect(summary.ignoredIncompleteAttempts, 0);
       expect(summary.lastLessonNumber, 1);
       expect(summary.lastSheetNumber, 6);
@@ -228,7 +228,7 @@ void main() {
       );
     });
 
-    test('A12 media resta basata sul solo wrongCount', () {
+    test('A12 media usa wrong + unanswered (QA 4+14 → 18)', () {
       final summary = buildQuizStatisticsSummary(
         completeResults: [
           _result(
@@ -242,7 +242,7 @@ void main() {
         ignoredIncompleteAttempts: 0,
         categoryId: LicenseCategoryId.motore,
       );
-      expect(summary.averageErrorsPerSheet, 4);
+      expect(summary.averageErrorsPerSheet, 18);
     });
 
     test('D1 media usa wrong + unanswered (QA 4+14 → 18)', () {

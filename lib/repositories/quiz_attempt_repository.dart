@@ -258,6 +258,15 @@ QuizAttemptPayload buildQuizAttemptPayload({
     );
   }
 
+  // Defense-in-depth STUDIO.QUIZ.UNANSWERED.1: 0 risposte → payload non costruibile.
+  // Non trasformare null in false: reject esplicito se tutte le answers sono null.
+  if (answers.isEmpty || answers.every((answer) => answer == null)) {
+    throw ArgumentError(
+      'Payload attempt non costruibile: nessuna risposta selezionata '
+      '(0 risposte). Serve almeno una risposta non null.',
+    );
+  }
+
   var correctCount = 0;
   var wrongCount = 0;
   var unansweredCount = 0;
