@@ -183,7 +183,10 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
 }
 
 /// Verifica se la combinazione può produrre almeno [sheetCount] schede
-/// (usando riuso solo dopo esaurimento delle distinte).
+/// (usando riuso dopo esaurimento delle distinte).
+///
+/// Con riuso abilitato nel player, se almeno 1 scheda completa è costruibile
+/// allora anche N schede lo sono (totale da catalogo `quiz_sets` ∩ unlock).
 MultiTopicPoolShortfall? findMultiTopicPoolShortfall({
   required Map<int, List<QuizQuestion>> poolByLesson,
   required List<int> selectedLessonNumbers,
@@ -204,8 +207,8 @@ MultiTopicPoolShortfall? findMultiTopicPoolShortfall({
     questionsPerSheet: questionsPerSheet,
   );
 
-  // Una scheda completa richiede comunque abbastanza domande distinte
-  // all'interno della scheda (no dup intra). Se distinctMax == 0 → impossibile.
+  // Una scheda completa richiede abbastanza domande distinte intra-scheda.
+  // Se distinctMax == 0 → impossibile anche con riuso.
   if (distinctMax < 1) {
     final available = selectedLessonNumbers.fold<int>(
       0,
@@ -217,16 +220,5 @@ MultiTopicPoolShortfall? findMultiTopicPoolShortfall({
     );
   }
 
-  // Con riuso post-exhaustion, se almeno 1 scheda è possibile, N schede lo sono
-  // finché ogni scheda singola è costruibile. Cap UI = distinctMax è "sensato".
-  if (sheetCount > distinctMax) {
-    return MultiTopicPoolShortfall(
-      required: sheetCount * questionsPerSheet,
-      availableDistinct: distinctMax * questionsPerSheet,
-      message:
-          'Con gli argomenti selezionati puoi svolgere al massimo '
-          '$distinctMax schede con domande distinte.',
-    );
-  }
   return null;
 }

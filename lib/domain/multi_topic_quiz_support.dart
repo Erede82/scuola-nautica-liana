@@ -8,14 +8,16 @@ bool isMultiTopicCategorySupported(LicenseCategoryId categoryId) {
 
 /// True se la lezione è selezionabile in Multischeda.
 ///
-/// Gate esclusivi: categoria supportata + pool domande + unlock
-/// ([StudyAccessRepository]). La completion non è un gate.
+/// Gate: categoria supportata + pool domande + unlock + schede actionable > 0.
+/// La completion non è un gate.
 bool isLessonEligibleForMultiTopic({
   required LicenseCategoryId categoryId,
   required bool hasQuestionPool,
   required bool isUnlocked,
+  int availableSheetCount = 0,
 }) {
   return isMultiTopicCategorySupported(categoryId) &&
       hasQuestionPool &&
-      isUnlocked;
+      isUnlocked &&
+      availableSheetCount > 0;
 }

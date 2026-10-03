@@ -66,6 +66,11 @@ class _FakeStudentQuizRepo implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
   }) async => {};
+
+  @override
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
+  }) async => {};
 }
 
 class _FakeAttemptRepo implements QuizAttemptRepository {
@@ -199,10 +204,13 @@ Padding _tileContentPadding(WidgetTester tester) {
   return match.first;
 }
 
-ConstrainedBox? _contentMaxWidthBox(WidgetTester tester) {
+ConstrainedBox? _contentMaxWidthBox(
+  WidgetTester tester, {
+  required double maxWidth,
+}) {
   final boxes = tester.widgetList<ConstrainedBox>(find.byType(ConstrainedBox));
   for (final box in boxes) {
-    if (box.constraints.maxWidth == QuizPlayerVisual.contentMaxWidth) {
+    if (box.constraints.maxWidth == maxWidth) {
       return box;
     }
   }
@@ -242,7 +250,13 @@ void main() {
         tester.element(find.byType(QuizQuestionPromptPanel)),
       );
       final examScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.contentMaxWidth,
+        ),
+        isNotNull,
+      );
 
       await _pumpSheet(
         tester,
@@ -263,7 +277,13 @@ void main() {
       final sheetScaffold = tester.widget<Scaffold>(
         find.byType(Scaffold).first,
       );
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+        ),
+        isNotNull,
+      );
 
       expect(examAnswerStyle.fontSize, sheetAnswerStyle.fontSize);
       expect(examQuestionStyle.fontSize, sheetQuestionStyle.fontSize);
@@ -464,7 +484,13 @@ void main() {
         viewport: const Size(1366, 768),
       );
       expect(find.text('1/15'), findsOneWidget);
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.contentMaxWidth,
+        ),
+        isNotNull,
+      );
       expect(tester.takeException(), isNull);
 
       await _pumpSheet(
@@ -474,7 +500,13 @@ void main() {
         viewport: const Size(1366, 768),
       );
       expect(find.text('1/15'), findsOneWidget);
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+        ),
+        isNotNull,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -488,7 +520,13 @@ void main() {
       expect(find.text('1/15'), findsOneWidget);
       expect(_progressCells(), findsNWidgets(15));
       expect(find.textContaining(':'), findsWidgets);
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.contentMaxWidth,
+        ),
+        isNotNull,
+      );
 
       final last = find.textContaining('Risposta C della domanda 1');
       await tester.ensureVisible(last);
@@ -508,7 +546,13 @@ void main() {
       );
       expect(find.text('1/15'), findsOneWidget);
       expect(_progressCells(), findsNWidgets(15));
-      expect(_contentMaxWidthBox(tester), isNotNull);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+        ),
+        isNotNull,
+      );
       expect(tester.takeException(), isNull);
     });
   });

@@ -17,9 +17,11 @@ import '../services/student_area_context.dart';
 import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/empty_quiz_sheet_dialog.dart';
 import '../widgets/lesson_quiz_sheet_summary_body.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_answer_result_chip.dart';
+import '../widgets/quiz_lesson_sheet_progress_panel.dart';
 import '../widgets/quiz_player_answer_tile.dart';
 import '../widgets/quiz_question_progress_strip.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
@@ -222,23 +224,11 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
     try {
       // STUDIO.QUIZ.UNANSWERED.1: scheda vuota → nessun salvataggio.
       if (!quizSheetMayPersistAttempt(_userAnswers)) {
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Scheda vuota'),
-            content: const Text(
-              'Non hai risposto a nessuna domanda. '
-              'La scheda non può essere conclusa né salvata. '
-              'Rispondi ad almeno una domanda oppure esci senza salvare.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
+        final action = await showEmptyQuizSheetDialog(context);
+        if (!mounted) return;
+        if (action == EmptyQuizSheetDialogAction.exit) {
+          Navigator.of(context).pop();
+        }
         return;
       }
 
@@ -646,20 +636,7 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
         appBar: _buildAppBar(_appBarTitle),
         body: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _progressLabel,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: _textPrimaryColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-            QuizQuestionProgressStrip(
+            QuizLessonSheetProgressPanel(
               currentIndex: _currentIndex,
               total: _questions.length,
               isAnswered: (index) =>
@@ -674,7 +651,10 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
                     ? QuizProgressCellTone.correct
                     : QuizProgressCellTone.wrong;
               },
-              compact: true,
+              correctCount: _correctCount,
+              wrongCount: _wrongCount,
+              unansweredCount: _unansweredCount,
+              header: _progressLabel,
             ),
             Expanded(
               child: LayoutBuilder(
@@ -684,7 +664,7 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
-                        maxWidth: QuizPlayerVisual.contentMaxWidth,
+                        maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
                       ),
                       child: LayoutBuilder(
                         builder: (context, contentConstraints) {
@@ -701,7 +681,7 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
                               density == QuizPlayerContentDensity.dense;
 
                           return SingleChildScrollView(
-                            padding: QuizPlayerVisual.bodyPadding,
+                            padding: QuizPlayerVisual.lessonSheetBodyPadding,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [

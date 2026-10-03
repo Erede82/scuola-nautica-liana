@@ -59,6 +59,11 @@ class _FakeStudentQuizRepo implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
   }) async => {};
+
+  @override
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
+  }) async => {};
 }
 
 class _RecordingAttemptRepo implements QuizAttemptRepository {
@@ -251,18 +256,44 @@ void main() {
   });
 
   group('STUDIO.QUIZ.UNANSWERED.1 — Schede normali close/save', () {
-    testWidgets('1. 0 risposte + Chiudi scheda → 0 save', (tester) async {
+    testWidgets(
+      '1. 0 risposte + Chiudi scheda → dialog 2 azioni, Torna, 0 save',
+      (tester) async {
+        final repo = await _pumpSheet(tester, questionCount: 3);
+        await _goToLastQuestion(tester, 3);
+
+        await _tapChiudiScheda(tester);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Scheda non compilata'), findsOneWidget);
+        expect(find.text('Torna alla scheda'), findsOneWidget);
+        expect(find.text('Esci dalla scheda'), findsOneWidget);
+        await tester.tap(find.text('Torna alla scheda'));
+        await tester.pumpAndSettle();
+
+        expect(repo.submitCount, 0);
+        expect(find.text('Riepilogo scheda'), findsNothing);
+        expect(find.text('Scheda non compilata'), findsNothing);
+        expect(find.text('Domanda 3 del test unanswered'), findsOneWidget);
+      },
+    );
+
+    testWidgets('1b. 0 risposte + Esci dalla scheda → pop → 0 save', (
+      tester,
+    ) async {
       final repo = await _pumpSheet(tester, questionCount: 3);
       await _goToLastQuestion(tester, 3);
 
       await _tapChiudiScheda(tester);
       await tester.pumpAndSettle();
+      expect(find.text('Scheda non compilata'), findsOneWidget);
 
-      expect(find.text('Scheda vuota'), findsOneWidget);
-      await tester.tap(find.text('OK'));
+      await tester.tap(find.text('Esci dalla scheda'));
       await tester.pumpAndSettle();
 
       expect(repo.submitCount, 0);
+      expect(find.text('Hub test'), findsOneWidget);
+      expect(find.text('Domanda 3 del test unanswered'), findsNothing);
       expect(find.text('Riepilogo scheda'), findsNothing);
     });
 

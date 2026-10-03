@@ -49,7 +49,7 @@ void main() {
       );
     });
 
-    test('2. unlock true → lesson unlocked', () {
+    test('2. unlock true unlocks that sheet only (per-sheet)', () {
       repo.applyLessonQuizSheetUnlock(
         categoryId: category,
         lessonNumber: lessonNumber,
@@ -65,6 +65,17 @@ void main() {
             )
             .isUnlocked,
         isTrue,
+      );
+      expect(
+        repo
+            .lessonQuizSheet(
+              categoryId: category,
+              lessonNumber: lessonNumber,
+              sheetNumber: 2,
+            )
+            .isUnlocked,
+        isFalse,
+        reason: 'sheet 2 must stay locked when only sheet 1 is unlocked',
       );
     });
 
@@ -90,10 +101,7 @@ void main() {
     test('4. no error-review grant → ripasso locked', () {
       expect(
         repo
-            .errorReviewTopic(
-              categoryId: category,
-              lessonNumber: errorLesson,
-            )
+            .errorReviewTopic(categoryId: category, lessonNumber: errorLesson)
             .isUnlocked,
         isFalse,
       );
@@ -107,10 +115,7 @@ void main() {
       );
       expect(
         repo
-            .errorReviewTopic(
-              categoryId: category,
-              lessonNumber: errorLesson,
-            )
+            .errorReviewTopic(categoryId: category, lessonNumber: errorLesson)
             .isUnlocked,
         isTrue,
       );
@@ -124,10 +129,7 @@ void main() {
       );
       expect(
         repo
-            .errorReviewTopic(
-              categoryId: category,
-              lessonNumber: errorLesson,
-            )
+            .errorReviewTopic(categoryId: category, lessonNumber: errorLesson)
             .isUnlocked,
         isFalse,
       );
@@ -181,10 +183,7 @@ void main() {
       expect(repo.examQuiz(category).isUnlocked, isTrue);
       expect(
         repo
-            .errorReviewTopic(
-              categoryId: category,
-              lessonNumber: errorLesson,
-            )
+            .errorReviewTopic(categoryId: category, lessonNumber: errorLesson)
             .isUnlocked,
         isTrue,
       );
@@ -213,10 +212,7 @@ void main() {
       expect(repo.examQuiz(category).isUnlocked, isFalse);
       expect(
         repo
-            .errorReviewTopic(
-              categoryId: category,
-              lessonNumber: errorLesson,
-            )
+            .errorReviewTopic(categoryId: category, lessonNumber: errorLesson)
             .isUnlocked,
         isFalse,
       );
@@ -268,21 +264,20 @@ void main() {
 
     test('9b. demo error-review unlocks non-L7 topics', () {
       expect(
-        repo
-            .errorReviewTopic(categoryId: category, lessonNumber: 3)
-            .isUnlocked,
+        repo.errorReviewTopic(categoryId: category, lessonNumber: 3).isUnlocked,
         isTrue,
       );
       expect(
-        repo
-            .errorReviewTopic(categoryId: category, lessonNumber: 7)
-            .isUnlocked,
+        repo.errorReviewTopic(categoryId: category, lessonNumber: 7).isUnlocked,
         isFalse,
       );
     });
 
-    test('9c. demo exam stays locked (kDemoUnlockEntireExamForTheory=false)', () {
-      expect(repo.examQuiz(category).isUnlocked, isFalse);
-    });
+    test(
+      '9c. demo exam stays locked (kDemoUnlockEntireExamForTheory=false)',
+      () {
+        expect(repo.examQuiz(category).isUnlocked, isFalse);
+      },
+    );
   });
 }

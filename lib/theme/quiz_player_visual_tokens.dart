@@ -32,6 +32,10 @@ abstract final class QuizPlayerVisual {
 
   static const double contentMaxWidth = 720;
 
+  /// Larghezza player Schede / Multischeda (quasi full-bleed desktop).
+  /// Separata da [contentMaxWidth] per non alterare Quiz Esame.
+  static const double lessonSheetContentMaxWidth = 1120;
+
   static const double questionFontDesktop = 18.5;
   static const double questionFontMobile = 17.0;
 
@@ -56,12 +60,30 @@ abstract final class QuizPlayerVisual {
     8,
   );
   static const EdgeInsets bodyPadding = EdgeInsets.fromLTRB(16, 10, 16, 16);
+
+  /// Padding corpo Schede / Multischeda: laterali ridotti, ancora ordinati.
+  static const EdgeInsets lessonSheetBodyPadding = EdgeInsets.fromLTRB(
+    10,
+    10,
+    10,
+    16,
+  );
+
   static const EdgeInsets progressPanelMargin = EdgeInsets.fromLTRB(
     16,
     8,
     16,
     0,
   );
+
+  /// Margine pannello progresso Schede / Multischeda (allineato al body più largo).
+  static const EdgeInsets lessonSheetProgressPanelMargin = EdgeInsets.fromLTRB(
+    10,
+    8,
+    10,
+    0,
+  );
+
   static const EdgeInsets progressPanelPadding = EdgeInsets.fromLTRB(
     10,
     8,

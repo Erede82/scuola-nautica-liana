@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/lesson_sheet_catalog_filter.dart';
 import '../domain/quiz_sheet_exit_policy.dart';
+import '../domain/quiz_sheet_player_navigation.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
-import '../domain/quiz_sheet_player_navigation.dart';
 import '../repositories/quiz_attempt_repository.dart';
 import '../repositories/student_quiz_repository.dart';
 import '../repositories/study_access_repository.dart';
@@ -13,9 +14,11 @@ import '../services/student_area_context.dart';
 import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import '../widgets/app_empty_state.dart';
+import '../widgets/empty_quiz_sheet_dialog.dart';
 import '../widgets/lesson_quiz_sheet_summary_body.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_answer_result_chip.dart';
+import '../widgets/quiz_lesson_sheet_progress_panel.dart';
 import '../widgets/quiz_player_answer_tile.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/quiz_question_progress_strip.dart';
@@ -78,12 +81,12 @@ class _QuizSheetDetailPageState extends State<QuizSheetDetailPage> {
             backgroundColor: _backgroundColor,
             appBar: _buildAppBar(category.name),
             body: AppEmptyState(
-              title: 'Lezione non ancora abilitata',
+              title: 'Scheda non ancora abilitata',
               message:
                   access.lockedMessage ??
-                  'Quando la scuola abiliterà la lezione, potrai accedere a tutte le schede quiz.',
+                  'Quando la scuola abiliterà questa scheda, potrai svolgerla.',
               icon: Icons.lock_outline_rounded,
-              tagLabel: 'Schede abilitate dalla scuola',
+              tagLabel: 'Scheda abilitata dalla scuola',
               primaryActionLabel: 'Torna alle schede',
               primaryActionIcon: Icons.arrow_back_rounded,
               onPrimaryActionPressed: () => Navigator.maybePop(context),
@@ -160,6 +163,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   bool _loadFailed = false;
   int _currentIndex = 0;
   bool _showSummary = false;
+  List<int> _lessonSheetNumbers = const [];
 
   /// Claim sincrono anti double-submit (filosofia Multischeda `_closeInProgress`).
   bool _closeInProgress = false;
@@ -182,14 +186,21 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     });
 
     try {
-      final content = await widget.studentQuizRepository
+      final contentFuture = widget.studentQuizRepository
           .fetchLessonSheetContent(
             categoryId: widget.categoryId,
             lessonNumber: widget.lessonNumber,
             sheetNumber: widget.sheetNumber,
           );
+      final sheetsFuture = widget.studentQuizRepository
+          .fetchLessonSheetNumbersByLesson(categoryId: widget.categoryId);
+      final content = await contentFuture;
+      final sheetsByLesson = await sheetsFuture;
       if (!mounted) return;
       final loaded = content?.questions ?? const [];
+      final lessonSheets = List<int>.from(
+        sheetsByLesson[widget.lessonNumber] ?? const [],
+      )..sort();
       setState(() {
         _quizSetId = loaded.isEmpty ? null : content?.quizSetId;
         _questions = loaded;
@@ -199,6 +210,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         _saveStatus = _AttemptSaveStatus.idle;
         _saveErrorMessage = null;
         _partialQuizResultId = null;
+        _lessonSheetNumbers = lessonSheets;
         _loading = false;
       });
     } catch (err, st) {
@@ -209,21 +221,28 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         _userAnswers = const [];
         _quizSetId = null;
         _startedAt = null;
+        _lessonSheetNumbers = const [];
         _loading = false;
         _loadFailed = true;
       });
     }
   }
 
-  int get _totalSheetsInLesson {
-    final category = LicenseCatalog.byId(widget.categoryId);
-    for (final lesson in category.lessons) {
-      if (lesson.number == widget.lessonNumber) return lesson.quizSheets;
-    }
-    return 0;
-  }
+  /// Prossima scheda actionable: catalogo reale ∩ unlock per-scheda.
+  /// Usa [_lessonSheetNumbers] già caricato (nessuna query aggiuntiva).
+  int? get _nextSheetNumber => nextActionableLessonSheetNumber(
+    catalogSheetNumbers: _lessonSheetNumbers,
+    currentSheetNumber: widget.sheetNumber,
+    isSheetUnlocked: (sheetNumber) => studyAccessRepository
+        .lessonQuizSheet(
+          categoryId: widget.categoryId,
+          lessonNumber: widget.lessonNumber,
+          sheetNumber: sheetNumber,
+        )
+        .isUnlocked,
+  );
 
-  bool get _hasNextSheet => widget.sheetNumber < _totalSheetsInLesson;
+  bool get _hasNextSheet => _nextSheetNumber != null;
 
   QuizQuestion? get _currentQuestion {
     if (_currentIndex < 0 || _currentIndex >= _questions.length) return null;
@@ -295,23 +314,11 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     try {
       // STUDIO.QUIZ.UNANSWERED.1: scheda vuota → nessun salvataggio.
       if (!quizSheetMayPersistAttempt(_userAnswers)) {
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Scheda vuota'),
-            content: const Text(
-              'Non hai risposto a nessuna domanda. '
-              'La scheda non può essere conclusa né salvata. '
-              'Rispondi ad almeno una domanda oppure esci senza salvare.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
+        final action = await showEmptyQuizSheetDialog(context);
+        if (!mounted) return;
+        if (action == EmptyQuizSheetDialogAction.exit) {
+          Navigator.of(context).pop();
+        }
         return;
       }
 
@@ -466,14 +473,17 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   }
 
   void _openNextSheet() {
-    if (!_hasNextSheet) return;
+    final next = _nextSheetNumber;
+    if (next == null) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute<void>(
         builder: (_) => QuizSheetDetailPage(
           lessonNumber: widget.lessonNumber,
-          sheetNumber: widget.sheetNumber + 1,
+          sheetNumber: next,
           categoryId: widget.categoryId,
+          studentQuizRepositoryOverride: widget.studentQuizRepository,
+          quizAttemptRepositoryOverride: widget.quizAttemptRepository,
         ),
       ),
     );
@@ -551,7 +561,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                 FilledButton.icon(
                   onPressed: _openNextSheet,
                   icon: const Icon(Icons.arrow_forward_rounded),
-                  label: Text('Prossima scheda (${widget.sheetNumber + 1})'),
+                  label: Text('Prossima scheda ($_nextSheetNumber)'),
                   style: FilledButton.styleFrom(
                     backgroundColor: _primaryColor,
                     foregroundColor: Colors.white,
@@ -569,7 +579,8 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Hai completato l’ultima scheda di questa lezione.',
+                    'Non ci sono altre schede abilitate da svolgere '
+                    'in questa lezione.',
                     textAlign: TextAlign.center,
                     style: textTheme.bodyMedium?.copyWith(
                       color: _textPrimaryColor,
@@ -610,7 +621,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         appBar: _buildAppBar(_appBarTitle),
         body: Column(
           children: [
-            _QuizSheetProgressPanel(
+            QuizLessonSheetProgressPanel(
               currentIndex: _currentIndex,
               total: _questions.length,
               isAnswered: (index) =>
@@ -638,7 +649,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
-                        maxWidth: QuizPlayerVisual.contentMaxWidth,
+                        maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
                       ),
                       child: LayoutBuilder(
                         builder: (context, contentConstraints) {
@@ -655,7 +666,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
                               density == QuizPlayerContentDensity.dense;
 
                           return SingleChildScrollView(
-                            padding: QuizPlayerVisual.bodyPadding,
+                            padding: QuizPlayerVisual.lessonSheetBodyPadding,
                             child: Column(
                               key: QuizPlayerDensity.densityKey(density),
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -869,123 +880,6 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     final correct = _currentQuestion!.correctOption;
     if (option == correct || option == selected) return 2.4;
     return 1.2;
-  }
-}
-
-class _QuizSheetProgressPanel extends StatelessWidget {
-  const _QuizSheetProgressPanel({
-    required this.currentIndex,
-    required this.total,
-    required this.isAnswered,
-    required this.cellTone,
-    required this.correctCount,
-    required this.wrongCount,
-    required this.unansweredCount,
-  });
-
-  final int currentIndex;
-  final int total;
-  final bool Function(int index) isAnswered;
-  final QuizProgressCellTone Function(int index) cellTone;
-  final int correctCount;
-  final int wrongCount;
-  final int unansweredCount;
-
-  static const Color _neutralColor = QuizPlayerVisual.cardBorder;
-  static const Color _correctColor = QuizPlayerVisual.correctBorder;
-  static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
-  static const Color _unansweredColor = Color(0xFF6B7280);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: QuizPlayerVisual.progressPanelMargin,
-      padding: QuizPlayerVisual.progressPanelPadding,
-      decoration: BoxDecoration(
-        color: QuizPlayerVisual.cardSurface,
-        borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
-        border: Border.all(color: _neutralColor),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 6,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          QuizQuestionProgressStrip(
-            currentIndex: currentIndex,
-            total: total,
-            isAnswered: isAnswered,
-            cellTone: cellTone,
-            compact: true,
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              _StatChip(
-                label: 'Corrette',
-                value: '$correctCount',
-                color: _correctColor,
-                background: QuizPlayerVisual.correctFill,
-              ),
-              _StatChip(
-                label: 'Errori',
-                value: '$wrongCount',
-                color: _wrongColor,
-                background: QuizPlayerVisual.wrongFill,
-              ),
-              _StatChip(
-                label: 'Non risposte',
-                value: '$unansweredCount',
-                color: _unansweredColor,
-                background: const Color(0xFFF3F4F6),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.background,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Text(
-        '$label: $value',
-        style: textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
   }
 }
 

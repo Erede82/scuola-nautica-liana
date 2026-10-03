@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
 import '../domain/lesson_quiz_rules.dart';
+import '../domain/lesson_sheet_catalog_filter.dart';
 import '../domain/multi_topic_client_token.dart';
 import '../domain/multi_topic_question_selection.dart';
 import '../domain/multi_topic_quiz_guards.dart';
@@ -19,10 +20,10 @@ import '../widgets/staff_preview_app_bar_badge.dart';
 import 'multi_topic_quiz_history_page.dart';
 import 'multi_topic_quiz_player_page.dart';
 
-/// Setup Multischeda: selezione argomenti (≥2) e numero schede.
+/// Setup Multischeda: selezione argomenti (≥2).
 ///
-/// Eligibility: supportedCategory && hasQuestionPool && isUnlocked.
-/// NON dipende da `quiz_sets` (a differenza di STUDIO → SCHEDE).
+/// Totale schede = somma schede actionable reali:
+/// `quiz_sets` (kind=lesson, DISTINCT sheet_number) ∩ unlock per-scheda.
 class MultiTopicQuizSetupPage extends StatefulWidget {
   const MultiTopicQuizSetupPage({
     super.key,
@@ -49,11 +50,13 @@ class _EligibleLesson {
     required this.number,
     required this.title,
     required this.poolSize,
+    required this.sheetCount,
   });
 
   final int number;
   final String title;
   final int poolSize;
+  final int sheetCount;
 }
 
 class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
@@ -67,9 +70,8 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
   String? _loadError;
   List<_EligibleLesson> _eligible = const [];
   Map<int, List<QuizQuestion>> _poolByLesson = const {};
+  Map<int, int> _actionableSheetCountByLesson = const {};
   final Set<int> _selected = {};
-  int _sheetCount = 1;
-  int _maxSheets = 1;
 
   StudentQuizRepository get _quizRepo =>
       widget.studentQuizRepositoryOverride ?? studentQuizRepository;
@@ -111,33 +113,45 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
 
     try {
       final category = LicenseCatalog.byId(widget.categoryId);
-      // Candidati da catalogo teoria + pool `questions` (NON da quiz_sets).
       final lessonNumbers = [
         for (final lesson in category.lessons) lesson.number,
       ];
 
-      final pools = lessonNumbers.isEmpty
-          ? <int, List<QuizQuestion>>{}
-          : await _quizRepo.fetchQuestionsForLessons(
+      final poolsFuture = lessonNumbers.isEmpty
+          ? Future.value(<int, List<QuizQuestion>>{})
+          : _quizRepo.fetchQuestionsForLessons(
               categoryId: widget.categoryId,
               lessonNumbers: lessonNumbers,
             );
+      final sheetNumbersFuture = _quizRepo.fetchLessonSheetNumbersByLesson(
+        categoryId: widget.categoryId,
+      );
+
+      final results = await Future.wait([poolsFuture, sheetNumbersFuture]);
+      final pools = results[0] as Map<int, List<QuizQuestion>>;
+      final sheetNumbersByLesson = results[1] as Map<int, List<int>>;
+      final actionableCounts = actionableLessonSheetCountsByLesson(
+        sheetNumbersByLesson: sheetNumbersByLesson,
+        isSheetUnlocked: (lessonNumber, sheetNumber) => _access
+            .lessonQuizSheet(
+              categoryId: widget.categoryId,
+              lessonNumber: lessonNumber,
+              sheetNumber: sheetNumber,
+            )
+            .isUnlocked,
+      );
 
       final eligible = <_EligibleLesson>[];
       for (final lesson in category.lessons) {
         final pool = pools[lesson.number] ?? const <QuizQuestion>[];
         final hasPool = pool.isNotEmpty;
-        final unlocked = _access
-            .lessonQuizSheet(
-              categoryId: widget.categoryId,
-              lessonNumber: lesson.number,
-              sheetNumber: 1,
-            )
-            .isUnlocked;
+        final sheetCount = actionableCounts[lesson.number] ?? 0;
+        final unlocked = sheetCount > 0;
         if (!isLessonEligibleForMultiTopic(
           categoryId: widget.categoryId,
           hasQuestionPool: hasPool,
           isUnlocked: unlocked,
+          availableSheetCount: sheetCount,
         )) {
           continue;
         }
@@ -146,6 +160,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
             number: lesson.number,
             title: lesson.title,
             poolSize: pool.length,
+            sheetCount: sheetCount,
           ),
         );
       }
@@ -153,10 +168,12 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       if (!mounted) return;
       setState(() {
         _poolByLesson = pools;
+        _actionableSheetCountByLesson = actionableCounts;
         _eligible = eligible;
         _loading = false;
-        _selected.clear();
-        _recomputeMaxSheets();
+        _selected.removeWhere(
+          (n) => !eligible.any((lesson) => lesson.number == n),
+        );
       });
     } catch (err, st) {
       debugPrint('MultiTopicQuizSetupPage load error: $err\n$st');
@@ -164,28 +181,21 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       setState(() {
         _loading = false;
         _loadError = 'Impossibile caricare gli argomenti. Riprova.';
+        _eligible = const [];
+        _actionableSheetCountByLesson = const {};
+        _selected.clear();
       });
     }
   }
 
   LessonQuizRules? get _rules => lessonQuizRulesForCategory(widget.categoryId);
 
-  void _recomputeMaxSheets() {
-    final rules = _rules;
-    if (rules == null || _selected.length < 2) {
-      _maxSheets = 1;
-      _sheetCount = 1;
-      return;
-    }
-    final selected = _selected.toList()..sort();
-    final max = maxDistinctMultiTopicSheets(
-      poolByLesson: _poolByLesson,
-      selectedLessonNumbers: selected,
-      questionsPerSheet: rules.questionsPerSheet,
+  int get _totalSheets {
+    if (_selected.length < 2) return 0;
+    return sumSelectedLessonSheetCounts(
+      sheetCountByLesson: _actionableSheetCountByLesson,
+      selectedLessonNumbers: _selected,
     );
-    _maxSheets = max < 1 ? 1 : max;
-    if (_sheetCount > _maxSheets) _sheetCount = _maxSheets;
-    if (_sheetCount < 1) _sheetCount = 1;
   }
 
   void _toggleLesson(int lessonNumber) {
@@ -195,13 +205,17 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       } else {
         _selected.add(lessonNumber);
       }
-      _recomputeMaxSheets();
     });
   }
 
   String? get _selectionHint {
+    if (_loadError != null) return _loadError;
     if (_selected.length < 2) {
       return 'Seleziona almeno 2 argomenti per continuare.';
+    }
+    final total = _totalSheets;
+    if (total < 1) {
+      return 'Nessuna scheda disponibile per gli argomenti selezionati.';
     }
     final rules = _rules;
     if (rules == null) return 'Categoria non supportata.';
@@ -210,13 +224,16 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       poolByLesson: _poolByLesson,
       selectedLessonNumbers: selected,
       questionsPerSheet: rules.questionsPerSheet,
-      sheetCount: _sheetCount,
+      sheetCount: total,
     );
     return shortfall?.message;
   }
 
   bool get _startEnabled {
+    if (_loadError != null) return false;
     if (_selected.length < 2) return false;
+    final total = _totalSheets;
+    if (total < 1) return false;
     final rules = _rules;
     if (rules == null) return false;
     final selected = _selected.toList()..sort();
@@ -224,7 +241,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
           poolByLesson: _poolByLesson,
           selectedLessonNumbers: selected,
           questionsPerSheet: rules.questionsPerSheet,
-          sheetCount: _sheetCount,
+          sheetCount: total,
         ) ==
         null;
   }
@@ -239,6 +256,9 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
     final rules = _rules;
     if (rules == null) return;
 
+    final total = _totalSheets;
+    if (total < 1) return;
+
     setState(() => _starting = true);
 
     final selected = _selected.toList()..sort();
@@ -246,7 +266,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       sessionId: generateMultiTopicUuid(),
       licenseCategory: widget.categoryId,
       selectedLessonNumbers: selected,
-      totalSheets: _sheetCount,
+      totalSheets: total,
       poolByLesson: {
         for (final lesson in selected)
           lesson: List<QuizQuestion>.from(
@@ -335,9 +355,9 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       return AppEmptyState(
         title: 'Nessun argomento disponibile',
         message:
-            'Non ci sono lezioni sbloccate con domande disponibili per '
-            'la Multischeda ($categoryName). '
-            'Quando la scuola abiliterà le lezioni, potrai combinare gli argomenti.',
+            'Non ci sono lezioni sbloccate con schede e domande disponibili '
+            'per la Multischeda ($categoryName). '
+            'Quando la scuola abiliterà le schede, potrai combinare gli argomenti.',
         icon: Icons.lock_outline_rounded,
         tagLabel: 'Abilitazione scuola',
         primaryActionLabel: 'Vedi storico',
@@ -348,6 +368,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
 
     final rules = _rules;
     final hint = _selectionHint;
+    final total = _totalSheets;
     final canStart = multiTopicStartSessionMayProceed(
       starting: _starting,
       startEnabled: _startEnabled,
@@ -405,7 +426,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
                 ),
               ),
               subtitle: Text(
-                lesson.title,
+                '${lesson.title} · ${lesson.sheetCount} schede',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: _textPrimaryColor.withValues(alpha: 0.8),
                 ),
@@ -417,7 +438,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         }),
         const SizedBox(height: 12),
         Text(
-          'Numero schede',
+          'Totale schede',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
             color: _textPrimaryColor,
@@ -425,49 +446,24 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         ),
         const SizedBox(height: 8),
         Card(
+          key: const Key('multi_topic_total_sheets'),
           color: _cardColor,
           elevation: 1,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed:
-                      !_starting && _selected.length >= 2 && _sheetCount > 1
-                      ? () => setState(() {
-                          _sheetCount--;
-                        })
-                      : null,
-                  icon: const Icon(Icons.remove_circle_outline),
-                  color: _primaryColor,
-                ),
-                Expanded(
-                  child: Text(
-                    '$_sheetCount'
-                    '${_selected.length >= 2 ? ' / max $_maxSheets' : ''}',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: _textPrimaryColor,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed:
-                      !_starting &&
-                          _selected.length >= 2 &&
-                          _sheetCount < _maxSheets
-                      ? () => setState(() {
-                          _sheetCount++;
-                        })
-                      : null,
-                  icon: const Icon(Icons.add_circle_outline),
-                  color: _primaryColor,
-                ),
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Text(
+              _selected.length < 2
+                  ? 'Seleziona almeno 2 argomenti'
+                  : '$total schede (somma delle schede disponibili selezionate)',
+              key: Key('multi_topic_total_sheets_value_$total'),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: _textPrimaryColor,
+              ),
             ),
           ),
         ),
@@ -484,6 +480,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         ],
         const SizedBox(height: 20),
         FilledButton(
+          key: const Key('multi_topic_start_button'),
           onPressed: canStart ? _startSession : null,
           style: FilledButton.styleFrom(
             backgroundColor: _primaryColor,

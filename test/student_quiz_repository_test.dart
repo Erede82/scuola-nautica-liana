@@ -59,6 +59,11 @@ class _ContentFake implements StudentQuizRepository {
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
   }) async => {};
+
+  @override
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
+  }) async => {};
 }
 
 void main() {

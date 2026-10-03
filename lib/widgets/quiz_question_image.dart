@@ -105,7 +105,7 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   double _resolvedMaxHeight(BuildContext context) {
     if (widget.maxHeight != null) return widget.maxHeight!;
     if (widget.sidePanelLayout) {
-      return 168;
+      return 220;
     }
     return QuizQuestionImageLayout.maxHeight(context);
   }
@@ -113,7 +113,7 @@ class _QuizQuestionImageState extends State<QuizQuestionImage> {
   double _resolvedMaxWidth(BuildContext context) {
     if (widget.maxWidth != null) return widget.maxWidth!;
     if (widget.sidePanelLayout) {
-      return 220;
+      return 360;
     }
     return QuizQuestionImageLayout.maxWidth(context);
   }

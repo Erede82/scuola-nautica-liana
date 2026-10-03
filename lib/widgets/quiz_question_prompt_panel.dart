@@ -27,6 +27,12 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
   static const double _sideLayoutMinWidth = 600;
 
+  /// Frazione dell’area prompt dedicata alla figura laterale (desktop wide).
+  static const double sideImageWidthFraction = 0.32;
+
+  static const double sideImageMinWidth = 200;
+  static const double sideImageMaxWidth = 360;
+
   static double stackedImageBoxHeight(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     if (width < 600) return 120;
@@ -34,10 +40,21 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     return 140;
   }
 
-  static double sideImageBoxHeight(BuildContext context) {
+  static double sideImageBoxHeight(BuildContext context, {double? imageWidth}) {
     final width = MediaQuery.sizeOf(context).width;
-    if (width < 700) return 132;
-    return 140;
+    final base = width < 700 ? 132.0 : 140.0;
+    if (imageWidth == null) return base;
+    // Altezza cresce con la larghezza figura, senza sforare troppo in verticale.
+    return (imageWidth * 0.72).clamp(base, 260.0);
+  }
+
+  /// Larghezza figura laterale in funzione dello spazio prompt disponibile.
+  static double resolveSideImageWidth(double availableWidth) {
+    if (availableWidth <= 0) return sideImageMinWidth;
+    return (availableWidth * sideImageWidthFraction).clamp(
+      sideImageMinWidth,
+      sideImageMaxWidth,
+    );
   }
 
   bool _hasImage(String? path) {
@@ -77,28 +94,37 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     }
 
     if (sideLayout) {
-      final imageHeight = sideImageBoxHeight(context);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Domanda $questionNumber', style: labelStyle),
           SizedBox(height: labelGap),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 220,
-                height: imageHeight,
-                child: QuizQuestionImage(
-                  imagePath: imagePath,
-                  sidePanelLayout: true,
-                  maxHeight: imageHeight,
-                  maxWidth: 220,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(child: promptWidget),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final imageWidth = resolveSideImageWidth(constraints.maxWidth);
+              final imageHeight = sideImageBoxHeight(
+                context,
+                imageWidth: imageWidth,
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    key: const Key('quiz_prompt_side_image'),
+                    width: imageWidth,
+                    height: imageHeight,
+                    child: QuizQuestionImage(
+                      imagePath: imagePath,
+                      sidePanelLayout: true,
+                      maxHeight: imageHeight,
+                      maxWidth: imageWidth,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: promptWidget),
+                ],
+              );
+            },
           ),
         ],
       );
@@ -111,6 +137,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
         Text('Domanda $questionNumber', style: labelStyle),
         SizedBox(height: labelGap),
         SizedBox(
+          key: const Key('quiz_prompt_stacked_image'),
           height: imageHeight,
           width: double.infinity,
           child: QuizQuestionImage(

@@ -145,12 +145,13 @@ void main() {
   });
 
   group('Multischeda eligibility', () {
-    test('7. supported + pool + unlocked → selectable', () {
+    test('7. supported + pool + unlocked + sheets → selectable', () {
       expect(
         isLessonEligibleForMultiTopic(
           categoryId: LicenseCategoryId.motore,
           hasQuestionPool: true,
           isUnlocked: true,
+          availableSheetCount: 6,
         ),
         isTrue,
       );
@@ -162,6 +163,7 @@ void main() {
           categoryId: LicenseCategoryId.motore,
           hasQuestionPool: true,
           isUnlocked: false,
+          availableSheetCount: 0,
         ),
         isFalse,
       );
@@ -173,6 +175,19 @@ void main() {
           categoryId: LicenseCategoryId.d1,
           hasQuestionPool: false,
           isUnlocked: true,
+          availableSheetCount: 4,
+        ),
+        isFalse,
+      );
+    });
+
+    test('9b. pool + unlocked + 0 sheets → not selectable', () {
+      expect(
+        isLessonEligibleForMultiTopic(
+          categoryId: LicenseCategoryId.motore,
+          hasQuestionPool: true,
+          isUnlocked: true,
+          availableSheetCount: 0,
         ),
         isFalse,
       );
@@ -184,6 +199,7 @@ void main() {
           categoryId: LicenseCategoryId.motore,
           hasQuestionPool: true,
           isUnlocked: true,
+          availableSheetCount: 1,
         ),
         isTrue,
       );
@@ -197,6 +213,7 @@ void main() {
           categoryId: LicenseCategoryId.vela,
           hasQuestionPool: true,
           isUnlocked: true,
+          availableSheetCount: 5,
         ),
         isFalse,
       );
@@ -373,6 +390,132 @@ void main() {
           usedQuestionIds: const {},
         ),
         isNull,
+      );
+    });
+
+    test('21b. sumSelectedLessonSheetCounts 6+7=13', () {
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {2: 6, 4: 7, 9: 3},
+          selectedLessonNumbers: const [2, 4],
+        ),
+        13,
+      );
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {2: 6, 4: 7, 9: 3},
+          selectedLessonNumbers: const [2, 4, 9],
+        ),
+        16,
+      );
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {2: 6},
+          selectedLessonNumbers: const [2, 99],
+        ),
+        6,
+      );
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {},
+          selectedLessonNumbers: const [1, 2],
+        ),
+        0,
+      );
+      // No double-count of duplicate lesson ids in selection.
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {2: 6, 4: 7},
+          selectedLessonNumbers: const [2, 2, 4],
+        ),
+        13,
+      );
+    });
+
+    test('21b2. distinct sheet_number + locked sheets reduce actionable', () {
+      final catalog = [
+        _catalogRow(
+          id: 'a',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 1,
+        ),
+        _catalogRow(
+          id: 'b',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 2,
+        ),
+        _catalogRow(
+          id: 'dup',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 2,
+        ),
+        _catalogRow(
+          id: 'c',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 3,
+        ),
+        _catalogRow(
+          id: 'd',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 4,
+        ),
+        _catalogRow(
+          id: 'e',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 5,
+        ),
+        _catalogRow(
+          id: 'f',
+          licenseCategory: 'A12',
+          lessonNumber: 2,
+          sheetNumber: 6,
+        ),
+      ];
+      final numbers = distinctLessonSheetNumbersByLesson(catalog);
+      expect(numbers[2], [1, 2, 3, 4, 5, 6]);
+      expect(numbers[2]!.length, 6); // duplicate sheet 2 counted once
+
+      final actionable = actionableLessonSheetNumbers(
+        catalogSheetNumbers: numbers[2]!,
+        isSheetUnlocked: (sheet) => sheet <= 4,
+      );
+      expect(actionable, [1, 2, 3, 4]);
+      expect(actionable.length, 4);
+    });
+
+    test('21c. catalog total may exceed distinctMax when reuse allowed', () {
+      final pools = {
+        1: List.generate(12, (i) => _q('l1-$i', lesson: 1)),
+        2: List.generate(12, (i) => _q('l2-$i', lesson: 2)),
+      };
+      final distinctMax = maxDistinctMultiTopicSheets(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 20,
+      );
+      expect(distinctMax, greaterThanOrEqualTo(1));
+      expect(distinctMax, lessThan(13));
+      expect(
+        findMultiTopicPoolShortfall(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetCount: 13,
+        ),
+        isNull,
+      );
+      expect(
+        sumSelectedLessonSheetCounts(
+          sheetCountByLesson: const {1: 6, 2: 7},
+          selectedLessonNumbers: const [1, 2],
+        ),
+        13,
       );
     });
   });
@@ -637,36 +780,50 @@ void main() {
     });
   });
 
-  group('Multischeda eligibility independent of quiz_sets', () {
-    test('eligible without quiz_sets when pool + unlocked', () {
-      // Multischeda non richiede hasLessonSheets: solo pool + unlock + category.
+  group('Multischeda eligibility requires actionable sheets', () {
+    test('pool + unlocked + sheets → selectable', () {
       expect(
         isLessonEligibleForMultiTopic(
           categoryId: LicenseCategoryId.d1,
           hasQuestionPool: true,
           isUnlocked: true,
+          availableSheetCount: 3,
         ),
         isTrue,
       );
     });
 
-    test('Schede still requires quiz_sets separately', () {
-      final schedeFiltered = filterLessonsWithRealSheets(
-        catalogLessons: LicenseCatalog.patenteD1.lessons,
-        lessonNumbersWithSheets: {1, 2},
-      );
-      expect(schedeFiltered.map((l) => l.number).toSet(), {1, 2});
-      // Lesson 14 può avere pool futuro Multischeda anche senza quiz_sets:
-      // eligibility Multischeda non passa da questo filtro.
+    test('pool + unlocked + 0 actionable sheets → not selectable', () {
       expect(
         isLessonEligibleForMultiTopic(
           categoryId: LicenseCategoryId.d1,
           hasQuestionPool: true,
           isUnlocked: true,
+          availableSheetCount: 0,
         ),
-        isTrue,
+        isFalse,
       );
     });
+
+    test(
+      'Schede filter uses quiz_sets; Multischeda also needs sheet count',
+      () {
+        final schedeFiltered = filterLessonsWithRealSheets(
+          catalogLessons: LicenseCatalog.patenteD1.lessons,
+          lessonNumbersWithSheets: {1, 2},
+        );
+        expect(schedeFiltered.map((l) => l.number).toSet(), {1, 2});
+        expect(
+          isLessonEligibleForMultiTopic(
+            categoryId: LicenseCategoryId.d1,
+            hasQuestionPool: true,
+            isUnlocked: true,
+            availableSheetCount: 2,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('Multischeda history', () {

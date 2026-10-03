@@ -39,6 +39,7 @@ class _LessonListPageState extends State<LessonListPage> {
   bool _loading = true;
   String? _loadError;
   List<LessonItem> _lessons = const [];
+  Map<int, int> _sheetCountsByLesson = const {};
 
   QuizAttemptHistoryDataSource get _history =>
       widget.historyDataSourceOverride ?? quizAttemptHistoryDataSource;
@@ -62,6 +63,7 @@ class _LessonListPageState extends State<LessonListPage> {
     if (!category.isAvailable || category.lessons.isEmpty) {
       setState(() {
         _lessons = const [];
+        _sheetCountsByLesson = const {};
         _loading = false;
       });
       return;
@@ -70,6 +72,7 @@ class _LessonListPageState extends State<LessonListPage> {
     if (dbCategory == null) {
       setState(() {
         _lessons = const [];
+        _sheetCountsByLesson = const {};
         _loading = false;
       });
       return;
@@ -81,6 +84,10 @@ class _LessonListPageState extends State<LessonListPage> {
         widget.historyDataSourceOverride == null) {
       setState(() {
         _lessons = category.lessons;
+        _sheetCountsByLesson = {
+          for (final lesson in category.lessons)
+            lesson.number: lesson.quizSheets,
+        };
         _loading = false;
       });
       return;
@@ -95,9 +102,14 @@ class _LessonListPageState extends State<LessonListPage> {
         catalogLessons: category.lessons,
         lessonNumbersWithSheets: withSheets,
       );
+      final numbers = distinctLessonSheetNumbersByLesson(catalog);
+      final counts = {
+        for (final entry in numbers.entries) entry.key: entry.value.length,
+      };
       if (!mounted) return;
       setState(() {
         _lessons = filtered;
+        _sheetCountsByLesson = counts;
         _loading = false;
       });
     } catch (err, st) {
@@ -107,6 +119,7 @@ class _LessonListPageState extends State<LessonListPage> {
         _loading = false;
         _loadError = 'Impossibile caricare le lezioni con schede quiz.';
         _lessons = const [];
+        _sheetCountsByLesson = const {};
       });
     }
   }
@@ -184,7 +197,7 @@ class _LessonListPageState extends State<LessonListPage> {
                         ),
                       ),
                       subtitle: Text(
-                        '${lesson.quizSheets} schede',
+                        '${_sheetCountsByLesson[lesson.number] ?? 0} schede',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: _textPrimaryColor.withValues(alpha: 0.8),
                         ),

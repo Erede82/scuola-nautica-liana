@@ -79,12 +79,11 @@ extension StudyAccessRepositoryEffective on StudyAccessRepository {
     LicenseCategoryId categoryId,
     int lessonNumber,
     int sheetNumber,
-  ) =>
-      lessonQuizSheet(
-        categoryId: categoryId,
-        lessonNumber: lessonNumber,
-        sheetNumber: sheetNumber,
-      ).isUnlocked;
+  ) => lessonQuizSheet(
+    categoryId: categoryId,
+    lessonNumber: lessonNumber,
+    sheetNumber: sheetNumber,
+  ).isUnlocked;
 
   bool effectiveExamUnlocked(LicenseCategoryId categoryId) =>
       examQuiz(categoryId).isUnlocked;
@@ -92,11 +91,10 @@ extension StudyAccessRepositoryEffective on StudyAccessRepository {
   bool effectiveErrorTopicUnlocked(
     LicenseCategoryId categoryId,
     int lessonNumber,
-  ) =>
-      errorReviewTopic(
-        categoryId: categoryId,
-        lessonNumber: lessonNumber,
-      ).isUnlocked;
+  ) => errorReviewTopic(
+    categoryId: categoryId,
+    lessonNumber: lessonNumber,
+  ).isUnlocked;
 }
 
 /// Dati locali mutabili: simula assegnazioni manuali della scuola.
@@ -129,11 +127,12 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     LicenseCategoryId categoryId,
     int lessonNumber,
     int sheetNumber,
-  ) =>
-      '${categoryId.name}:L$lessonNumber:S$sheetNumber';
+  ) => '${categoryId.name}:L$lessonNumber:S$sheetNumber';
 
-  static String _topicStoreKey(LicenseCategoryId categoryId, int lessonNumber) =>
-      '${categoryId.name}:L$lessonNumber';
+  static String _topicStoreKey(
+    LicenseCategoryId categoryId,
+    int lessonNumber,
+  ) => '${categoryId.name}:L$lessonNumber';
 
   @override
   void applyLessonQuizSheetUnlock({
@@ -142,8 +141,12 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     required int sheetNumber,
     required bool unlocked,
   }) {
-    _lessonSheetOverrides[
-        _sheetStoreKey(categoryId, lessonNumber, sheetNumber)] = unlocked;
+    _lessonSheetOverrides[_sheetStoreKey(
+          categoryId,
+          lessonNumber,
+          sheetNumber,
+        )] =
+        unlocked;
     notifyListeners();
   }
 
@@ -172,11 +175,15 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     int sheetNumber,
   ) {
     final k = _sheetStoreKey(categoryId, lessonNumber, sheetNumber);
-    return _lessonSheetOverrides.containsKey(k) ? _lessonSheetOverrides[k] : null;
+    return _lessonSheetOverrides.containsKey(k)
+        ? _lessonSheetOverrides[k]
+        : null;
   }
 
   bool? _examOverride(LicenseCategoryId categoryId) =>
-      _examOverrides.containsKey(categoryId) ? _examOverrides[categoryId] : null;
+      _examOverrides.containsKey(categoryId)
+      ? _examOverrides[categoryId]
+      : null;
 
   bool? _errorTopicOverride(LicenseCategoryId categoryId, int lessonNumber) {
     final k = _topicStoreKey(categoryId, lessonNumber);
@@ -212,10 +219,7 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       );
     }
     for (final e in bundle.examAccessByCategory) {
-      applyExamQuizUnlock(
-        categoryId: e.categoryId,
-        unlocked: e.examUnlocked,
-      );
+      applyExamQuizUnlock(categoryId: e.categoryId, unlocked: e.examUnlocked);
     }
     for (final t in bundle.errorReviewAssignments) {
       applyErrorReviewTopicUnlock(
@@ -290,8 +294,11 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
   }) {
     final contentId = 'lesson:$lessonNumber:sheet:$sheetNumber';
     if (_isVelaPlaceholderCategory(categoryId)) {
-      final override =
-          _lessonSheetOverride(categoryId, lessonNumber, sheetNumber);
+      final override = _lessonSheetOverride(
+        categoryId,
+        lessonNumber,
+        sheetNumber,
+      );
       if (override == true) {
         return StudyContentAccessSnapshot(
           contentType: StudyContentType.lessonQuizSheet,
@@ -323,8 +330,9 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
     }
 
     final category = LicenseCatalog.byId(categoryId);
-    final match =
-        category.lessons.where((l) => l.number == lessonNumber).toList();
+    final match = category.lessons
+        .where((l) => l.number == lessonNumber)
+        .toList();
     if (match.isEmpty) {
       return StudyContentAccessSnapshot(
         contentType: StudyContentType.lessonQuizSheet,
@@ -335,39 +343,45 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       );
     }
 
-    final lesson = match.first;
-    final maxSheets = lesson.quizSheets;
-    if (maxSheets <= 0) {
+    // Sblocco **per scheda**: override esplicito su questo sheet_number.
+    // Seed demo solo se Supabase non è configurato e non esistono override
+    // memorizzati per la lezione. In produzione assenza grant → locked.
+    final sheetOverride = _lessonSheetOverride(
+      categoryId,
+      lessonNumber,
+      sheetNumber,
+    );
+    if (sheetOverride == true) {
+      return StudyContentAccessSnapshot(
+        contentType: StudyContentType.lessonQuizSheet,
+        categoryId: categoryId,
+        contentId: contentId,
+        isUnlocked: true,
+        unlockSource: StudyUnlockSource.manualBySchool,
+        unlockMessage: _sheetUnlockedLabel(categoryId),
+      );
+    }
+    if (sheetOverride == false) {
       return StudyContentAccessSnapshot(
         contentType: StudyContentType.lessonQuizSheet,
         categoryId: categoryId,
         contentId: contentId,
         isUnlocked: false,
-        lockedMessage: 'Nessuna scheda pubblicata per questa lezione.',
+        lockedMessage:
+            'Scheda in attesa di abilitazione da parte della scuola.',
       );
     }
 
-    /// Sblocco a **livello lezione**: basta un’abilitazione scuola (true su almeno una scheda).
-    /// Seed demo solo se Supabase non è configurato e non esistono override memorizzati.
-    /// In produzione (Supabase configurato) assenza DB → locked.
-    /// Se esiste **qualsiasi** override memorizzato per la lezione (`true` o `false`), il demo
-    /// non si applica: così «Blocca tutta la lezione» (tutte le schede a `false`) resta effettivo.
-    final schoolUnlockedLesson = _anyLessonSheetOverrideTrue(
-      categoryId,
-      lessonNumber,
-      maxSheets,
-    );
     final schoolStoredAnySheetForLesson = _lessonHasAnyStoredSheetOverride(
       categoryId,
       lessonNumber,
-      maxSheets,
     );
-    final demoLessonUnlocked = _allowDemoAccessSeed &&
+    final demoLessonUnlocked =
+        _allowDemoAccessSeed &&
         !schoolStoredAnySheetForLesson &&
         _demoEntireLessonUnlockedForStudent(category, lessonNumber);
-    final lessonUnlocked = schoolUnlockedLesson || demoLessonUnlocked;
 
-    if (lessonUnlocked) {
+    if (demoLessonUnlocked) {
       return StudyContentAccessSnapshot(
         contentType: StudyContentType.lessonQuizSheet,
         categoryId: categoryId,
@@ -384,36 +398,21 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       contentId: contentId,
       isUnlocked: false,
       lockedMessage:
-          'Lezione in attesa di abilitazione da parte della scuola. '
-          'Quando la scuola abiliterà la lezione, potrai accedere a tutte le sue schede quiz.',
+          'Scheda in attesa di abilitazione da parte della scuola. '
+          'Quando la scuola abiliterà questa scheda, potrai svolgerla.',
     );
   }
 
-  /// `true` se **almeno una** scheda della lezione ha override esplicito `unlocked == true`
-  /// (tipico: righe Supabase / gestione interna).
-  bool _anyLessonSheetOverrideTrue(
-    LicenseCategoryId categoryId,
-    int lessonNumber,
-    int maxSheets,
-  ) {
-    for (var s = 1; s <= maxSheets; s++) {
-      if (_lessonSheetOverride(categoryId, lessonNumber, s) == true) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /// `true` se per almeno una scheda della lezione c’è una chiave in `_lessonSheetOverrides`
-  /// (valore `true` o `false`). Serve a spegnere il seed demo dopo intervento segreteria / sync DB.
+  /// `true` se per almeno una scheda della lezione c’è una chiave in
+  /// `_lessonSheetOverrides` (valore `true` o `false`). Serve a spegnere il
+  /// seed demo dopo intervento segreteria / sync DB.
   bool _lessonHasAnyStoredSheetOverride(
     LicenseCategoryId categoryId,
     int lessonNumber,
-    int maxSheets,
   ) {
-    for (var s = 1; s <= maxSheets; s++) {
-      final k = _sheetStoreKey(categoryId, lessonNumber, s);
-      if (_lessonSheetOverrides.containsKey(k)) return true;
+    final prefix = '${categoryId.name}:L$lessonNumber:S';
+    for (final key in _lessonSheetOverrides.keys) {
+      if (key.startsWith(prefix)) return true;
     }
     return false;
   }
@@ -571,9 +570,9 @@ class MutableMockStudyAccessRepository extends ChangeNotifier
       isUnlocked: false,
       lockedMessage: categoryId == LicenseCategoryId.d1
           ? 'Argomento consigliato per il ripasso D1, ma ancora non abilitato. '
-              'La scuola ti abiliterà questo ripasso quando opportuno.'
+                'La scuola ti abiliterà questo ripasso quando opportuno.'
           : 'Argomento consigliato dalle statistiche, ma ancora non abilitato. '
-              'La scuola ti abiliterà questo ripasso quando opportuno.',
+                'La scuola ti abiliterà questo ripasso quando opportuno.',
     );
   }
 }

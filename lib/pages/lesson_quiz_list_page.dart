@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/lesson_sheet_catalog_filter.dart';
 import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
 import '../models/study_content_access.dart';
@@ -16,10 +17,14 @@ class LessonQuizListPage extends StatefulWidget {
     super.key,
     required this.lessonNumber,
     this.categoryId = LicenseCategoryId.motore,
+    @visibleForTesting this.studentQuizRepositoryOverride,
   });
 
   final int lessonNumber;
   final LicenseCategoryId categoryId;
+
+  @visibleForTesting
+  final StudentQuizRepository? studentQuizRepositoryOverride;
 
   @override
   State<LessonQuizListPage> createState() => _LessonQuizListPageState();
@@ -31,7 +36,12 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
 
   LessonSheetCompletionSnapshot _completion =
       LessonSheetCompletionSnapshot.empty;
-  bool _loadingCompletion = true;
+  List<int> _catalogSheetNumbers = const [];
+  bool _loadingSheets = true;
+  String? _loadError;
+
+  StudentQuizRepository get _quizRepo =>
+      widget.studentQuizRepositoryOverride ?? studentQuizRepository;
 
   @override
   void initState() {
@@ -40,43 +50,57 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
       'route: LessonQuizListPage init lessonNum=${widget.lessonNumber} '
       'categoryId=${widget.categoryId}',
     );
-    _loadCompletionStatus();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final category = LicenseCatalog.byId(widget.categoryId);
-      final hasLesson = category.lessons.any(
-        (item) => item.number == widget.lessonNumber,
-      );
-      final lesson = hasLesson
-          ? category.lessons.firstWhere(
-              (item) => item.number == widget.lessonNumber,
-            )
-          : null;
-      qfLog(
-        'LessonQuizListPage: first frame (loaded) sheetsInCatalog='
-        '${lesson?.quizSheets ?? 0} categoryAvailable=${category.isAvailable}',
-      );
-    });
+    _loadSheets();
   }
 
-  Future<void> _loadCompletionStatus() async {
-    setState(() => _loadingCompletion = true);
+  Future<void> _loadSheets() async {
+    setState(() {
+      _loadingSheets = true;
+      _loadError = null;
+    });
     try {
-      final snapshot = await studentQuizRepository.fetchLessonSheetCompletion(
+      final numbersByLesson = await _quizRepo.fetchLessonSheetNumbersByLesson(
         categoryId: widget.categoryId,
-        lessonNumber: widget.lessonNumber,
       );
+      final catalogSheets = List<int>.from(
+        numbersByLesson[widget.lessonNumber] ?? const [],
+      )..sort();
+
+      LessonSheetCompletionSnapshot completion =
+          LessonSheetCompletionSnapshot.empty;
+      try {
+        completion = await _quizRepo.fetchLessonSheetCompletion(
+          categoryId: widget.categoryId,
+          lessonNumber: widget.lessonNumber,
+        );
+      } catch (err, st) {
+        debugPrint('LessonQuizListPage completion load error: $err\n$st');
+      }
+
+      // Preferisci i sheet numbers dal catalogo dedicato; fallback sul
+      // completion snapshot (stessa tabella quiz_sets, DISTINCT via map key).
+      final sheets = catalogSheets.isNotEmpty
+          ? catalogSheets
+          : (completion.quizSetIdBySheet.keys.toList()..sort());
+
       if (!mounted) return;
       setState(() {
-        _completion = snapshot;
-        _loadingCompletion = false;
+        _catalogSheetNumbers = sheets;
+        _completion = completion;
+        _loadingSheets = false;
       });
+      qfLog(
+        'LessonQuizListPage: loaded realSheets=${sheets.length} '
+        'categoryId=${widget.categoryId}',
+      );
     } catch (err, st) {
-      debugPrint('LessonQuizListPage completion load error: $err\n$st');
+      debugPrint('LessonQuizListPage sheet catalog load error: $err\n$st');
       if (!mounted) return;
-      setState(() => _loadingCompletion = false);
+      setState(() {
+        _loadingSheets = false;
+        _loadError = 'Impossibile caricare le schede di questa lezione.';
+        _catalogSheetNumbers = const [];
+      });
     }
   }
 
@@ -132,7 +156,7 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
       ),
     );
     if (!mounted) return;
-    await _loadCompletionStatus();
+    await _loadSheets();
   }
 
   @override
@@ -149,18 +173,6 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
     final hasLesson = category.lessons.any(
       (item) => item.number == widget.lessonNumber,
     );
-    final lesson = hasLesson
-        ? category.lessons.firstWhere(
-            (item) => item.number == widget.lessonNumber,
-          )
-        : const LessonItem(
-            number: 0,
-            title: 'Lezione non disponibile',
-            quizSheets: 0,
-            icon: Icons.help_outline_rounded,
-          );
-
-    final sheetCount = lesson.quizSheets;
 
     if (!category.isAvailable) {
       final isVela = widget.categoryId == LicenseCategoryId.vela;
@@ -210,7 +222,41 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
       );
     }
 
-    if (sheetCount == 0) {
+    if (_loadingSheets) {
+      return Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          title: Text('Schede Lezione ${widget.lessonNumber}'),
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          title: Text('Schede Lezione ${widget.lessonNumber}'),
+          centerTitle: true,
+        ),
+        body: AppEmptyState(
+          title: 'Errore',
+          message: _loadError!,
+          icon: Icons.error_outline_rounded,
+          primaryActionLabel: 'Riprova',
+          primaryActionIcon: Icons.refresh_rounded,
+          onPrimaryActionPressed: _loadSheets,
+        ),
+      );
+    }
+
+    final catalogSheets = _catalogSheetNumbers;
+    if (catalogSheets.isEmpty) {
       return Scaffold(
         backgroundColor: _backgroundColor,
         appBar: AppBar(
@@ -233,23 +279,16 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
       );
     }
 
-    final sheets = List.generate(
-      sheetCount,
-      (index) => QuizSheetItem(
-        sheetNumber: index + 1,
-        progress: _completion.isSheetCompleted(index + 1)
-            ? QuizSheetProgress.completed
-            : QuizSheetProgress.todo,
-      ),
+    final actionable = actionableLessonSheetNumbers(
+      catalogSheetNumbers: catalogSheets,
+      isSheetUnlocked: (sheetNumber) => studyAccessRepository
+          .lessonQuizSheet(
+            categoryId: widget.categoryId,
+            lessonNumber: widget.lessonNumber,
+            sheetNumber: sheetNumber,
+          )
+          .isUnlocked,
     );
-
-    final lessonGateSample = studyAccessRepository.lessonQuizSheet(
-      categoryId: widget.categoryId,
-      lessonNumber: widget.lessonNumber,
-      sheetNumber: 1,
-    );
-    final lessonUnlocked = sheetCount > 0 && lessonGateSample.isUnlocked;
-    final enabledCount = lessonUnlocked ? sheetCount : 0;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
@@ -264,26 +303,23 @@ class _LessonQuizListPageState extends State<LessonQuizListPage> {
         children: [
           _LessonSummaryCard(
             lessonNumber: widget.lessonNumber,
-            totalSheets: sheetCount,
-            enabledSheets: enabledCount,
-            lessonUnlocked: lessonUnlocked,
+            totalSheets: catalogSheets.length,
+            enabledSheets: actionable.length,
             textTheme: textTheme,
           ),
           const SizedBox(height: 14),
-          if (_loadingCompletion)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: LinearProgressIndicator(minHeight: 3),
-            ),
-          ...List.generate(sheets.length, (index) {
-            final sheet = sheets[index];
-            final sheetNumber = index + 1;
+          ...catalogSheets.map((sheetNumber) {
             final access = studyAccessRepository.lessonQuizSheet(
               categoryId: widget.categoryId,
               lessonNumber: widget.lessonNumber,
               sheetNumber: sheetNumber,
             );
-
+            final sheet = QuizSheetItem(
+              sheetNumber: sheetNumber,
+              progress: _completion.isSheetCompleted(sheetNumber)
+                  ? QuizSheetProgress.completed
+                  : QuizSheetProgress.todo,
+            );
             return _QuizSheetCard(
               sheet: sheet,
               access: access,
@@ -307,14 +343,12 @@ class _LessonSummaryCard extends StatelessWidget {
     required this.lessonNumber,
     required this.totalSheets,
     required this.enabledSheets,
-    required this.lessonUnlocked,
     required this.textTheme,
   });
 
   final int lessonNumber;
   final int totalSheets;
   final int enabledSheets;
-  final bool lessonUnlocked;
   final TextTheme textTheme;
 
   static const Color _cardColor = Color(0xFFFFFFFF);
@@ -345,24 +379,16 @@ class _LessonSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            lessonUnlocked
-                ? 'Lezione abilitata dalla scuola: disponibili tutte le $totalSheets schede quiz.'
-                : 'Lezione in attesa di abilitazione: nessuna scheda disponibile finché la scuola non abilita l’intera lezione.',
+            enabledSheets == 0
+                ? 'Nessuna scheda abilitata: attendi l’abilitazione della scuola.'
+                : enabledSheets == totalSheets
+                ? 'Disponibili $enabledSheets schede quiz (catalogo reale).'
+                : 'Abilitate $enabledSheets di $totalSheets schede del catalogo.',
             style: textTheme.bodySmall?.copyWith(
               color: _textPrimaryColor,
               height: 1.35,
             ),
           ),
-          if (!lessonUnlocked) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Le abilitazioni sono gestite dalla segreteria a livello di lezione.',
-              style: textTheme.bodySmall?.copyWith(
-                color: _textPrimaryColor.withValues(alpha: 0.72),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(100),
@@ -464,7 +490,7 @@ class _QuizSheetCard extends StatelessWidget {
               children: [
                 if (locked) ...[
                   Text(
-                    'Lezione non ancora abilitata',
+                    'Scheda non ancora abilitata',
                     style: textTheme.bodySmall?.copyWith(
                       color: _textPrimaryColor.withValues(alpha: 0.75),
                       fontWeight: FontWeight.w600,
@@ -473,7 +499,7 @@ class _QuizSheetCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     access.lockedMessage ??
-                        'Quando la scuola abiliterà la lezione, tutte le schede saranno disponibili.',
+                        'Quando la scuola abiliterà questa scheda, potrai svolgerla.',
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodySmall?.copyWith(

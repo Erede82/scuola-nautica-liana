@@ -4,11 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../data/quiz_question_mapper.dart';
 import '../data/supabase/dto/question_row.dart';
+import '../domain/exam_question_selection.dart';
+import '../domain/lesson_sheet_catalog_filter.dart';
 import '../models/lesson_quiz_sheet_content.dart';
 import '../models/lesson_sheet_completion_snapshot.dart';
 import '../models/license_models.dart';
 import '../models/quiz_question.dart';
-import '../domain/exam_question_selection.dart';
 
 export '../domain/quiz_sheet_slicing.dart';
 
@@ -60,6 +61,14 @@ abstract class StudentQuizRepository {
   Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
+  });
+
+  /// Sheet numbers DISTINCT da `quiz_sets` (kind=lesson) per categoria.
+  ///
+  /// Chiave = `lesson_number`, valore = lista ordinata di `sheet_number` unici.
+  /// Gli unlock per-scheda si applicano client-side (intersect → actionable).
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
   });
 }
 
@@ -307,6 +316,33 @@ class StudentQuizRepositorySupabase implements StudentQuizRepository {
   }
 
   @override
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
+  }) async {
+    final dbCategory = _dbLicenseCategory(categoryId);
+    if (dbCategory == null) return {};
+
+    final res = await _client
+        .from('quiz_sets')
+        .select('lesson_number, sheet_number')
+        .eq('kind', 'lesson')
+        .eq('license_category', dbCategory)
+        .order('lesson_number', ascending: true)
+        .order('sheet_number', ascending: true);
+
+    final pairs = <(int, int)>[];
+    for (final row in res as List<dynamic>) {
+      if (row is! Map) continue;
+      final map = Map<String, dynamic>.from(row);
+      final lessonNumber = (map['lesson_number'] as num?)?.toInt() ?? 0;
+      final sheetNumber = (map['sheet_number'] as num?)?.toInt() ?? 0;
+      if (lessonNumber <= 0 || sheetNumber <= 0) continue;
+      pairs.add((lessonNumber, sheetNumber));
+    }
+    return distinctLessonSheetNumbersFromPairs(pairs);
+  }
+
+  @override
   Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
@@ -389,6 +425,11 @@ class StudentQuizRepositoryEmpty implements StudentQuizRepository {
   Future<Map<int, List<QuizQuestion>>> fetchQuestionsForLessons({
     required LicenseCategoryId categoryId,
     required List<int> lessonNumbers,
+  }) async => {};
+
+  @override
+  Future<Map<int, List<int>>> fetchLessonSheetNumbersByLesson({
+    required LicenseCategoryId categoryId,
   }) async => {};
 }
 
