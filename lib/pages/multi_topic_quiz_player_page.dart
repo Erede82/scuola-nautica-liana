@@ -634,142 +634,141 @@ class _MultiTopicQuizPlayerPageState extends State<MultiTopicQuizPlayerPage> {
       child: Scaffold(
         backgroundColor: _backgroundColor,
         appBar: _buildAppBar(_appBarTitle),
-        body: Column(
-          children: [
-            QuizLessonSheetProgressPanel(
-              currentIndex: _currentIndex,
-              total: _questions.length,
-              isAnswered: (index) =>
-                  QuizSheetPlayerNavigation.isQuestionAnswered(
-                    _userAnswers,
-                    index,
-                  ),
-              cellTone: (index) {
-                final answer = _userAnswers[index];
-                if (answer == null) return QuizProgressCellTone.unanswered;
-                return answer == _questions[index].correctOption
-                    ? QuizProgressCellTone.correct
-                    : QuizProgressCellTone.wrong;
-              },
-              correctCount: _correctCount,
-              wrongCount: _wrongCount,
-              unansweredCount: _unansweredCount,
-              header: _progressLabel,
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
             ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, viewport) {
-                  final compact = QuizPlayerVisual.isCompact(context);
-                  return Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
-                      ),
-                      child: LayoutBuilder(
-                        builder: (context, contentConstraints) {
-                          final density = QuizPlayerDensity.resolve(
-                            context: context,
-                            prompt: question.prompt,
-                            answers: [
-                              for (final option in question.options)
-                                question.textForOption(option),
-                            ],
-                            contentWidth: contentConstraints.maxWidth,
-                          );
-                          final dense =
-                              density == QuizPlayerContentDensity.dense;
+            // Forza larghezza utile = min(viewport, maxWidth), come Schede.
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                children: [
+                  QuizLessonSheetProgressPanel(
+                    currentIndex: _currentIndex,
+                    total: _questions.length,
+                    isAnswered: (index) =>
+                        QuizSheetPlayerNavigation.isQuestionAnswered(
+                          _userAnswers,
+                          index,
+                        ),
+                    cellTone: (index) {
+                      final answer = _userAnswers[index];
+                      if (answer == null) {
+                        return QuizProgressCellTone.unanswered;
+                      }
+                      return answer == _questions[index].correctOption
+                          ? QuizProgressCellTone.correct
+                          : QuizProgressCellTone.wrong;
+                    },
+                    correctCount: _correctCount,
+                    wrongCount: _wrongCount,
+                    unansweredCount: _unansweredCount,
+                    header: _progressLabel,
+                  ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, contentConstraints) {
+                        final compact = QuizPlayerVisual.isCompact(context);
+                        final density = QuizPlayerDensity.resolve(
+                          context: context,
+                          prompt: question.prompt,
+                          answers: [
+                            for (final option in question.options)
+                              question.textForOption(option),
+                          ],
+                          contentWidth: contentConstraints.maxWidth,
+                        );
+                        final dense = density == QuizPlayerContentDensity.dense;
 
-                          return SingleChildScrollView(
-                            padding: QuizPlayerVisual.lessonSheetBodyPadding,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(
-                                    QuizPlayerDensity.cardPadding(density),
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _cardColor,
-                                    borderRadius: BorderRadius.circular(
-                                      QuizPlayerVisual.cardRadius,
-                                    ),
-                                    border: Border.all(color: _neutralColor),
-                                  ),
-                                  child: QuizQuestionPromptPanel(
-                                    questionNumber: _currentIndex + 1,
-                                    prompt: question.prompt,
-                                    imagePath: question.imagePath,
-                                    compact: compact,
-                                    dense: dense,
-                                    labelColor: _primaryColor,
-                                    textColor: _textPrimaryColor,
-                                  ),
+                        return SingleChildScrollView(
+                          padding: QuizPlayerVisual.lessonSheetBodyPadding,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(
+                                  QuizPlayerDensity.cardPadding(density),
                                 ),
-                                SizedBox(
-                                  height: QuizPlayerDensity.sectionSpacing(
-                                    density,
+                                decoration: BoxDecoration(
+                                  color: _cardColor,
+                                  borderRadius: BorderRadius.circular(
+                                    QuizPlayerVisual.cardRadius,
                                   ),
+                                  border: Border.all(color: _neutralColor),
                                 ),
-                                ...question.options.map(
-                                  (option) => Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: QuizPlayerDensity.answerSpacing(
-                                        density,
-                                      ),
-                                    ),
-                                    child: QuizPlayerAnswerTile(
-                                      answerNumber: option.index + 1,
-                                      text: question.textForOption(option),
-                                      onTap: revealed
-                                          ? null
-                                          : () => _selectAnswer(option),
-                                      backgroundColor: _optionBackground(
-                                        option,
-                                        selected,
-                                        revealed,
-                                      ),
-                                      borderColor: _optionBorder(
-                                        option,
-                                        selected,
-                                        revealed,
-                                      ),
-                                      borderWidth: _optionBorderWidth(
-                                        option,
-                                        selected,
-                                        revealed,
-                                      ),
-                                      markerState: _markerState(
-                                        option,
-                                        selected,
-                                        revealed,
-                                      ),
-                                      density: density,
+                                child: QuizQuestionPromptPanel(
+                                  questionNumber: _currentIndex + 1,
+                                  prompt: question.prompt,
+                                  imagePath: question.imagePath,
+                                  compact: compact,
+                                  dense: dense,
+                                  labelColor: _primaryColor,
+                                  textColor: _textPrimaryColor,
+                                ),
+                              ),
+                              SizedBox(
+                                height: QuizPlayerDensity.sectionSpacing(
+                                  density,
+                                ),
+                              ),
+                              ...question.options.map(
+                                (option) => Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: QuizPlayerDensity.answerSpacing(
+                                      density,
                                     ),
                                   ),
-                                ),
-                                if (revealed) ...[
-                                  const SizedBox(height: 2),
-                                  QuizAnswerResultChip(
-                                    isCorrect:
-                                        selected == question.correctOption,
-                                    correctLetter:
-                                        question.correctOption.letter,
-                                    explanation: question.explanation,
-                                    dense: dense || compact,
+                                  child: QuizPlayerAnswerTile(
+                                    answerNumber: option.index + 1,
+                                    text: question.textForOption(option),
+                                    onTap: revealed
+                                        ? null
+                                        : () => _selectAnswer(option),
+                                    backgroundColor: _optionBackground(
+                                      option,
+                                      selected,
+                                      revealed,
+                                    ),
+                                    borderColor: _optionBorder(
+                                      option,
+                                      selected,
+                                      revealed,
+                                    ),
+                                    borderWidth: _optionBorderWidth(
+                                      option,
+                                      selected,
+                                      revealed,
+                                    ),
+                                    markerState: _markerState(
+                                      option,
+                                      selected,
+                                      revealed,
+                                    ),
+                                    density: density,
                                   ),
-                                ],
+                                ),
+                              ),
+                              if (revealed) ...[
+                                const SizedBox(height: 2),
+                                QuizAnswerResultChip(
+                                  isCorrect: selected == question.correctOption,
+                                  correctLetter: question.correctOption.letter,
+                                  explanation: question.explanation,
+                                  dense: dense || compact,
+                                ),
                               ],
-                            ),
-                          );
-                        },
-                      ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
         bottomNavigationBar: SafeArea(
           top: false,

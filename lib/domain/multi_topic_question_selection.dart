@@ -81,13 +81,35 @@ int maxDistinctMultiTopicSheets({
   return sheets;
 }
 
+Map<int, List<QuizQuestion>> _dedupedWorkingPools({
+  required Map<int, List<QuizQuestion>> poolByLesson,
+  required List<int> selectedLessonNumbers,
+}) {
+  final out = <int, List<QuizQuestion>>{};
+  final globalSeen = <String>{};
+  for (final lesson in selectedLessonNumbers) {
+    final raw = poolByLesson[lesson] ?? const <QuizQuestion>[];
+    final list = <QuizQuestion>[];
+    for (final question in raw) {
+      final id = question.id;
+      if (id.isEmpty) continue;
+      // Dedup globale: stesso question_id non entra due volte nel pool sessione.
+      if (!globalSeen.add(id)) continue;
+      list.add(question);
+    }
+    out[lesson] = list;
+  }
+  return out;
+}
+
 /// Genera le domande di una scheda Multischeda.
 ///
-/// - Solo lesson in [selectedLessonNumbers].
-/// - Zero duplicati intra-scheda.
-/// - Preferisce domande non in [usedQuestionIds].
-/// - [allowReuse] solo dopo esaurimento (o se forzato dal caller).
-/// - Domande con `lesson_number` assente non entrano (filtrate dai pool per lesson).
+/// Ordine vincoli:
+/// 1. unused session-wide (no reuse prematuro per quota topic)
+/// 2. redistribuzione shortfall su altri topic unused
+/// 3. reuse solo se unused globali insufficienti
+/// 4. zero duplicati intra-scheda
+/// 5. randomizzazione dopo la selezione
 MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
   required Map<int, List<QuizQuestion>> poolByLesson,
   required List<int> selectedLessonNumbers,
@@ -109,6 +131,11 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
   );
   if (quotas.isEmpty) return null;
 
+  final working = _dedupedWorkingPools(
+    poolByLesson: poolByLesson,
+    selectedLessonNumbers: lessons,
+  );
+
   final picked = <QuizQuestion>[];
   final pickedIds = <String>{};
   var usedReuse = false;
@@ -117,7 +144,7 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
     required int lessonNumber,
     required bool preferUnused,
   }) {
-    final pool = poolByLesson[lessonNumber];
+    final pool = working[lessonNumber];
     if (pool == null || pool.isEmpty) return null;
 
     final candidates = <QuizQuestion>[
@@ -131,35 +158,39 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
     final chosen = candidates.first;
     if (consumeFromPools) {
       pool.removeWhere((q) => q.id == chosen.id);
+      final source = poolByLesson[lessonNumber];
+      source?.removeWhere((q) => q.id == chosen.id);
     }
     return chosen;
   }
 
-  void assignQuota(int lessonIndex, int quota) {
+  // Fase A/B/C: quote topic SOLO con unused. Nessun reuse qui.
+  for (var i = 0; i < lessons.length; i++) {
+    final quota = quotas[i];
     for (var n = 0; n < quota; n++) {
-      var q = takeOne(lessonNumber: lessons[lessonIndex], preferUnused: true);
-      if (q == null && allowReuse) {
-        q = takeOne(lessonNumber: lessons[lessonIndex], preferUnused: false);
-        if (q != null) usedReuse = true;
-      }
-      if (q == null) return;
+      final q = takeOne(lessonNumber: lessons[i], preferUnused: true);
+      if (q == null) break;
       picked.add(q);
       pickedIds.add(q.id);
     }
   }
 
-  for (var i = 0; i < lessons.length; i++) {
-    assignQuota(i, quotas[i]);
-  }
-
-  // Redistribuisci slot mancanti su altre lesson selezionate.
+  // Fase D/E: shortfall → altri topic con unused rimanenti.
   while (picked.length < questionsPerSheet) {
     QuizQuestion? q;
     for (final lesson in lessons) {
       q = takeOne(lessonNumber: lesson, preferUnused: true);
       if (q != null) break;
     }
-    if (q == null && allowReuse) {
+    if (q == null) break;
+    picked.add(q);
+    pickedIds.add(q.id);
+  }
+
+  // Fase F: reuse solo dopo esaurimento unused globali.
+  if (picked.length < questionsPerSheet && allowReuse) {
+    while (picked.length < questionsPerSheet) {
+      QuizQuestion? q;
       for (final lesson in lessons) {
         q = takeOne(lessonNumber: lesson, preferUnused: false);
         if (q != null) {
@@ -167,10 +198,10 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
           break;
         }
       }
+      if (q == null) break;
+      picked.add(q);
+      pickedIds.add(q.id);
     }
-    if (q == null) break;
-    picked.add(q);
-    pickedIds.add(q.id);
   }
 
   if (picked.length < questionsPerSheet) return null;

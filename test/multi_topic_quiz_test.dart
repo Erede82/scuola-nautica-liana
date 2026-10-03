@@ -350,6 +350,178 @@ void main() {
       expect(secondReuse.questions.map((q) => q.id).toSet(), hasLength(20));
     });
 
+    test('PROGRESS.3 A. 100 unique / 5 sheets → 0 cross-sheet repeat', () {
+      final pools = pool(perLesson: 50, lessons: [1, 2]);
+      final used = <String>{};
+      final allIds = <String>[];
+      for (var sheet = 1; sheet <= 5; sheet++) {
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: sheet,
+          usedQuestionIds: used,
+          allowReuse: true,
+          random: Random(100 + sheet),
+        )!;
+        expect(pick.usedReuse, isFalse, reason: 'sheet $sheet must be unused');
+        final ids = pick.questions.map((q) => q.id).toList();
+        expect(ids.toSet(), hasLength(20));
+        for (final id in ids) {
+          expect(
+            used.contains(id),
+            isFalse,
+            reason: 'repeat $id at sheet $sheet',
+          );
+        }
+        used.addAll(ids);
+        allIds.addAll(ids);
+      }
+      expect(allIds.toSet(), hasLength(100));
+    });
+
+    test('PROGRESS.3 B. 41 unique → unused first, then reuse', () {
+      // 21 + 20 = 41
+      final pools = {
+        1: List.generate(21, (i) => _q('A-$i', lesson: 1)),
+        2: List.generate(20, (i) => _q('B-$i', lesson: 2)),
+      };
+      final used = <String>{};
+      final s1 = pickMultiTopicSheetQuestions(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 20,
+        sheetIndex: 1,
+        usedQuestionIds: used,
+        allowReuse: true,
+        random: Random(41),
+      )!;
+      used.addAll(s1.questions.map((q) => q.id));
+      expect(s1.usedReuse, isFalse);
+
+      final s2 = pickMultiTopicSheetQuestions(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 20,
+        sheetIndex: 2,
+        usedQuestionIds: used,
+        allowReuse: true,
+        random: Random(42),
+      )!;
+      expect(s2.usedReuse, isFalse);
+      final s2Ids = s2.questions.map((q) => q.id).toSet();
+      expect(s2Ids.intersection(used), isEmpty);
+      used.addAll(s2Ids);
+
+      final s3 = pickMultiTopicSheetQuestions(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 20,
+        sheetIndex: 3,
+        usedQuestionIds: used,
+        allowReuse: true,
+        random: Random(43),
+      )!;
+      expect(s3.usedReuse, isTrue);
+      expect(s3.questions.map((q) => q.id).toSet(), hasLength(20));
+      // L'unica unused (41esima) deve essere consumata prima del reuse.
+      final unusedLeft = {
+        for (final q in [...pools[1]!, ...pools[2]!]) q.id,
+      }.difference(used);
+      expect(unusedLeft.length, 1);
+      expect(s3.questions.any((q) => q.id == unusedLeft.single), isTrue);
+    });
+
+    test('PROGRESS.3 C. topic shortfall redistributes unused, no reuse', () {
+      // A: 5 unused, B: 40 unused. Quota teorica ~10/10 → 5A + 15B, zero reuse.
+      final pools = {
+        1: List.generate(5, (i) => _q('A$i', lesson: 1)),
+        2: List.generate(40, (i) => _q('B$i', lesson: 2)),
+      };
+      final pick = pickMultiTopicSheetQuestions(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 20,
+        sheetIndex: 1,
+        usedQuestionIds: const {},
+        allowReuse: true,
+        random: Random(7),
+      )!;
+      expect(pick.usedReuse, isFalse);
+      expect(pick.questions.where((q) => q.lessonNumber == 1), hasLength(5));
+      expect(pick.questions.where((q) => q.lessonNumber == 2), hasLength(15));
+      expect(pick.questions.map((q) => q.id).toSet(), hasLength(20));
+    });
+
+    test('PROGRESS.3 D. duplicated question_id deduped in pool', () {
+      final pools = {
+        1: [_q('dup', lesson: 1), _q('dup', lesson: 1), _q('a2', lesson: 1)],
+        2: [_q('dup', lesson: 2), _q('b1', lesson: 2), _q('b2', lesson: 2)],
+      };
+      final pick = pickMultiTopicSheetQuestions(
+        poolByLesson: pools,
+        selectedLessonNumbers: const [1, 2],
+        questionsPerSheet: 4,
+        sheetIndex: 1,
+        usedQuestionIds: const {},
+        allowReuse: true,
+        random: Random(9),
+      )!;
+      expect(pick.questions.map((q) => q.id).toSet(), hasLength(4));
+      expect(pick.questions.where((q) => q.id == 'dup'), hasLength(1));
+    });
+
+    test('PROGRESS.3 E-F. intra-sheet unique despite shuffle', () {
+      final pools = pool(perLesson: 40, lessons: [1, 2, 3]);
+      for (var seed = 0; seed < 20; seed++) {
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2, 3],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: const {},
+          random: Random(seed),
+        )!;
+        expect(pick.questions.map((q) => q.id).toSet(), hasLength(20));
+      }
+    });
+
+    test('PROGRESS.3 G. usedQuestionIds survive multi-sheet transition', () {
+      final session = MultiTopicQuizSession(
+        sessionId: 's',
+        licenseCategory: LicenseCategoryId.motore,
+        selectedLessonNumbers: const [1, 2],
+        totalSheets: 3,
+        poolByLesson: pool(perLesson: 40, lessons: [1, 2]),
+      );
+      final s1 = pickMultiTopicSheetQuestions(
+        poolByLesson: session.poolByLesson,
+        selectedLessonNumbers: session.selectedLessonNumbers,
+        questionsPerSheet: 20,
+        sheetIndex: 1,
+        usedQuestionIds: session.usedQuestionIds,
+        random: Random(11),
+      )!;
+      session.markSheetConsumed(
+        sheetIndex: 1,
+        questionIds: s1.questions.map((q) => q.id),
+      );
+      expect(session.usedQuestionIds, hasLength(20));
+
+      final s2 = pickMultiTopicSheetQuestions(
+        poolByLesson: session.poolByLesson,
+        selectedLessonNumbers: session.selectedLessonNumbers,
+        questionsPerSheet: 20,
+        sheetIndex: 2,
+        usedQuestionIds: session.usedQuestionIds,
+        random: Random(12),
+      )!;
+      expect(
+        s2.questions.every((q) => !session.usedQuestionIds.contains(q.id)),
+        isTrue,
+      );
+    });
+
     test('20. A12 lesson_number NULL excluded via lesson filter', () {
       // Questions without a selected lesson number never enter pools keyed by lesson.
       final pools = {
