@@ -7,6 +7,7 @@ import 'package:scuola_nautica_liana/models/quiz_question.dart';
 import 'package:scuola_nautica_liana/pages/multi_topic_quiz_player_page.dart';
 import 'package:scuola_nautica_liana/repositories/multi_topic_quiz_attempt_repository.dart';
 import 'package:scuola_nautica_liana/theme/quiz_player_visual_tokens.dart';
+import 'package:scuola_nautica_liana/widgets/lesson_style_quiz_player_shell.dart';
 import 'package:scuola_nautica_liana/widgets/quiz_lesson_sheet_progress_panel.dart';
 import 'package:scuola_nautica_liana/widgets/quiz_question_progress_strip.dart';
 
@@ -194,6 +195,7 @@ void main() {
     ) async {
       await _pumpPlayer(tester, viewport: const Size(1440, 900));
 
+      expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
       expect(find.byType(QuizLessonSheetProgressPanel), findsOneWidget);
       expect(find.byType(QuizQuestionProgressStrip), findsOneWidget);
       expect(find.text('Scheda 1 di 13'), findsWidgets);

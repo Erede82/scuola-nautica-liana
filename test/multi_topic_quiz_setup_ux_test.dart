@@ -4,6 +4,7 @@ import 'package:scuola_nautica_liana/models/lesson_quiz_sheet_content.dart';
 import 'package:scuola_nautica_liana/models/lesson_sheet_completion_snapshot.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
 import 'package:scuola_nautica_liana/models/quiz_question.dart';
+import 'package:scuola_nautica_liana/domain/multi_topic_question_history_usage.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_attempt_exception.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_attempt_result.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_history_models.dart';
@@ -123,10 +124,7 @@ MultiTopicQuizAttemptSummary _completedAttempt({
 
 /// Fake history che può fallire N volte e poi riuscire (per retry tests).
 class _FlakyHistoryRepo implements MultiTopicQuizAttemptRepository {
-  _FlakyHistoryRepo({
-    required this.history,
-    this.failuresRemaining = 0,
-  });
+  _FlakyHistoryRepo({required this.history, this.failuresRemaining = 0});
 
   List<MultiTopicQuizAttemptSummary> history;
   int failuresRemaining;
@@ -156,6 +154,14 @@ class _FlakyHistoryRepo implements MultiTopicQuizAttemptRepository {
   @override
   Future<MultiTopicQuizAttemptResult> submitAttempt(submission) async {
     throw UnsupportedError('not used');
+  }
+
+  @override
+  Future<MultiTopicQuestionHistoryUsage> fetchCurrentUserQuestionUsage({
+    required LicenseCategoryId category,
+  }) async {
+    // Attempts già fallito → usage non chiamato. Qui empty = success path.
+    return MultiTopicQuestionHistoryUsage.empty;
   }
 
   @override
@@ -502,6 +508,10 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.text('Impossibile preparare una nuova scheda. Riprova.'),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const Key('multi_topic_history_retry')),
         findsOneWidget,
       );
@@ -510,6 +520,40 @@ void main() {
       );
       expect(start.onPressed, isNull);
     });
+
+    testWidgets(
+      'CONTINUITY.4 H. question usage fetch failure → Start off + Retry',
+      (tester) async {
+        final attemptRepo = MultiTopicQuizAttemptRepositoryFake(
+          history: const [],
+          throwOnQuestionUsageFetch: const MultiTopicQuizAttemptException(
+            code: MultiTopicQuizAttemptErrorCode.repositoryUnavailable,
+            message: 'question usage unavailable',
+          ),
+        );
+        await _pumpSetup(
+          tester,
+          repo: repo,
+          unlockBeforeLoad: _unlockStandard,
+          attemptRepo: attemptRepo,
+        );
+        await _toggleLesson(tester, 2);
+        await _toggleLesson(tester, 4);
+
+        expect(
+          find.text('Impossibile preparare una nuova scheda. Riprova.'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('multi_topic_history_retry')),
+          findsOneWidget,
+        );
+        final start = tester.widget<FilledButton>(
+          find.byKey(const Key('multi_topic_start_button')),
+        );
+        expect(start.onPressed, isNull);
+      },
+    );
 
     testWidgets('D. failure → retry success → 10 residue + Start', (
       tester,

@@ -7,6 +7,7 @@ import 'package:scuola_nautica_liana/domain/lesson_quiz_rules.dart';
 import 'package:scuola_nautica_liana/domain/lesson_sheet_catalog_filter.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_client_token.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_history_answer_review.dart';
+import 'package:scuola_nautica_liana/domain/multi_topic_question_history_usage.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_question_selection.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_attempt_exception.dart';
 import 'package:scuola_nautica_liana/domain/multi_topic_quiz_attempt_result.dart';
@@ -499,7 +500,7 @@ void main() {
         selectedLessonNumbers: session.selectedLessonNumbers,
         questionsPerSheet: 20,
         sheetIndex: 1,
-        usedQuestionIds: session.usedQuestionIds,
+        usedQuestionIds: session.effectiveUsedQuestionIds,
         random: Random(11),
       )!;
       session.markSheetConsumed(
@@ -513,13 +514,227 @@ void main() {
         selectedLessonNumbers: session.selectedLessonNumbers,
         questionsPerSheet: 20,
         sheetIndex: 2,
-        usedQuestionIds: session.usedQuestionIds,
+        usedQuestionIds: session.effectiveUsedQuestionIds,
+        avoidQuestionIds: session.previousSheetQuestionIds,
+        usageCounts: session.combinedUsageCounts,
         random: Random(12),
       )!;
       expect(
         s2.questions.every((q) => !session.usedQuestionIds.contains(q.id)),
         isTrue,
       );
+    });
+
+    group('CONTINUITY.4 — cross-session no-repeat', () {
+      test('A. history first 40 → new sheet only from 41..100', () {
+        final pools = pool(perLesson: 50, lessons: [1, 2]);
+        final allIds = [
+          for (final q in [...pools[1]!, ...pools[2]!]) q.id,
+        ];
+        expect(allIds, hasLength(100));
+        final history = allIds.take(40).toSet();
+        final fresh = allIds.skip(40).toSet();
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: history,
+          random: Random(201),
+        )!;
+        final ids = pick.questions.map((q) => q.id).toSet();
+        expect(ids, hasLength(20));
+        expect(ids.intersection(history), isEmpty);
+        expect(ids.difference(fresh), isEmpty);
+        expect(pick.usedReuse, isFalse);
+      });
+
+      test('B. history first 80 → sheet = remaining 81..100', () {
+        final pools = pool(perLesson: 50, lessons: [1, 2]);
+        final allIds = [
+          for (final q in [...pools[1]!, ...pools[2]!]) q.id,
+        ];
+        final history = allIds.take(80).toSet();
+        final remaining = allIds.skip(80).toSet();
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: history,
+          random: Random(202),
+        )!;
+        expect(pick.questions.map((q) => q.id).toSet(), remaining);
+        expect(pick.usedReuse, isFalse);
+      });
+
+      test('C. history all 100 → reuse allowed', () {
+        final pools = pool(perLesson: 50, lessons: [1, 2]);
+        final history = {
+          for (final q in [...pools[1]!, ...pools[2]!]) q.id,
+        };
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: history,
+          usageCounts: {for (final id in history) id: 1},
+          allowReuse: true,
+          random: Random(203),
+        )!;
+        expect(pick.usedReuse, isTrue);
+        expect(pick.questions.map((q) => q.id).toSet(), hasLength(20));
+      });
+
+      test('D. history 1..40 + session 41..60 → next only 61..100', () {
+        final pools = pool(perLesson: 50, lessons: [1, 2]);
+        final allIds = [
+          for (final q in [...pools[1]!, ...pools[2]!]) q.id,
+        ];
+        final history = allIds.take(40).toSet();
+        final sessionUsed = allIds.skip(40).take(20).toSet();
+        final effective = {...history, ...sessionUsed};
+        final fresh = allIds.skip(60).toSet();
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 2,
+          usedQuestionIds: effective,
+          random: Random(204),
+        )!;
+        final ids = pick.questions.map((q) => q.id).toSet();
+        expect(ids.intersection(effective), isEmpty);
+        expect(ids.difference(fresh), isEmpty);
+      });
+
+      test('E. A12 history does not contaminate D1 pool selection', () {
+        final a12History = {'A12-seen-1', 'A12-seen-2'};
+        final d1Pools = {
+          1: List.generate(
+            20,
+            (i) => _q('D1-L1-$i', lesson: 1, licenseCategory: 'D1'),
+          ),
+          2: List.generate(
+            20,
+            (i) => _q('D1-L2-$i', lesson: 2, licenseCategory: 'D1'),
+          ),
+        };
+        // Session D1: effective used vuoto per D1 (history A12 non passata).
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: d1Pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 15,
+          sheetIndex: 1,
+          usedQuestionIds: const {},
+          random: Random(205),
+        )!;
+        expect(pick.questions.every((q) => !a12History.contains(q.id)), isTrue);
+        expect(pick.questions.every((q) => q.licenseCategory == 'D1'), isTrue);
+      });
+
+      test('F. L2 question seen in L2+L4 stays excluded for L2-only pool', () {
+        final x = _q('X-L2', lesson: 2);
+        final pools = {
+          2: [x, ...List.generate(30, (i) => _q('L2-new-$i', lesson: 2))],
+        };
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: {x.id},
+          random: Random(206),
+        )!;
+        expect(pick.questions.any((q) => q.id == x.id), isFalse);
+      });
+
+      test('G. unanswered but shown counts as historically seen', () {
+        final usage = MultiTopicQuestionHistoryUsage.fromAnswerRows([
+          (questionId: 'seen-unanswered', createdAt: DateTime.utc(2026, 10, 1)),
+          (questionId: 'seen-wrong', createdAt: DateTime.utc(2026, 10, 1)),
+        ]);
+        expect(usage.seenQuestionIds, contains('seen-unanswered'));
+        expect(usage.usageCounts['seen-unanswered'], 1);
+
+        final pools = {
+          1: [
+            _q('seen-unanswered', lesson: 1),
+            ...List.generate(25, (i) => _q('fresh-$i', lesson: 1)),
+          ],
+          2: List.generate(25, (i) => _q('fresh2-$i', lesson: 2)),
+        };
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: usage.seenQuestionIds,
+          random: Random(207),
+        )!;
+        expect(pick.questions.any((q) => q.id == 'seen-unanswered'), isFalse);
+      });
+
+      test('H. reuse ranks lower usage and avoids previous sheet', () {
+        final pools = {
+          1: [_q('a', lesson: 1), _q('b', lesson: 1), _q('c', lesson: 1)],
+          2: [_q('d', lesson: 2), _q('e', lesson: 2)],
+        };
+        // Tutte usate; a/b usage alto + previous sheet; c/d/e usage 1.
+        final used = {'a', 'b', 'c', 'd', 'e'};
+        final usage = {'a': 5, 'b': 5, 'c': 1, 'd': 1, 'e': 1};
+        final avoid = {'a', 'b'};
+        final pick = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 3,
+          sheetIndex: 2,
+          usedQuestionIds: used,
+          usageCounts: usage,
+          avoidQuestionIds: avoid,
+          allowReuse: true,
+          random: Random(208),
+        )!;
+        expect(pick.usedReuse, isTrue);
+        final ids = pick.questions.map((q) => q.id).toSet();
+        expect(ids.intersection({'c', 'd', 'e'}), hasLength(3));
+        expect(ids.intersection(avoid), isEmpty);
+      });
+
+      test('same-sheet regression: new session empty ∩ prior sheet1', () {
+        final pools = pool(perLesson: 50, lessons: [1, 2]);
+        final sessionA = pickMultiTopicSheetQuestions(
+          poolByLesson: pools,
+          selectedLessonNumbers: const [1, 2],
+          questionsPerSheet: 20,
+          sheetIndex: 1,
+          usedQuestionIds: const {},
+          random: Random(301),
+        )!;
+        final aIds = sessionA.questions.map((q) => q.id).toSet();
+
+        // Sessioni successive finché pool non esaurito.
+        var history = {...aIds};
+        for (var session = 2; session <= 5; session++) {
+          final pick = pickMultiTopicSheetQuestions(
+            poolByLesson: pools,
+            selectedLessonNumbers: const [1, 2],
+            questionsPerSheet: 20,
+            sheetIndex: 1,
+            usedQuestionIds: history,
+            random: Random(300 + session),
+          )!;
+          final ids = pick.questions.map((q) => q.id).toSet();
+          expect(
+            ids.intersection(aIds),
+            isEmpty,
+            reason: 'session $session overlapped session A sheet1',
+          );
+          expect(ids.intersection(history), isEmpty);
+          history = {...history, ...ids};
+        }
+      });
     });
 
     test('20. A12 lesson_number NULL excluded via lesson filter', () {

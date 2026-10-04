@@ -1,15 +1,21 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../data/supabase/mappers/multi_topic_quiz_attempt_mapper.dart';
 import '../debug/quiz_flow_debug.dart';
+import '../domain/multi_topic_question_history_usage.dart';
 import '../domain/multi_topic_quiz_attempt_exception.dart';
 import '../domain/multi_topic_quiz_attempt_result.dart';
 import '../domain/multi_topic_quiz_attempt_submission.dart';
 import '../domain/multi_topic_quiz_history_models.dart';
 import '../domain/quiz_license_category.dart';
 import '../models/license_models.dart';
+
+/// Chunk size per `inFilter` su attempt_id (allineato a lesson history).
+const multiTopicQuestionUsageAttemptChunkSize = 100;
 
 const multiTopicQuizAttemptSubmitRpcName = 'submit_multi_topic_quiz_attempt';
 
@@ -102,6 +108,14 @@ abstract class MultiTopicQuizAttemptRepository {
 
   /// Storico tentativi conclusi (read-only, tabelle dedicate).
   Future<List<MultiTopicQuizAttemptSummary>> fetchCurrentUserAttempts({
+    required LicenseCategoryId category,
+  });
+
+  /// Question IDs già mostrati in Multischede completate (categoria corrente).
+  ///
+  /// Una sola operazione logica: attempt IDs categoria → answers question_id.
+  /// Include anche unanswered (selected_option NULL): la domanda è stata vista.
+  Future<MultiTopicQuestionHistoryUsage> fetchCurrentUserQuestionUsage({
     required LicenseCategoryId category,
   });
 
@@ -223,6 +237,70 @@ class MultiTopicQuizAttemptRepositorySupabase
   }
 
   @override
+  Future<MultiTopicQuestionHistoryUsage> fetchCurrentUserQuestionUsage({
+    required LicenseCategoryId category,
+  }) async {
+    _requireUid();
+    final dbCategory = dbLicenseCategoryFor(category);
+    if (dbCategory == null) {
+      throw const MultiTopicQuizAttemptException(
+        code: MultiTopicQuizAttemptErrorCode.invalidLicenseCategory,
+        message: 'Categoria patente non valida per la Multischeda.',
+      );
+    }
+    try {
+      final attemptsRes = await _client
+          .from(multiTopicQuizAttemptsTable)
+          .select('id')
+          .eq('license_category', dbCategory);
+      final attemptIds = <String>[
+        for (final row in attemptsRes as List<dynamic>)
+          if (row is Map && (row['id']?.toString() ?? '').trim().isNotEmpty)
+            row['id'].toString().trim(),
+      ];
+      if (attemptIds.isEmpty) {
+        return MultiTopicQuestionHistoryUsage.empty;
+      }
+
+      final rows = <({String questionId, DateTime? createdAt})>[];
+      for (
+        var offset = 0;
+        offset < attemptIds.length;
+        offset += multiTopicQuestionUsageAttemptChunkSize
+      ) {
+        final end = math.min(
+          offset + multiTopicQuestionUsageAttemptChunkSize,
+          attemptIds.length,
+        );
+        final chunk = attemptIds.sublist(offset, end);
+        final answersRes = await _client
+            .from(multiTopicQuizAttemptAnswersTable)
+            .select('question_id, created_at')
+            .inFilter('attempt_id', chunk);
+        for (final item in answersRes as List<dynamic>) {
+          if (item is! Map) continue;
+          final questionId = item['question_id']?.toString().trim() ?? '';
+          if (questionId.isEmpty) continue;
+          DateTime? createdAt;
+          final rawCreated = item['created_at']?.toString();
+          if (rawCreated != null && rawCreated.isNotEmpty) {
+            createdAt = DateTime.tryParse(rawCreated);
+          }
+          rows.add((questionId: questionId, createdAt: createdAt));
+        }
+      }
+      return MultiTopicQuestionHistoryUsage.fromAnswerRows(rows);
+    } on MultiTopicQuizAttemptException {
+      rethrow;
+    } on PostgrestException catch (error) {
+      debugLogMultiTopicQuizAttemptPostgrestException(error);
+      _rethrowMapped(error);
+    } catch (error) {
+      _rethrowMapped(error);
+    }
+  }
+
+  @override
   Future<MultiTopicQuizAttemptDetail> fetchAttemptDetail(
     String attemptId,
   ) async {
@@ -287,6 +365,11 @@ class MultiTopicQuizAttemptRepositoryEmpty
   }) async => const [];
 
   @override
+  Future<MultiTopicQuestionHistoryUsage> fetchCurrentUserQuestionUsage({
+    required LicenseCategoryId category,
+  }) async => MultiTopicQuestionHistoryUsage.empty;
+
+  @override
   Future<MultiTopicQuizAttemptDetail> fetchAttemptDetail(
     String attemptId,
   ) async {
@@ -305,9 +388,12 @@ class MultiTopicQuizAttemptRepositoryFake
     this.throwOnSubmit,
     List<MultiTopicQuizAttemptSummary>? history,
     this.throwOnHistoryFetch,
+    MultiTopicQuestionHistoryUsage? questionUsage,
+    this.throwOnQuestionUsageFetch,
     this.detailById,
     this.throwOnDetailFetch,
-  }) : history = history ?? <MultiTopicQuizAttemptSummary>[];
+  }) : history = history ?? <MultiTopicQuizAttemptSummary>[],
+       questionUsage = questionUsage ?? MultiTopicQuestionHistoryUsage.empty;
 
   MultiTopicQuizAttemptResult? submitResult;
   Object? throwOnSubmit;
@@ -315,6 +401,8 @@ class MultiTopicQuizAttemptRepositoryFake
   final List<Map<String, dynamic>> submitRpcParamsLog = [];
   List<MultiTopicQuizAttemptSummary> history;
   Object? throwOnHistoryFetch;
+  MultiTopicQuestionHistoryUsage questionUsage;
+  Object? throwOnQuestionUsageFetch;
   Map<String, MultiTopicQuizAttemptDetail>? detailById;
   Object? throwOnDetailFetch;
 
@@ -356,6 +444,21 @@ class MultiTopicQuizAttemptRepositoryFake
     return history
         .where((a) => a.licenseCategory == category)
         .toList(growable: false);
+  }
+
+  @override
+  Future<MultiTopicQuestionHistoryUsage> fetchCurrentUserQuestionUsage({
+    required LicenseCategoryId category,
+  }) async {
+    historyStorageTouches.add(multiTopicQuizAttemptsTable);
+    historyStorageTouches.add(multiTopicQuizAttemptAnswersTable);
+    if (throwOnQuestionUsageFetch != null) {
+      final err = throwOnQuestionUsageFetch!;
+      if (err is MultiTopicQuizAttemptException) throw err;
+      throw multiTopicQuizAttemptExceptionFrom(err);
+    }
+    // Fake non filtra per categoria: i test impostano usage già scoped.
+    return questionUsage;
   }
 
   @override

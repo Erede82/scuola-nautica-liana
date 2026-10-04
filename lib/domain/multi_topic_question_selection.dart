@@ -105,17 +105,23 @@ Map<int, List<QuizQuestion>> _dedupedWorkingPools({
 /// Genera le domande di una scheda Multischeda.
 ///
 /// Ordine vincoli:
-/// 1. unused session-wide (no reuse prematuro per quota topic)
+/// 1. unused effective (history ∪ sessione) — priorità assoluta
 /// 2. redistribuzione shortfall su altri topic unused
-/// 3. reuse solo se unused globali insufficienti
+/// 3. reuse solo se unused globali insufficienti, con ranking:
+///    meno usate storicamente → evita scheda precedente → random
 /// 4. zero duplicati intra-scheda
 /// 5. randomizzazione dopo la selezione
+///
+/// [usedQuestionIds] deve essere l'unione history ∪ sessione corrente
+/// (`effectiveUsed`). Non sacrificare domande nuove per quote topic.
 MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
   required Map<int, List<QuizQuestion>> poolByLesson,
   required List<int> selectedLessonNumbers,
   required int questionsPerSheet,
   required int sheetIndex,
   required Set<String> usedQuestionIds,
+  Map<String, int> usageCounts = const {},
+  Set<String> avoidQuestionIds = const {},
   bool allowReuse = true,
   bool consumeFromPools = false,
   Random? random,
@@ -140,18 +146,13 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
   final pickedIds = <String>{};
   var usedReuse = false;
 
-  QuizQuestion? takeOne({
-    required int lessonNumber,
-    required bool preferUnused,
-  }) {
+  QuizQuestion? takeUnused({required int lessonNumber}) {
     final pool = working[lessonNumber];
     if (pool == null || pool.isEmpty) return null;
 
     final candidates = <QuizQuestion>[
       for (final q in pool)
-        if (!pickedIds.contains(q.id) &&
-            (!preferUnused || !usedQuestionIds.contains(q.id)))
-          q,
+        if (!pickedIds.contains(q.id) && !usedQuestionIds.contains(q.id)) q,
     ];
     if (candidates.isEmpty) return null;
     candidates.shuffle(rng);
@@ -164,11 +165,11 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
     return chosen;
   }
 
-  // Fase A/B/C: quote topic SOLO con unused. Nessun reuse qui.
+  // Fase A/B/C: quote topic SOLO con unused effective. Nessun reuse qui.
   for (var i = 0; i < lessons.length; i++) {
     final quota = quotas[i];
     for (var n = 0; n < quota; n++) {
-      final q = takeOne(lessonNumber: lessons[i], preferUnused: true);
+      final q = takeUnused(lessonNumber: lessons[i]);
       if (q == null) break;
       picked.add(q);
       pickedIds.add(q.id);
@@ -176,10 +177,11 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
   }
 
   // Fase D/E: shortfall → altri topic con unused rimanenti.
+  // Non sacrificare una domanda nuova per una quota topic perfetta.
   while (picked.length < questionsPerSheet) {
     QuizQuestion? q;
     for (final lesson in lessons) {
-      q = takeOne(lessonNumber: lesson, preferUnused: true);
+      q = takeUnused(lessonNumber: lesson);
       if (q != null) break;
     }
     if (q == null) break;
@@ -187,20 +189,47 @@ MultiTopicSheetPickResult? pickMultiTopicSheetQuestions({
     pickedIds.add(q.id);
   }
 
-  // Fase F: reuse solo dopo esaurimento unused globali.
+  // Fase F: reuse solo dopo esaurimento unused effective.
+  // Ranking: usageCount ASC → evita previous sheet → random tra equivalenti.
   if (picked.length < questionsPerSheet && allowReuse) {
     while (picked.length < questionsPerSheet) {
-      QuizQuestion? q;
-      for (final lesson in lessons) {
-        q = takeOne(lessonNumber: lesson, preferUnused: false);
-        if (q != null) {
-          usedReuse = true;
-          break;
+      final candidates = <QuizQuestion>[
+        for (final lesson in lessons)
+          for (final q in working[lesson] ?? const <QuizQuestion>[])
+            if (!pickedIds.contains(q.id)) q,
+      ];
+      if (candidates.isEmpty) break;
+
+      candidates.sort((a, b) {
+        final ua = usageCounts[a.id] ?? 0;
+        final ub = usageCounts[b.id] ?? 0;
+        final usageCmp = ua.compareTo(ub);
+        if (usageCmp != 0) return usageCmp;
+        final aAvoid = avoidQuestionIds.contains(a.id);
+        final bAvoid = avoidQuestionIds.contains(b.id);
+        if (aAvoid != bAvoid) return aAvoid ? 1 : -1;
+        return 0;
+      });
+
+      final bestUsage = usageCounts[candidates.first.id] ?? 0;
+      final bestAvoid = avoidQuestionIds.contains(candidates.first.id);
+      final top = <QuizQuestion>[
+        for (final q in candidates)
+          if ((usageCounts[q.id] ?? 0) == bestUsage &&
+              avoidQuestionIds.contains(q.id) == bestAvoid)
+            q,
+      ];
+      top.shuffle(rng);
+      final chosen = top.first;
+      usedReuse = true;
+      picked.add(chosen);
+      pickedIds.add(chosen.id);
+      if (consumeFromPools) {
+        for (final lesson in lessons) {
+          working[lesson]?.removeWhere((q) => q.id == chosen.id);
+          poolByLesson[lesson]?.removeWhere((q) => q.id == chosen.id);
         }
       }
-      if (q == null) break;
-      picked.add(q);
-      pickedIds.add(q.id);
     }
   }
 

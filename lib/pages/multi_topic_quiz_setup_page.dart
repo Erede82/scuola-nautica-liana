@@ -5,6 +5,7 @@ import '../debug/quiz_flow_debug.dart';
 import '../domain/lesson_quiz_rules.dart';
 import '../domain/lesson_sheet_catalog_filter.dart';
 import '../domain/multi_topic_client_token.dart';
+import '../domain/multi_topic_question_history_usage.dart';
 import '../domain/multi_topic_question_selection.dart';
 import '../domain/multi_topic_quiz_guards.dart';
 import '../domain/multi_topic_quiz_history_models.dart';
@@ -86,6 +87,8 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
   Map<int, List<QuizQuestion>> _poolByLesson = const {};
   Map<int, int> _actionableSheetCountByLesson = const {};
   List<MultiTopicQuizAttemptSummary> _completedAttempts = const [];
+  MultiTopicQuestionHistoryUsage _questionHistory =
+      MultiTopicQuestionHistoryUsage.empty;
   final Set<int> _selected = {};
 
   /// Generazione load: scarta risposte stale di fetch async precedenti.
@@ -199,10 +202,15 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
 
       List<MultiTopicQuizAttemptSummary> completedAttempts =
           const <MultiTopicQuizAttemptSummary>[];
+      var questionHistory = MultiTopicQuestionHistoryUsage.empty;
       var historyReady = false;
       var historyFailed = false;
       try {
+        // Entrambi obbligatori: failure ≠ empty history (né remaining né continuity).
         completedAttempts = await _attemptRepo.fetchCurrentUserAttempts(
+          category: widget.categoryId,
+        );
+        questionHistory = await _attemptRepo.fetchCurrentUserQuestionUsage(
           category: widget.categoryId,
         );
         historyReady = true;
@@ -211,6 +219,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         historyFailed = true;
         historyReady = false;
         completedAttempts = const [];
+        questionHistory = MultiTopicQuestionHistoryUsage.empty;
       }
 
       if (!_isCurrentGeneration(generation)) return;
@@ -218,6 +227,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         _poolByLesson = pools;
         _actionableSheetCountByLesson = actionableCounts;
         _completedAttempts = completedAttempts;
+        _questionHistory = questionHistory;
         _historyReady = historyReady;
         _historyFailed = historyFailed;
         _eligible = eligible;
@@ -235,6 +245,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
         _eligible = const [];
         _actionableSheetCountByLesson = const {};
         _completedAttempts = const [];
+        _questionHistory = MultiTopicQuestionHistoryUsage.empty;
         _historyReady = false;
         _historyFailed = false;
         _selected.clear();
@@ -255,9 +266,13 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
       final completedAttempts = await _attemptRepo.fetchCurrentUserAttempts(
         category: widget.categoryId,
       );
+      final questionHistory = await _attemptRepo.fetchCurrentUserQuestionUsage(
+        category: widget.categoryId,
+      );
       if (!_isCurrentGeneration(generation)) return;
       setState(() {
         _completedAttempts = completedAttempts;
+        _questionHistory = questionHistory;
         _historyReady = true;
         _historyFailed = false;
         _historyRefreshing = false;
@@ -317,7 +332,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
   String? get _selectionHint {
     if (_loadError != null) return _loadError;
     if (_historyFailed) {
-      return 'Impossibile calcolare le schede ancora da svolgere.';
+      return 'Impossibile preparare una nuova scheda. Riprova.';
     }
     if (!_historyReady) {
       return 'Calcolo delle schede residue in corso…';
@@ -379,7 +394,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
     setState(() => _starting = true);
 
     final selected = _selected.toList()..sort();
-    final session = MultiTopicQuizSession(
+    final session = MultiTopicQuizSession.withHistory(
       sessionId: generateMultiTopicUuid(),
       licenseCategory: widget.categoryId,
       selectedLessonNumbers: selected,
@@ -390,6 +405,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
             _poolByLesson[lesson] ?? const <QuizQuestion>[],
           ),
       },
+      questionHistory: _questionHistory,
     );
 
     try {
@@ -584,7 +600,7 @@ class _MultiTopicQuizSetupPageState extends State<MultiTopicQuizSetupPage> {
           const SizedBox(height: 12),
           Text(
             key: const Key('multi_topic_history_error'),
-            'Impossibile calcolare le schede ancora da svolgere.',
+            'Impossibile preparare una nuova scheda. Riprova.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: const Color(0xFFB45309),
             ),
