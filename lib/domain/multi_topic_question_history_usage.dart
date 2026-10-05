@@ -1,3 +1,44 @@
+/// Cap di default di Supabase/PostgREST (`db-max-rows`).
+///
+/// Una select senza pagina esplicita entro questo limite scarta il resto
+/// senza errore. La continuity Multischeda non può trattare quel resto
+/// come «mai vista».
+const multiTopicQuestionUsagePageSize = 1000;
+
+/// Risposte scritte per attempt da `submit_multi_topic_quiz_attempt` (A12).
+///
+/// D1 ne scrive 15. Il chunk di lettura usa il massimo, così una pagina
+/// non supera [multiTopicQuestionUsagePageSize].
+const multiTopicMaxAnswersPerAttempt = 20;
+
+/// Attempt id per richiesta answers.
+///
+/// 49 × 20 = 980, sotto il cap. La paginazione `.range` copre comunque
+/// un chunk che superasse il limite.
+const multiTopicQuestionUsageAttemptChunkSize =
+    (multiTopicQuestionUsagePageSize - 1) ~/ multiTopicMaxAnswersPerAttempt;
+
+/// Quante pagine complete si accettano prima di fallire chiuso.
+///
+/// Oltre questo tetto la history è incompleta: meglio rifiutare l'avvio
+/// che generare schede che ripetono domande già viste.
+const multiTopicQuestionUsageMaxPages = 8;
+
+/// Finestra inclusiva `.range(from, to)` per la pagina [pageIndex] (0-based).
+({int from, int to}) multiTopicUsagePageRange({
+  required int pageIndex,
+  int pageSize = multiTopicQuestionUsagePageSize,
+}) {
+  if (pageIndex < 0) {
+    throw ArgumentError.value(pageIndex, 'pageIndex');
+  }
+  if (pageSize < 1) {
+    throw ArgumentError.value(pageSize, 'pageSize');
+  }
+  final from = pageIndex * pageSize;
+  return (from: from, to: from + pageSize - 1);
+}
+
 /// Usage storico domande Multischeda (da attempt answers completati).
 ///
 /// Derivato da `multi_topic_quiz_attempt_answers` join attempts della categoria.
