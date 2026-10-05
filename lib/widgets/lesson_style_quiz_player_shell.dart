@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../domain/quiz_sheet_player_navigation.dart';
@@ -14,6 +16,10 @@ import 'quiz_question_prompt_panel.dart';
 /// Shell condiviso Scheda lezione / Multischeda (area domanda + progress + footer).
 ///
 /// Unica fonte del layout visuale "lesson style". Exam resta separato.
+///
+/// Su desktop/tablet la question card ha una min-height derivata dallo spazio
+/// disponibile (indipendente da imagePath), così con/senza figura la geometria
+/// resta ampia e coerente.
 class LessonStyleQuizPlayerShell extends StatelessWidget {
   const LessonStyleQuizPlayerShell({
     super.key,
@@ -59,6 +65,41 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
   static const Color _wrongColor = QuizPlayerVisual.wrongBorder;
   static const Color _correctBg = QuizPlayerVisual.correctFill;
   static const Color _wrongBg = QuizPlayerVisual.wrongFill;
+
+  /// Pavimento min-height desktop (fascia simile all'area figura laterale).
+  @visibleForTesting
+  static const double questionCardMinHeightFloor = 200;
+
+  /// Quota massima del body dedicata alla question card.
+  @visibleForTesting
+  static const double questionCardMaxBodyFraction = 0.62;
+
+  /// Min-height question card: indipendente da imagePath.
+  ///
+  /// - compact/mobile → 0 (contenuto naturale + scroll)
+  /// - desktop/tablet → leftover dopo riserva risposte, clampato
+  @visibleForTesting
+  static double resolveQuestionCardMinHeight({
+    required double availableBodyHeight,
+    required bool compact,
+    required int optionCount,
+    required QuizPlayerContentDensity density,
+  }) {
+    if (compact || availableBodyHeight <= 0 || optionCount <= 0) {
+      return 0;
+    }
+
+    final answerBlock =
+        QuizPlayerDensity.answerMinHeight(density) * optionCount +
+        QuizPlayerDensity.answerSpacing(density) *
+            math.max(0, optionCount - 1) +
+        QuizPlayerDensity.sectionSpacing(density);
+    final leftover = availableBodyHeight - answerBlock;
+    if (leftover <= 0) return 0;
+
+    final ceiling = availableBodyHeight * questionCardMaxBodyFraction;
+    return leftover.clamp(questionCardMinHeightFloor, ceiling);
+  }
 
   QuizQuestion get _question => questions[currentIndex];
 
@@ -128,91 +169,118 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
                           contentWidth: contentConstraints.maxWidth,
                         );
                         final dense = density == QuizPlayerContentDensity.dense;
+                        final bodyPadding =
+                            QuizPlayerVisual.lessonSheetBodyPadding;
+                        final availableBodyHeight = math.max(
+                          0.0,
+                          contentConstraints.maxHeight - bodyPadding.vertical,
+                        );
+                        final questionMinHeight = resolveQuestionCardMinHeight(
+                          availableBodyHeight: availableBodyHeight,
+                          compact: compact,
+                          optionCount: question.options.length,
+                          density: density,
+                        );
 
                         return SingleChildScrollView(
-                          padding: QuizPlayerVisual.lessonSheetBodyPadding,
-                          child: Column(
-                            key: QuizPlayerDensity.densityKey(density),
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Container(
-                                key: const Key('lesson_style_question_card'),
-                                padding: EdgeInsets.all(
-                                  QuizPlayerDensity.cardPadding(density),
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _cardColor,
-                                  borderRadius: BorderRadius.circular(
-                                    QuizPlayerVisual.cardRadius,
+                          padding: bodyPadding,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: availableBodyHeight,
+                            ),
+                            child: Column(
+                              key: QuizPlayerDensity.densityKey(density),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: questionMinHeight,
                                   ),
-                                  border: Border.all(color: _neutralColor),
-                                ),
-                                child: QuizQuestionPromptPanel(
-                                  questionNumber: currentIndex + 1,
-                                  prompt: question.prompt,
-                                  imagePath: question.imagePath,
-                                  compact: compact,
-                                  dense: dense,
-                                  labelColor: _primaryColor,
-                                  textColor: _textPrimaryColor,
-                                ),
-                              ),
-                              SizedBox(
-                                height: QuizPlayerDensity.sectionSpacing(
-                                  density,
-                                ),
-                              ),
-                              ...question.options.map(
-                                (option) => Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: QuizPlayerDensity.answerSpacing(
-                                      density,
+                                  child: Container(
+                                    key: const Key(
+                                      'lesson_style_question_card',
                                     ),
-                                  ),
-                                  child: QuizPlayerAnswerTile(
-                                    answerNumber: option.index + 1,
-                                    text: question.textForOption(option),
-                                    onTap: revealed
-                                        ? null
-                                        : () => onSelectAnswer(option),
-                                    backgroundColor: _optionBackground(
-                                      option,
-                                      selected,
-                                      revealed,
-                                      question.correctOption,
+                                    alignment: Alignment.topLeft,
+                                    padding: EdgeInsets.all(
+                                      QuizPlayerDensity.cardPadding(density),
                                     ),
-                                    borderColor: _optionBorder(
-                                      option,
-                                      selected,
-                                      revealed,
-                                      question.correctOption,
+                                    decoration: BoxDecoration(
+                                      color: _cardColor,
+                                      borderRadius: BorderRadius.circular(
+                                        QuizPlayerVisual.cardRadius,
+                                      ),
+                                      border: Border.all(color: _neutralColor),
                                     ),
-                                    borderWidth: _optionBorderWidth(
-                                      option,
-                                      selected,
-                                      revealed,
-                                      question.correctOption,
+                                    child: QuizQuestionPromptPanel(
+                                      questionNumber: currentIndex + 1,
+                                      prompt: question.prompt,
+                                      imagePath: question.imagePath,
+                                      compact: compact,
+                                      dense: dense,
+                                      labelColor: _primaryColor,
+                                      textColor: _textPrimaryColor,
                                     ),
-                                    markerState: _markerState(
-                                      option,
-                                      selected,
-                                      revealed,
-                                      question.correctOption,
-                                    ),
-                                    density: density,
                                   ),
                                 ),
-                              ),
-                              if (revealed) ...[
-                                const SizedBox(height: 2),
-                                QuizAnswerResultChip(
-                                  isCorrect: selected == question.correctOption,
-                                  correctLetter: question.correctOption.letter,
-                                  explanation: question.explanation,
-                                  dense: dense || compact,
+                                SizedBox(
+                                  height: QuizPlayerDensity.sectionSpacing(
+                                    density,
+                                  ),
                                 ),
+                                ...question.options.map(
+                                  (option) => Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: QuizPlayerDensity.answerSpacing(
+                                        density,
+                                      ),
+                                    ),
+                                    child: QuizPlayerAnswerTile(
+                                      answerNumber: option.index + 1,
+                                      text: question.textForOption(option),
+                                      onTap: revealed
+                                          ? null
+                                          : () => onSelectAnswer(option),
+                                      backgroundColor: _optionBackground(
+                                        option,
+                                        selected,
+                                        revealed,
+                                        question.correctOption,
+                                      ),
+                                      borderColor: _optionBorder(
+                                        option,
+                                        selected,
+                                        revealed,
+                                        question.correctOption,
+                                      ),
+                                      borderWidth: _optionBorderWidth(
+                                        option,
+                                        selected,
+                                        revealed,
+                                        question.correctOption,
+                                      ),
+                                      markerState: _markerState(
+                                        option,
+                                        selected,
+                                        revealed,
+                                        question.correctOption,
+                                      ),
+                                      density: density,
+                                    ),
+                                  ),
+                                ),
+                                if (revealed) ...[
+                                  const SizedBox(height: 2),
+                                  QuizAnswerResultChip(
+                                    isCorrect:
+                                        selected == question.correctOption,
+                                    correctLetter:
+                                        question.correctOption.letter,
+                                    explanation: question.explanation,
+                                    dense: dense || compact,
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         );
                       },
@@ -226,6 +294,7 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
         bottomNavigationBar: SafeArea(
           top: false,
           child: Material(
+            key: const Key('lesson_style_quiz_player_footer'),
             color: _backgroundColor,
             elevation: 0,
             child: Padding(
