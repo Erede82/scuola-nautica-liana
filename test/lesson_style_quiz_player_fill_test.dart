@@ -17,6 +17,7 @@ import 'package:scuola_nautica_liana/repositories/study_access_repository.dart';
 import 'package:scuola_nautica_liana/theme/quiz_player_density.dart';
 import 'package:scuola_nautica_liana/theme/quiz_player_visual_tokens.dart';
 import 'package:scuola_nautica_liana/widgets/lesson_style_quiz_player_shell.dart';
+import 'package:scuola_nautica_liana/widgets/quiz_player_answer_tile.dart';
 
 const _imagePath = 'assets/images/welcome/welcome_boat.jpg';
 
@@ -110,23 +111,6 @@ Size? _cardSize(WidgetTester tester) {
   final card = find.byKey(const Key('lesson_style_question_card'));
   if (card.evaluate().isEmpty) return null;
   return tester.getSize(card);
-}
-
-double? _shellWidth(WidgetTester tester) {
-  for (final box in tester.widgetList<ConstrainedBox>(
-    find.byType(ConstrainedBox),
-  )) {
-    if (box.constraints.maxWidth ==
-        QuizPlayerVisual.lessonSheetContentMaxWidth) {
-      final elements = find
-          .byWidgetPredicate((w) => identical(w, box))
-          .evaluate();
-      if (elements.isEmpty) continue;
-      final render = elements.first.renderObject as RenderBox?;
-      return render?.size.width;
-    }
-  }
-  return null;
 }
 
 Future<void> _pumpLesson(
@@ -225,7 +209,156 @@ Future<void> _pumpMulti(
 }
 
 void main() {
-  group('FILL.5 — question card min-height strategy', () {
+  group('FILL.5 — layout resolution', () {
+    test('resolveLayout: no image / side / stacked + height gate', () {
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: null,
+          compact: false,
+          contentWidth: 1440,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.noImage,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: '',
+          compact: false,
+          contentWidth: 1440,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.noImage,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: '   ',
+          compact: false,
+          contentWidth: 1440,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.noImage,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 1440,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageSide,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 1024,
+          availableBodyHeight: 560,
+        ),
+        LessonStyleQuizLayout.withImageSide,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: true,
+          contentWidth: 390,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageStacked,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 500,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageStacked,
+      );
+      // Wide-but-short: width ok, body height insufficient → stacked
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 844,
+          availableBodyHeight: 280,
+        ),
+        LessonStyleQuizLayout.withImageStacked,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 844,
+          availableBodyHeight:
+              LessonStyleQuizPlayerShell.sideLayoutMinBodyHeight - 1,
+        ),
+        LessonStyleQuizLayout.withImageStacked,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 844,
+          availableBodyHeight:
+              LessonStyleQuizPlayerShell.sideLayoutMinBodyHeight,
+        ),
+        LessonStyleQuizLayout.withImageSide,
+      );
+    });
+
+    test('width boundary 599/600/601 with sufficient height', () {
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 599,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageStacked,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 600,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageSide,
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveLayout(
+          imagePath: _imagePath,
+          compact: false,
+          contentWidth: 601,
+          availableBodyHeight: 700,
+        ),
+        LessonStyleQuizLayout.withImageSide,
+      );
+    });
+
+    test('side image maxHeight adapts to short body', () {
+      final short = LessonStyleQuizPlayerShell.resolveSideImageMaxHeight(
+        availableBodyHeight: 300,
+        minRowHeight: 300,
+      );
+      expect(short, lessThanOrEqualTo(300 - 24));
+      expect(
+        short,
+        greaterThanOrEqualTo(
+          LessonStyleQuizPlayerShell.sideImageMinHeightFloor,
+        ),
+      );
+
+      final tall = LessonStyleQuizPlayerShell.resolveSideImageMaxHeight(
+        availableBodyHeight: 800,
+        minRowHeight: 500,
+      );
+      expect(
+        tall,
+        lessThanOrEqualTo(LessonStyleQuizPlayerShell.sideImageMaxHeightCap),
+      );
+    });
+
     test('desktop leftover clamped; compact = 0', () {
       final desktop = LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
         availableBodyHeight: 600,
@@ -239,12 +372,6 @@ void main() {
           LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
         ),
       );
-      expect(
-        desktop,
-        lessThanOrEqualTo(
-          600 * LessonStyleQuizPlayerShell.questionCardMaxBodyFraction,
-        ),
-      );
 
       final compact = LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
         availableBodyHeight: 600,
@@ -256,137 +383,359 @@ void main() {
     });
   });
 
-  group('FILL.5 — image / no-image + normal / multi', () {
-    testWidgets('A. normal + image: wide card @1440', (tester) async {
+  group('FILL.5 — visual refinement image / no-image', () {
+    testWidgets('A. desktop no-image: full-width question + answers', (
+      tester,
+    ) async {
+      await _pumpLesson(tester, viewport: const Size(1440, 900));
+      expect(
+        find.byKey(const Key('lesson_style_layout_no_image')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('lesson_style_image_column')), findsNothing);
+      expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
+      final card = _cardSize(tester)!;
+      expect(card.height, greaterThan(180));
+      expect(card.width, greaterThan(900));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('B. desktop image: left image + right question/answers', (
+      tester,
+    ) async {
       await _pumpLesson(
         tester,
         viewport: const Size(1440, 900),
         imagePath: _imagePath,
       );
-      final card = _cardSize(tester);
-      expect(card, isNotNull);
       expect(
-        card!.height,
-        greaterThanOrEqualTo(
-          LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
-        ),
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
       );
-      expect(find.byKey(const Key('quiz_prompt_side_image')), findsOneWidget);
+      expect(
+        find.byKey(const Key('lesson_style_image_column')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_right_column')),
+        findsOneWidget,
+      );
+      expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
+
+      final imageLeft = tester
+          .getTopLeft(find.byKey(const Key('lesson_style_image_column')))
+          .dx;
+      final rightLeft = tester
+          .getTopLeft(find.byKey(const Key('lesson_style_right_column')))
+          .dx;
+      final answerLeft = tester
+          .getTopLeft(find.byType(QuizPlayerAnswerTile).first)
+          .dx;
+      expect(rightLeft, greaterThan(imageLeft));
+      expect(answerLeft, greaterThan(imageLeft + 100));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('B. normal no-image: does not collapse @1440', (tester) async {
+    testWidgets('C. normal/multi no-image parity', (tester) async {
       await _pumpLesson(tester, viewport: const Size(1440, 900));
-      final card = _cardSize(tester);
-      expect(card, isNotNull);
+      final lessonCard = _cardSize(tester)!;
       expect(
-        card!.height,
-        greaterThanOrEqualTo(
-          LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
-        ),
+        find.byKey(const Key('lesson_style_layout_no_image')),
+        findsOneWidget,
       );
-      // Mini-card collapse (~80–120) non ammesso.
-      expect(card.height, greaterThan(180));
-      expect(tester.takeException(), isNull);
+
+      await _pumpMulti(tester, viewport: const Size(1440, 900));
+      final multiCard = _cardSize(tester)!;
+      expect(
+        find.byKey(const Key('lesson_style_layout_no_image')),
+        findsOneWidget,
+      );
+      expect(multiCard.width, closeTo(lessonCard.width, 2.0));
+      expect((multiCard.height - lessonCard.height).abs(), lessThan(40));
     });
 
-    testWidgets('C. multi + image: wide card @1440', (tester) async {
+    testWidgets('D. normal/multi image side parity', (tester) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(1440, 900),
+        imagePath: _imagePath,
+      );
+      final lessonImg = tester.getSize(
+        find.byKey(const Key('lesson_style_image_column')),
+      );
+
       await _pumpMulti(
         tester,
         viewport: const Size(1440, 900),
         imagePath: _imagePath,
       );
-      final card = _cardSize(tester);
-      expect(card, isNotNull);
-      expect(
-        card!.height,
-        greaterThanOrEqualTo(
-          LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
-        ),
+      final multiImg = tester.getSize(
+        find.byKey(const Key('lesson_style_image_column')),
       );
-      expect(find.byKey(const Key('quiz_prompt_side_image')), findsOneWidget);
+      expect(multiImg.width, closeTo(lessonImg.width, 2.0));
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('D. multi no-image: does not collapse @1440', (tester) async {
-      await _pumpMulti(tester, viewport: const Size(1440, 900));
-      final card = _cardSize(tester);
-      expect(card, isNotNull);
-      expect(card!.height, greaterThan(180));
-    });
-
-    testWidgets('E/F. image vs no-image same shell geometry @1440', (
-      tester,
-    ) async {
+    testWidgets('E. answer tiles shared in both layouts', (tester) async {
       await _pumpLesson(tester, viewport: const Size(1440, 900));
-      final noImage = _cardSize(tester)!;
-      final noImageW = _shellWidth(tester)!;
-
+      expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
       await _pumpLesson(
         tester,
         viewport: const Size(1440, 900),
         imagePath: _imagePath,
       );
-      final withImage = _cardSize(tester)!;
-      final withImageW = _shellWidth(tester)!;
-
-      expect(noImageW, closeTo(withImageW, 1.0));
-      expect(noImage.width, closeTo(withImage.width, 1.0));
-      // Stessa min-height strategy → altezze allineate (tolleranza padding/figura).
-      expect((noImage.height - withImage.height).abs(), lessThan(80));
-      expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
+      expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
     });
 
-    testWidgets('G. footer anchored near viewport bottom', (tester) async {
-      await _pumpLesson(tester, viewport: const Size(1440, 900));
-      final footer = find.byKey(const Key('lesson_style_quiz_player_footer'));
-      expect(footer, findsOneWidget);
-      final footerTop = tester.getTopLeft(footer).dy;
-      expect(footerTop, greaterThan(700));
-      expect(find.text('Avanti'), findsOneWidget);
+    testWidgets('F. image column absent when imagePath null/empty/whitespace', (
+      tester,
+    ) async {
+      for (final path in <String?>[null, '', '   ']) {
+        await _pumpLesson(
+          tester,
+          viewport: const Size(1440, 900),
+          imagePath: path,
+        );
+        expect(
+          find.byKey(const Key('lesson_style_layout_no_image')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('lesson_style_image_column')),
+          findsNothing,
+        );
+        expect(find.byKey(const Key('quiz_prompt_side_image')), findsNothing);
+        expect(
+          find.byKey(const Key('quiz_prompt_stacked_image')),
+          findsNothing,
+        );
+      }
     });
 
-    for (final size in const [
-      Size(390, 844),
-      Size(768, 1024),
-      Size(1024, 768),
-      Size(1440, 900),
-    ]) {
-      testWidgets('H-K responsive ${size.width.toInt()}px no overflow', (
+    testWidgets('G. 390 stacked layout with image', (tester) async {
+      await _pumpLesson(
         tester,
-      ) async {
-        await _pumpLesson(tester, viewport: size);
-        expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
-        expect(tester.takeException(), isNull);
+        viewport: const Size(390, 844),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('lesson_style_image_column')), findsNothing);
+      expect(
+        find.byKey(const Key('quiz_prompt_stacked_image')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
 
-        await _pumpMulti(tester, viewport: size);
-        expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
-        expect(tester.takeException(), isNull);
+    testWidgets('G2. 844×390 wide-but-short → stacked (not side)', (
+      tester,
+    ) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(844, 390),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('lesson_style_image_column')), findsNothing);
+      expect(
+        find.byKey(const Key('quiz_prompt_stacked_image')),
+        findsOneWidget,
+      );
+      expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
+      expect(
+        find.byKey(const Key('lesson_style_quiz_player_footer')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
 
-        if (size.width >= QuizPlayerVisual.compactWidthBreakpoint) {
-          final card = _cardSize(tester);
-          expect(card, isNotNull);
-          expect(
-            card!.height,
-            greaterThanOrEqualTo(
-              LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
+    testWidgets('G3. Normal/Multi 844×390 image parity → stacked', (
+      tester,
+    ) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(844, 390),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+        findsOneWidget,
+      );
+
+      await _pumpMulti(
+        tester,
+        viewport: const Size(844, 390),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('G4. 844×390 long content stacked, scroll, no overflow', (
+      tester,
+    ) async {
+      final longPrompt = List.filled(
+        40,
+        'Testo molto lungo della domanda.',
+      ).join(' ');
+      final longOpt = List.filled(20, 'risposta lunga').join(' ');
+      studyAccessWritableRepository.applyLessonQuizSheetUnlock(
+        categoryId: LicenseCategoryId.motore,
+        lessonNumber: 1,
+        sheetNumber: 1,
+        unlocked: true,
+      );
+      addTearDown(studyAccessWritableRepository.resetDemoAssignments);
+      await tester.binding.setSurfaceSize(const Size(844, 390));
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+      });
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(844, 390)),
+          child: MaterialApp(
+            home: QuizSheetDetailPage(
+              lessonNumber: 1,
+              sheetNumber: 1,
+              categoryId: LicenseCategoryId.motore,
+              studentQuizRepositoryOverride: _FakeStudentRepo([
+                _q(
+                  n: 1,
+                  imagePath: _imagePath,
+                  prompt: longPrompt,
+                  optionText: longOpt,
+                ),
+                ..._sheetQs().skip(1),
+              ]),
+              quizAttemptRepositoryOverride: _FakeAttemptRepo(),
             ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_quiz_player_footer')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('H. 768×1024 image → side (tall enough body)', (tester) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(768, 1024),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('I. 1024×768 two-column image', (tester) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(1024, 768),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('I2. 1366×768 two-column image', (tester) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(1366, 768),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('J. 1440×900 two-column image', (tester) async {
+      await _pumpLesson(
+        tester,
+        viewport: const Size(1440, 900),
+        imagePath: _imagePath,
+      );
+      expect(
+        find.byKey(const Key('lesson_style_layout_with_image_side')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('J2. width boundary widgets 599/600/601 no overflow', (
+      tester,
+    ) async {
+      for (final width in const [599.0, 600.0, 601.0]) {
+        await _pumpLesson(
+          tester,
+          viewport: Size(width, 900),
+          imagePath: _imagePath,
+        );
+        expect(tester.takeException(), isNull);
+        if (width < LessonStyleQuizPlayerShell.sideLayoutMinWidth) {
+          expect(
+            find.byKey(const Key('lesson_style_layout_with_image_stacked')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('lesson_style_image_column')),
+            findsNothing,
+          );
+        } else {
+          // 600/601: not compact, body tall → side
+          expect(
+            find.byKey(const Key('lesson_style_layout_with_image_side')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('lesson_style_image_column')),
+            findsOneWidget,
           );
         }
-      });
-    }
+      }
+    });
 
-    testWidgets('L. long question scrolls without overflow', (tester) async {
+    testWidgets('K. long prompt no overflow', (tester) async {
       final long = List.filled(
         40,
         'Testo molto lungo della domanda.',
       ).join(' ');
       await _pumpLesson(tester, viewport: const Size(1440, 900), prompt: long);
-      expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(_cardSize(tester)!.height, greaterThan(180));
     });
 
-    testWidgets('M. long answers no overflow', (tester) async {
+    testWidgets('L. long answers no overflow', (tester) async {
       final longOpt = List.filled(20, 'risposta lunga').join(' ');
       studyAccessWritableRepository.applyLessonQuizSheetUnlock(
         categoryId: LicenseCategoryId.motore,
@@ -420,16 +769,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('N. normal/multi no-image height parity @1440', (tester) async {
-      await _pumpLesson(tester, viewport: const Size(1440, 900));
-      final lesson = _cardSize(tester)!;
-      await _pumpMulti(tester, viewport: const Size(1440, 900));
-      final multi = _cardSize(tester)!;
-      expect(multi.width, closeTo(lesson.width, 1.0));
-      expect((multi.height - lesson.height).abs(), lessThan(40));
+    testWidgets('M. no overflow matrix incl. 844×390', (tester) async {
+      for (final size in const [
+        Size(390, 844),
+        Size(844, 390),
+        Size(768, 1024),
+        Size(1024, 768),
+        Size(1366, 768),
+        Size(1440, 900),
+      ]) {
+        await _pumpLesson(tester, viewport: size);
+        expect(tester.takeException(), isNull);
+        await _pumpLesson(tester, viewport: size, imagePath: _imagePath);
+        expect(tester.takeException(), isNull);
+      }
     });
 
-    testWidgets('O. Exam still uses 720 content max width', (tester) async {
+    testWidgets('N. footer remains bottomNavigationBar', (tester) async {
+      await _pumpLesson(tester, viewport: const Size(1440, 900));
+      final footer = find.byKey(const Key('lesson_style_quiz_player_footer'));
+      expect(footer, findsOneWidget);
+      expect(tester.getTopLeft(footer).dy, greaterThan(700));
+      expect(find.text('Avanti'), findsOneWidget);
+    });
+
+    testWidgets('O. Exam still 720, no lesson shell', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 900));
       addTearDown(() async {
         await tester.binding.setSurfaceSize(null);
@@ -448,7 +812,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // Exam non usa LessonStyleQuizPlayerShell.
       expect(find.byType(LessonStyleQuizPlayerShell), findsNothing);
       var found720 = false;
       for (final box in tester.widgetList<ConstrainedBox>(
@@ -460,7 +823,6 @@ void main() {
         }
       }
       expect(found720, isTrue);
-      expect(find.byKey(const Key('lesson_style_question_card')), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

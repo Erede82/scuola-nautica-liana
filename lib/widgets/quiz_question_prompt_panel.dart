@@ -13,6 +13,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     this.imagePath,
     this.compact = false,
     this.dense = false,
+    this.includeImage = true,
     this.labelColor = AppVisual.logoBlue,
     this.textColor = QuizPlayerVisual.ink,
   });
@@ -22,6 +23,9 @@ class QuizQuestionPromptPanel extends StatelessWidget {
   final String? imagePath;
   final bool compact;
   final bool dense;
+
+  /// Se false, renderizza solo label+testo (l'immagine è gestita dallo shell).
+  final bool includeImage;
   final Color labelColor;
   final Color textColor;
 
@@ -66,7 +70,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final width = MediaQuery.sizeOf(context).width;
-    final hasImage = _hasImage(imagePath);
+    final hasImage = includeImage && _hasImage(imagePath);
     final useCompact = compact || QuizPlayerVisual.isCompact(context);
     final sideLayout = hasImage && !useCompact && width >= _sideLayoutMinWidth;
     final labelGap = dense ? 6.0 : (useCompact ? 8.0 : 10.0);
