@@ -36,6 +36,10 @@ abstract final class QuizPlayerVisual {
   /// Separata da [contentMaxWidth] per non alterare Quiz Esame.
   static const double lessonSheetContentMaxWidth = 1120;
 
+  /// Larghezza di lettura per layout no-image (Schede / Multischeda).
+  /// Evita righe troppo lunghe su desktop wide; il shell resta a 1120 per image-side.
+  static const double noImageReadingMaxWidth = 860;
+
   static const double questionFontDesktop = 18.5;
   static const double questionFontMobile = 17.0;
 

@@ -71,6 +71,7 @@ class DashboardActionCard extends StatefulWidget {
     this.useStudentBrandStyle = false,
     this.titleMaxLines,
     this.compactContent = false,
+    this.horizontal = false,
   });
 
   final String title;
@@ -99,6 +100,9 @@ class DashboardActionCard extends StatefulWidget {
   /// Default `false` = metriche storiche invariate.
   final bool compactContent;
 
+  /// Layout orizzontale (icona a sinistra, testi a destra). Usato sulla Quiz page mobile.
+  final bool horizontal;
+
   static const Color _successColor = Color(0xFF2E9E5B);
 
   @override
@@ -126,20 +130,84 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
     final showMarketingBadge = badgeLabel != null && !showUnread;
     final d = widget.dense;
     final compact = widget.compactContent;
+    final horizontal = widget.horizontal;
     final isBrand = widget.useStudentBrandStyle;
     final cardColor = widget.backgroundTint ?? AppVisual.ivory;
 
-    final iconBox = d ? (compact ? 36.0 : 44.0) : 48.0;
-    final iconSize = d ? (compact ? 22.0 : 26.0) : 28.0;
-    final pad = d
-        ? EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 16,
-            vertical: compact ? 12 : 20,
-          )
-        : const EdgeInsets.symmetric(horizontal: 20, vertical: 22);
-    final gapAfterIcon = d ? (compact ? 8.0 : 12.0) : 14.0;
-    final gapTitleToSubtitle = d ? (compact ? 6.0 : 10.0) : 16.0;
-    final subtitleMaxLines = d ? 2 : 3;
+    final iconBox = horizontal ? 48.0 : (d ? (compact ? 36.0 : 44.0) : 48.0);
+    final iconSize = horizontal ? 26.0 : (d ? (compact ? 22.0 : 26.0) : 28.0);
+    final pad = horizontal
+        ? const EdgeInsets.fromLTRB(14, 12, 14, 12)
+        : (d
+              ? EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 16,
+                  vertical: compact ? 12 : 20,
+                )
+              : const EdgeInsets.symmetric(horizontal: 20, vertical: 22));
+    final gapAfterIcon = horizontal
+        ? 14.0
+        : (d ? (compact ? 8.0 : 12.0) : 14.0);
+    final gapTitleToSubtitle = horizontal
+        ? 4.0
+        : (d ? (compact ? 6.0 : 10.0) : 16.0);
+    final subtitleMaxLines = horizontal ? 3 : (d ? 2 : 3);
+    final titleMaxLines = widget.titleMaxLines ?? (horizontal ? 2 : null);
+
+    Widget buildIcon() {
+      return Container(
+        width: iconBox,
+        height: iconBox,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isBrand
+              ? AppVisual.logoBlue
+              : AppVisual.logoBlue.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isBrand
+                ? Colors.white.withValues(alpha: 0.2)
+                : AppVisual.logoBlue.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Icon(
+          widget.icon,
+          color: isBrand ? Colors.white : AppVisual.logoBlue,
+          size: iconSize,
+        ),
+      );
+    }
+
+    Widget buildTitle() {
+      return Text(
+        widget.title,
+        textAlign: horizontal ? TextAlign.start : TextAlign.center,
+        maxLines: titleMaxLines,
+        overflow: titleMaxLines != null
+            ? TextOverflow.ellipsis
+            : TextOverflow.visible,
+        style: (d || horizontal ? textTheme.titleSmall : textTheme.titleMedium)
+            ?.copyWith(
+              color: AppVisual.ink,
+              fontWeight: FontWeight.w800,
+              height: horizontal ? 1.2 : null,
+            ),
+      );
+    }
+
+    Widget buildSubtitle() {
+      return Text(
+        widget.subtitle,
+        maxLines: subtitleMaxLines,
+        overflow: TextOverflow.ellipsis,
+        textAlign: horizontal ? TextAlign.start : TextAlign.center,
+        style: textTheme.bodySmall?.copyWith(
+          color: AppVisual.ink.withValues(alpha: 0.82),
+          height: d || horizontal ? 1.28 : 1.3,
+          fontSize: horizontal ? 12.5 : (d ? 11.5 : null),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
 
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1.0,
@@ -188,90 +256,72 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final maxH = constraints.maxHeight;
-                      final content = Center(
-                        child: Padding(
+                      final Widget body;
+                      if (horizontal) {
+                        body = Padding(
                           padding: pad,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                width: iconBox,
-                                height: iconBox,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: isBrand
-                                      ? AppVisual.logoBlue
-                                      : AppVisual.logoBlue.withValues(
-                                          alpha: 0.12,
-                                        ),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: isBrand
-                                        ? Colors.white.withValues(alpha: 0.2)
-                                        : AppVisual.logoBlue.withValues(
-                                            alpha: 0.15,
-                                          ),
-                                  ),
-                                ),
-                                child: Icon(
-                                  widget.icon,
-                                  color: isBrand
-                                      ? Colors.white
-                                      : AppVisual.logoBlue,
-                                  size: iconSize,
+                              buildIcon(),
+                              SizedBox(width: gapAfterIcon),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    buildTitle(),
+                                    SizedBox(height: gapTitleToSubtitle),
+                                    buildSubtitle(),
+                                  ],
                                 ),
                               ),
-                              SizedBox(height: gapAfterIcon),
-                              Text(
-                                widget.title,
-                                textAlign: TextAlign.center,
-                                maxLines: widget.titleMaxLines,
-                                overflow: widget.titleMaxLines != null
-                                    ? TextOverflow.ellipsis
-                                    : TextOverflow.visible,
-                                style:
-                                    (d
-                                            ? textTheme.titleSmall
-                                            : textTheme.titleMedium)
-                                        ?.copyWith(
-                                          color: AppVisual.ink,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                              ),
-                              SizedBox(height: gapTitleToSubtitle),
-                              Text(
-                                widget.subtitle,
-                                maxLines: subtitleMaxLines,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: AppVisual.ink.withValues(alpha: 0.82),
-                                  height: d ? 1.28 : 1.3,
-                                  fontSize: d ? 11.5 : null,
-                                  fontWeight: FontWeight.w600,
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: AppVisual.logoBlue.withValues(
+                                  alpha: 0.55,
                                 ),
+                                size: 22,
                               ),
                             ],
                           ),
-                        ),
-                      );
-                      if (maxH.isFinite) {
+                        );
+                      } else {
+                        body = Center(
+                          child: Padding(
+                            padding: pad,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                buildIcon(),
+                                SizedBox(height: gapAfterIcon),
+                                buildTitle(),
+                                SizedBox(height: gapTitleToSubtitle),
+                                buildSubtitle(),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      if (maxH.isFinite && !horizontal) {
                         return SizedBox(
                           width: double.infinity,
                           height: maxH,
-                          child: content,
+                          child: body,
                         );
                       }
-                      return SizedBox(width: double.infinity, child: content);
+                      return SizedBox(width: double.infinity, child: body);
                     },
                   ),
                 ),
                 if (showMarketingBadge)
                   Positioned(
-                    top: d ? 7 : 10,
-                    right: d ? 7 : 10,
+                    top: d || horizontal ? 7 : 10,
+                    right: d || horizontal ? 7 : 10,
                     child: IgnorePointer(
                       child: AnimatedOpacity(
                         opacity: _pressed ? 0.92 : 1.0,
@@ -279,8 +329,8 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                         curve: _animCurve,
                         child: Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: d ? 6 : 8,
-                            vertical: d ? 3 : 4,
+                            horizontal: d || horizontal ? 6 : 8,
+                            vertical: d || horizontal ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
                             color: isBrand
@@ -312,7 +362,7 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                                     ),
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.2,
-                              fontSize: d ? 9 : 10,
+                              fontSize: d || horizontal ? 9 : 10,
                             ),
                           ),
                         ),
@@ -321,18 +371,20 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                   ),
                 if (showUnread)
                   Positioned(
-                    top: d ? 6 : 8,
-                    right: d ? 6 : 8,
+                    top: d || horizontal ? 6 : 8,
+                    right: d || horizontal ? 6 : 8,
                     child: IgnorePointer(
                       child: AnimatedOpacity(
                         opacity: _pressed ? 0.92 : 1.0,
                         duration: _animDuration,
                         curve: _animCurve,
                         child: Container(
-                          constraints: BoxConstraints(minWidth: d ? 20 : 22),
+                          constraints: BoxConstraints(
+                            minWidth: d || horizontal ? 20 : 22,
+                          ),
                           padding: EdgeInsets.symmetric(
-                            horizontal: d ? 6 : 7,
-                            vertical: d ? 3 : 4,
+                            horizontal: d || horizontal ? 6 : 7,
+                            vertical: d || horizontal ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
                             color: isBrand ? Colors.white : AppVisual.logoBlue,
@@ -359,7 +411,7 @@ class _DashboardActionCardState extends State<DashboardActionCard> {
                                   ? AppVisual.logoBlue
                                   : Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: d ? 10 : 11,
+                              fontSize: d || horizontal ? 10 : 11,
                               height: 1.1,
                             ),
                           ),

@@ -15,6 +15,7 @@ import 'package:scuola_nautica_liana/pages/statistics_page.dart';
 import 'package:scuola_nautica_liana/repositories/assigned_quiz_repository.dart';
 import 'package:scuola_nautica_liana/services/demo_student_enrollment.dart';
 import 'package:scuola_nautica_liana/widgets/dashboard_action_card.dart';
+import 'package:scuola_nautica_liana/widgets/student_home_sidebar.dart';
 
 AssignedQuizSummary _summary({
   required String id,
@@ -72,6 +73,31 @@ void _surface(WidgetTester tester, {Size size = const Size(390, 844)}) {
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+Future<void> _pumpQuizDashboard(
+  WidgetTester tester, {
+  Size size = const Size(390, 844),
+  double textScale = 1.0,
+  double bottomInset = 0,
+}) async {
+  _surface(tester, size: size);
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(textScale),
+            padding: mq.padding.copyWith(bottom: bottomInset),
+          ),
+          child: child!,
+        );
+      },
+      home: const QuizDashboardPage(),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 Widget _list(AssignedQuizRepository repo) {
@@ -912,13 +938,15 @@ void main() {
         find.widgetWithText(DashboardActionCard, 'Quiz assegnati dalla scuola'),
       );
       expect(assigned.titleMaxLines, 2);
-      expect(assigned.compactContent, isTrue);
+      expect(assigned.horizontal, isTrue);
+      expect(assigned.compactContent, isFalse);
 
       final multi = tester.widget<DashboardActionCard>(
         find.widgetWithText(DashboardActionCard, 'Multischede argomento'),
       );
       expect(multi.titleMaxLines, 2);
-      expect(multi.compactContent, isTrue);
+      expect(multi.horizontal, isTrue);
+      expect(multi.compactContent, isFalse);
     });
 
     testWidgets('hub macro-card desktop affiancato e mobile sovrapposto', (
@@ -997,11 +1025,189 @@ void main() {
         );
         expect(card.titleMaxLines, isNull);
         expect(card.compactContent, isFalse);
+        expect(card.horizontal, isFalse);
 
         final titleText = tester.widget<Text>(find.text('Lezioni e schede'));
         expect(titleText.maxLines, isNull);
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets('POLISH.6 horizontal textScale 1.0/1.3/1.5 no overflow', (
+      tester,
+    ) async {
+      for (final scale in const [1.0, 1.3, 1.5]) {
+        await _pumpQuizDashboard(
+          tester,
+          size: const Size(390, 844),
+          textScale: scale,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(DashboardActionCard), findsNWidgets(5));
+        expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+
+        for (final title in [
+          'Lezioni e schede',
+          'Multischede argomento',
+          'Quiz esame',
+          'Statistiche e ripasso errori',
+          'Quiz assegnati dalla scuola',
+        ]) {
+          await ensureCardVisible(tester, title);
+          expect(find.text(title), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+      }
+    });
+
+    testWidgets('POLISH.6 horizontal card grows beyond 96 when needed', (
+      tester,
+    ) async {
+      await _pumpQuizDashboard(
+        tester,
+        size: const Size(390, 844),
+        textScale: 1.5,
+      );
+      expect(tester.takeException(), isNull);
+
+      final assignedFinder = find.widgetWithText(
+        DashboardActionCard,
+        'Quiz assegnati dalla scuola',
+      );
+      await ensureCardVisible(tester, 'Quiz assegnati dalla scuola');
+      final height = tester.getSize(assignedFinder).height;
+      expect(height, greaterThan(96));
+
+      final subtitle = tester.widget<Text>(
+        find.textContaining('Esercitazioni personalizzate'),
+      );
+      expect(subtitle.maxLines, 3);
+    });
+
+    testWidgets('POLISH.6 last card reachable with safe-area bottom', (
+      tester,
+    ) async {
+      for (final scale in const [1.0, 1.3]) {
+        await _pumpQuizDashboard(
+          tester,
+          size: const Size(390, 844),
+          textScale: scale,
+          bottomInset: 34,
+        );
+        expect(tester.takeException(), isNull);
+
+        final scrollView = tester.widget<SingleChildScrollView>(
+          find.byType(SingleChildScrollView).first,
+        );
+        expect(scrollView.padding?.resolve(TextDirection.ltr).bottom, 14 + 34);
+
+        const lastTitle = 'Quiz assegnati dalla scuola';
+        await ensureCardVisible(tester, lastTitle);
+        expect(find.text(lastTitle), findsOneWidget);
+
+        final scrollable = find.descendant(
+          of: find.byType(QuizDashboardPage),
+          matching: find.byType(Scrollable),
+        );
+        final position = tester
+            .state<ScrollableState>(scrollable.first)
+            .position;
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pumpAndSettle();
+        expect(find.text(lastTitle), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    });
+
+    testWidgets('POLISH.6 viewport matrix horizontal no overflow', (
+      tester,
+    ) async {
+      for (final size in const [
+        Size(320, 568),
+        Size(390, 844),
+        Size(393, 852),
+        Size(430, 932),
+      ]) {
+        await _pumpQuizDashboard(tester, size: size, bottomInset: 20);
+        expect(tester.takeException(), isNull);
+        expect(find.byType(DashboardActionCard), findsNWidgets(5));
+        final first = tester.widget<DashboardActionCard>(
+          find.byType(DashboardActionCard).first,
+        );
+        expect(first.horizontal, isTrue);
+
+        final scrollView = tester.widget<SingleChildScrollView>(
+          find.byType(SingleChildScrollView).first,
+        );
+        expect(scrollView.padding?.resolve(TextDirection.ltr).bottom, 14 + 20);
+
+        await ensureCardVisible(tester, 'Quiz assegnati dalla scuola');
+        expect(find.text('Quiz assegnati dalla scuola'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    });
+
+    testWidgets('POLISH.6 breakpoint 599 horizontal / 600–601 grid', (
+      tester,
+    ) async {
+      await _pumpQuizDashboard(tester, size: const Size(599, 900));
+      expect(
+        tester
+            .widgetList<DashboardActionCard>(find.byType(DashboardActionCard))
+            .every((c) => c.horizontal),
+        isTrue,
+      );
+
+      for (final width in const [600.0, 601.0]) {
+        await _pumpQuizDashboard(tester, size: Size(width, 900));
+        expect(
+          tester
+              .widgetList<DashboardActionCard>(find.byType(DashboardActionCard))
+              .every((c) => !c.horizontal),
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    });
+  });
+
+  group('StudentHomeSidebar logout', () {
+    testWidgets('student-drawer-logout presente, centrato e tappabile', (
+      tester,
+    ) async {
+      _surface(tester);
+      var placeholderCalls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: StudentHomeSidebar(
+                closeDrawerOnNavigate: false,
+                onOpenPlaceholder: (title, message, icon) {
+                  placeholderCalls++;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final logout = find.byKey(const ValueKey('student-drawer-logout'));
+      expect(logout, findsOneWidget);
+      expect(find.text('Esci'), findsOneWidget);
+
+      final sidebarCenterX = tester
+          .getCenter(find.byType(StudentHomeSidebar))
+          .dx;
+      final logoutCenterX = tester.getCenter(logout).dx;
+      expect((logoutCenterX - sidebarCenterX).abs(), lessThan(2.0));
+
+      await tester.tap(logout);
+      await tester.pumpAndSettle();
+      // Senza sessione: placeholder wiring (non auth change).
+      expect(placeholderCalls, 1);
+    });
   });
 }

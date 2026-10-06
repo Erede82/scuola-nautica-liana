@@ -359,7 +359,7 @@ void main() {
       );
     });
 
-    test('desktop leftover clamped; compact = 0', () {
+    test('desktop leftover clamped; compact = 0; long content skips fill', () {
       final desktop = LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
         availableBodyHeight: 600,
         compact: false,
@@ -372,6 +372,10 @@ void main() {
           LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
         ),
       );
+      expect(
+        desktop,
+        lessThanOrEqualTo(600 * LessonStyleQuizPlayerShell.questionCardMaxBodyFraction),
+      );
 
       final compact = LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
         availableBodyHeight: 600,
@@ -380,6 +384,17 @@ void main() {
         density: QuizPlayerContentDensity.standard,
       );
       expect(compact, 0);
+
+      final longContent =
+          LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
+            availableBodyHeight: 600,
+            compact: false,
+            optionCount: 3,
+            density: QuizPlayerContentDensity.standard,
+            estimatedContentLines:
+                LessonStyleQuizPlayerShell.longContentSkipFillLines + 1,
+          );
+      expect(longContent, 0);
     });
   });
 
@@ -395,8 +410,12 @@ void main() {
       expect(find.byKey(const Key('lesson_style_image_column')), findsNothing);
       expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
       final card = _cardSize(tester)!;
-      expect(card.height, greaterThan(180));
-      expect(card.width, greaterThan(900));
+      expect(card.height, greaterThan(140));
+      expect(
+        card.width,
+        lessThanOrEqualTo(QuizPlayerVisual.noImageReadingMaxWidth + 1),
+      );
+      expect(card.width, greaterThan(700));
       expect(tester.takeException(), isNull);
     });
 

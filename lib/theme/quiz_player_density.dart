@@ -9,8 +9,11 @@ enum QuizPlayerContentDensity { standard, dense }
 
 /// Rilevamento densità e metriche condivise (esame + schede).
 abstract final class QuizPlayerDensity {
-  /// Soglia righe stimate (domanda + tre risposte) oltre la quale attiva `dense`.
+  /// Soglia righe stimate (domanda + tre risposte) oltre la quale attiva `dense` su mobile.
   static const int denseLineThreshold = 10;
+
+  /// Soglia più alta su desktop/web: densità ridotta solo con testi molto lunghi.
+  static const int desktopDenseLineThreshold = 14;
 
   /// Larghezza stimata del marker risposta (cerchio + padding interno tile).
   static const double answerMarkerReserve = 44;
@@ -38,17 +41,37 @@ abstract final class QuizPlayerDensity {
     return math.max(1, (painter.height / lineHeight).ceil());
   }
 
-  /// Risolve densità da viewport e contenuto. `dense` solo su viewport stretta.
+  /// Risolve densità da viewport e contenuto.
+  ///
+  /// Mobile: `dense` oltre [denseLineThreshold].
+  /// Desktop/web: `dense` solo oltre [desktopDenseLineThreshold] (testi molto lunghi).
   static QuizPlayerContentDensity resolve({
     required BuildContext context,
     required String prompt,
     required List<String> answers,
     required double contentWidth,
   }) {
-    if (!QuizPlayerVisual.isCompact(context)) {
-      return QuizPlayerContentDensity.standard;
-    }
+    final totalLines = estimateTotalLines(
+      context: context,
+      prompt: prompt,
+      answers: answers,
+      contentWidth: contentWidth,
+    );
+    final threshold = QuizPlayerVisual.isCompact(context)
+        ? denseLineThreshold
+        : desktopDenseLineThreshold;
+    return totalLines > threshold
+        ? QuizPlayerContentDensity.dense
+        : QuizPlayerContentDensity.standard;
+  }
 
+  /// Stima righe totali domanda + risposte (utile al layout fill).
+  static int estimateTotalLines({
+    required BuildContext context,
+    required String prompt,
+    required List<String> answers,
+    required double contentWidth,
+  }) {
     final textScaler = MediaQuery.textScalerOf(context);
     final questionStyle = QuizPlayerVisual.questionStyle(context);
     final answerStyle = QuizPlayerVisual.answerStyle(context);
@@ -81,10 +104,7 @@ abstract final class QuizPlayerDensity {
         textScaler: textScaler,
       );
     }
-
-    return totalLines > denseLineThreshold
-        ? QuizPlayerContentDensity.dense
-        : QuizPlayerContentDensity.standard;
+    return totalLines;
   }
 
   static bool isDense(QuizPlayerContentDensity density) =>

@@ -333,24 +333,45 @@ class StudentHomeSidebar extends StatelessWidget {
                   valueListenable: studentSession,
                   builder: (context, sess, _) {
                     final canLogout = staffSnap.hasAuthSession || sess != null;
-                    return _navTile(
-                      context,
-                      icon: Icons.logout_rounded,
-                      label: 'Esci',
-                      dense: true,
-                      onTap: () async {
-                        if (!canLogout) {
-                          _maybePopDrawer(context);
-                          onOpenPlaceholder(
-                            'Esci',
-                            'Non risulti collegato con un account in questa sessione.',
-                            Icons.logout_rounded,
-                          );
-                          return;
-                        }
-                        _maybePopDrawer(context);
-                        await signOutAndReturnToWelcome();
-                      },
+                    return SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 280),
+                            child: OutlinedButton.icon(
+                              key: const ValueKey('student-drawer-logout'),
+                              onPressed: () async {
+                                if (!canLogout) {
+                                  _maybePopDrawer(context);
+                                  onOpenPlaceholder(
+                                    'Esci',
+                                    'Non risulti collegato con un account in questa sessione.',
+                                    Icons.logout_rounded,
+                                  );
+                                  return;
+                                }
+                                _maybePopDrawer(context);
+                                await signOutAndReturnToWelcome();
+                              },
+                              icon: const Icon(Icons.logout_rounded),
+                              label: const Text('Esci'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _primaryColor,
+                                side: BorderSide(
+                                  color: _primaryColor.withValues(alpha: 0.45),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                minimumSize: const Size(160, 44),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     );
                   },
                 );
