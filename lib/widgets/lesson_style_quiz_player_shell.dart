@@ -184,6 +184,11 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
     if (leftover <= 0) return 0;
 
     final ceiling = availableBodyHeight * questionCardMaxBodyFraction;
+    // `num.clamp` throws when the lower bound exceeds the upper. On a short
+    // desktop body (quiz area under 400px — a normal laptop browser window)
+    // 40% of the body is below the 160px floor. Skip the inflate so the
+    // player still builds and the answers stay at their natural height.
+    if (ceiling < questionCardMinHeightFloor) return 0;
     return leftover.clamp(questionCardMinHeightFloor, ceiling);
   }
 
