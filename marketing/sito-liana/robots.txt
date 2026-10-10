@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://autoscuolaliana.it/sitemap.xml
+
+# Proposta per dominio marketing (autoscuolaliana.it).
+# Non applicare a app.autoscuolaliana.it / public_html/app.
