@@ -396,6 +396,52 @@ void main() {
           );
       expect(longContent, 0);
     });
+
+    test(
+      'short desktop body does not throw when ceiling is below the floor',
+      () {
+      // 3 standard answers reserve ~182px. Body 350 → leftover 168, but the
+      // 40% cap is 140, under the 160 floor. clamp(160, 140) would throw
+      // during build and blank the Scheda / Multischeda player.
+      const shortBody = 350.0;
+      expect(
+        shortBody * LessonStyleQuizPlayerShell.questionCardMaxBodyFraction,
+        lessThan(LessonStyleQuizPlayerShell.questionCardMinHeightFloor),
+      );
+      expect(
+        LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
+          availableBodyHeight: shortBody,
+          compact: false,
+          optionCount: 3,
+          density: QuizPlayerContentDensity.standard,
+          estimatedContentLines: 4,
+        ),
+        0,
+      );
+
+      // Just under the 400px body where 40% meets the floor.
+      expect(
+        LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
+          availableBodyHeight: 399,
+          compact: false,
+          optionCount: 3,
+          density: QuizPlayerContentDensity.standard,
+        ),
+        0,
+      );
+
+      // At 400px the cap equals the floor, so the inflate stays legal.
+      final boundary = LessonStyleQuizPlayerShell.resolveQuestionCardMinHeight(
+        availableBodyHeight: 400,
+        compact: false,
+        optionCount: 3,
+        density: QuizPlayerContentDensity.standard,
+      );
+      expect(
+        boundary,
+        LessonStyleQuizPlayerShell.questionCardMinHeightFloor,
+      );
+    });
   });
 
   group('FILL.5 — visual refinement image / no-image', () {
@@ -795,6 +841,7 @@ void main() {
         Size(768, 1024),
         Size(1024, 768),
         Size(1366, 768),
+        Size(1280, 560),
         Size(1440, 900),
       ]) {
         await _pumpLesson(tester, viewport: size);
