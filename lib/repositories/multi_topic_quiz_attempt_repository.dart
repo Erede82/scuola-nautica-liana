@@ -14,9 +14,6 @@ import '../domain/multi_topic_quiz_history_models.dart';
 import '../domain/quiz_license_category.dart';
 import '../models/license_models.dart';
 
-/// Chunk size per `inFilter` su attempt_id (allineato a lesson history).
-const multiTopicQuestionUsageAttemptChunkSize = 100;
-
 const multiTopicQuizAttemptSubmitRpcName = 'submit_multi_topic_quiz_attempt';
 
 /// Tabelle dedicate Multischeda (mai `quiz_results` / `quiz_sets` per lo storico).
@@ -170,6 +167,34 @@ class MultiTopicQuizAttemptRepositorySupabase
     return uid;
   }
 
+  /// Pagine PostgREST ordinate per `id`.
+  /// Una pagina piena richiede la successiva.
+  ///
+  /// Se si raggiunge [multiTopicQuestionUsageMaxPages] senza una pagina corta,
+  /// fallisce: una history troncata farebbe ripetere domande già viste.
+  Future<List<dynamic>> _fetchUsagePages(
+    Future<dynamic> Function(int from, int to) fetchPage,
+  ) async {
+    final rows = <dynamic>[];
+    for (
+      var pageIndex = 0;
+      pageIndex < multiTopicQuestionUsageMaxPages;
+      pageIndex++
+    ) {
+      final window = multiTopicUsagePageRange(pageIndex: pageIndex);
+      final raw = await fetchPage(window.from, window.to);
+      final pageRows = raw as List<dynamic>;
+      rows.addAll(pageRows);
+      if (pageRows.length < multiTopicQuestionUsagePageSize) {
+        return rows;
+      }
+    }
+    throw const MultiTopicQuizAttemptException(
+      code: MultiTopicQuizAttemptErrorCode.unknown,
+      message: 'Operazione non riuscita. Riprova più tardi.',
+    );
+  }
+
   @override
   Future<MultiTopicQuizAttemptResult> submitAttempt(
     MultiTopicQuizAttemptSubmission submission,
@@ -249,12 +274,16 @@ class MultiTopicQuizAttemptRepositorySupabase
       );
     }
     try {
-      final attemptsRes = await _client
-          .from(multiTopicQuizAttemptsTable)
-          .select('id')
-          .eq('license_category', dbCategory);
+      final attemptRows = await _fetchUsagePages((from, to) {
+        return _client
+            .from(multiTopicQuizAttemptsTable)
+            .select('id')
+            .eq('license_category', dbCategory)
+            .order('id')
+            .range(from, to);
+      });
       final attemptIds = <String>[
-        for (final row in attemptsRes as List<dynamic>)
+        for (final row in attemptRows)
           if (row is Map && (row['id']?.toString() ?? '').trim().isNotEmpty)
             row['id'].toString().trim(),
       ];
@@ -273,11 +302,15 @@ class MultiTopicQuizAttemptRepositorySupabase
           attemptIds.length,
         );
         final chunk = attemptIds.sublist(offset, end);
-        final answersRes = await _client
-            .from(multiTopicQuizAttemptAnswersTable)
-            .select('question_id, created_at')
-            .inFilter('attempt_id', chunk);
-        for (final item in answersRes as List<dynamic>) {
+        final answersRes = await _fetchUsagePages((from, to) {
+          return _client
+              .from(multiTopicQuizAttemptAnswersTable)
+              .select('question_id, created_at')
+              .inFilter('attempt_id', chunk)
+              .order('id')
+              .range(from, to);
+        });
+        for (final item in answersRes) {
           if (item is! Map) continue;
           final questionId = item['question_id']?.toString().trim() ?? '';
           if (questionId.isEmpty) continue;
