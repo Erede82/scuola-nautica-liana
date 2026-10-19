@@ -40,7 +40,7 @@ class QuizLessonSheetProgressPanel extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       width: double.infinity,
-      margin: QuizPlayerVisual.lessonSheetProgressPanelMargin,
+      margin: QuizPlayerVisual.progressPanelMargin,
       padding: QuizPlayerVisual.progressPanelPadding,
       decoration: BoxDecoration(
         color: QuizPlayerVisual.cardSurface,

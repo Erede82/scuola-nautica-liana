@@ -21,8 +21,8 @@ import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_player_answer_tile.dart';
+import '../widgets/quiz_player_question_body.dart';
 import '../widgets/quiz_question_progress_strip.dart';
-import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
 
 /// Risultato [Navigator.pop] per avviare subito una nuova simulazione esame.
@@ -436,8 +436,8 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: QuizPlayerVisual.contentMaxWidth,
+                  constraints: BoxConstraints(
+                    maxWidth: QuizPlayerVisual.playerContentMaxWidth(context),
                   ),
                   child: LayoutBuilder(
                     builder: (context, contentConstraints) {
@@ -451,63 +451,65 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                         contentWidth: contentConstraints.maxWidth,
                       );
                       final dense = density == QuizPlayerContentDensity.dense;
+                      const bodyPadding = QuizPlayerVisual.bodyPadding;
+                      final availableBodyHeight = max(
+                        0.0,
+                        contentConstraints.maxHeight - bodyPadding.vertical,
+                      );
+                      final layout = QuizPlayerQuestionBody.resolveLayout(
+                        imagePath: question.imagePath,
+                        compact: compact,
+                        contentWidth: contentConstraints.maxWidth,
+                        availableBodyHeight: availableBodyHeight,
+                      );
 
                       return SingleChildScrollView(
-                        padding: QuizPlayerVisual.bodyPadding,
-                        child: Column(
+                        padding: bodyPadding,
+                        child: KeyedSubtree(
                           key: QuizPlayerDensity.densityKey(density),
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(
-                                QuizPlayerDensity.cardPadding(density),
-                              ),
-                              decoration: BoxDecoration(
-                                color: _cardColor,
-                                borderRadius: BorderRadius.circular(
-                                  QuizPlayerVisual.cardRadius,
-                                ),
-                                border: Border.all(color: _neutralColor),
-                              ),
-                              child: QuizQuestionPromptPanel(
-                                questionNumber: _currentIndex + 1,
-                                prompt: question.prompt,
-                                imagePath: question.imagePath,
-                                compact: compact,
-                                dense: dense,
-                                labelColor: _primaryColor,
-                                textColor: _textPrimaryColor,
-                              ),
-                            ),
-                            SizedBox(
-                              height: QuizPlayerDensity.sectionSpacing(density),
-                            ),
-                            ...question.options.map(
-                              (option) => Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: QuizPlayerDensity.answerSpacing(
-                                    density,
+                          child: QuizPlayerQuestionBody(
+                            questionNumber: _currentIndex + 1,
+                            prompt: question.prompt,
+                            imagePath: question.imagePath,
+                            compact: compact,
+                            dense: dense,
+                            density: density,
+                            layout: layout,
+                            availableBodyHeight: availableBodyHeight,
+                            contentWidth: contentConstraints.maxWidth,
+                            labelColor: _primaryColor,
+                            textColor: _textPrimaryColor,
+                            cardColor: _cardColor,
+                            borderColor: _neutralColor,
+                            answersBuilder: () => [
+                              for (final option in question.options)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: QuizPlayerDensity.answerSpacing(
+                                      density,
+                                    ),
+                                  ),
+                                  child: QuizPlayerAnswerTile(
+                                    answerNumber: option.index + 1,
+                                    text: question.textForOption(option),
+                                    onTap: () => _selectAnswer(option),
+                                    markerState: selected == option
+                                        ? NauticalAnswerMarkerState.selected
+                                        : NauticalAnswerMarkerState.neutral,
+                                    backgroundColor: selected == option
+                                        ? QuizPlayerVisual.selectedFill
+                                        : QuizPlayerVisual.cardSurface,
+                                    borderColor: selected == option
+                                        ? QuizPlayerVisual.selectedBorder
+                                        : QuizPlayerVisual.cardBorder,
+                                    borderWidth: selected == option
+                                        ? 2.0
+                                        : 1.2,
+                                    density: density,
                                   ),
                                 ),
-                                child: QuizPlayerAnswerTile(
-                                  answerNumber: option.index + 1,
-                                  text: question.textForOption(option),
-                                  onTap: () => _selectAnswer(option),
-                                  markerState: selected == option
-                                      ? NauticalAnswerMarkerState.selected
-                                      : NauticalAnswerMarkerState.neutral,
-                                  backgroundColor: selected == option
-                                      ? QuizPlayerVisual.selectedFill
-                                      : QuizPlayerVisual.cardSurface,
-                                  borderColor: selected == option
-                                      ? QuizPlayerVisual.selectedBorder
-                                      : QuizPlayerVisual.cardBorder,
-                                  borderWidth: selected == option ? 2.0 : 1.2,
-                                  density: density,
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },

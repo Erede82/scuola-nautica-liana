@@ -229,6 +229,37 @@ void main() {
       expect(QuizPlayerVisual.accent, const Color(0xFF005E83));
     });
 
+    test('playerContentMaxWidthFor classroom breakpoints', () {
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(390),
+        double.infinity,
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(768),
+        closeTo(768 * 0.92, 0.5),
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(1024),
+        closeTo(1024 * 0.88, 0.5),
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(1366),
+        closeTo(1366 * 0.88, 0.5),
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(1440),
+        closeTo(1440 * 0.88, 0.5),
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(1920),
+        QuizPlayerVisual.playerContentMaxWidthCap,
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(1920),
+        greaterThan(1400),
+      );
+    });
+
     testWidgets('esame e scheda condividono font, padding e metriche reali', (
       tester,
     ) async {
@@ -245,15 +276,17 @@ void main() {
       final examPadding = _tileContentPadding(tester);
       final examAnswerStyle = QuizPlayerVisual.answerStyle(
         tester.element(find.byType(QuizPlayerAnswerTile).first),
+        scale: QuizPlayerTypeScale.classroom,
       );
       final examQuestionStyle = QuizPlayerVisual.questionStyle(
         tester.element(find.byType(QuizQuestionPromptPanel)),
+        scale: QuizPlayerTypeScale.classroom,
       );
       final examScaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.contentMaxWidth,
+          maxWidth: QuizPlayerVisual.examContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );
@@ -270,9 +303,11 @@ void main() {
       final sheetPadding = _tileContentPadding(tester);
       final sheetAnswerStyle = QuizPlayerVisual.answerStyle(
         tester.element(find.byType(QuizPlayerAnswerTile).first),
+        scale: QuizPlayerTypeScale.classroom,
       );
       final sheetQuestionStyle = QuizPlayerVisual.questionStyle(
         tester.element(find.byType(QuizQuestionPromptPanel)),
+        scale: QuizPlayerTypeScale.classroom,
       );
       final sheetScaffold = tester.widget<Scaffold>(
         find.byType(Scaffold).first,
@@ -280,7 +315,7 @@ void main() {
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+          maxWidth: QuizPlayerVisual.playerContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );
@@ -402,9 +437,11 @@ void main() {
       );
       final examAnswerSize = QuizPlayerVisual.answerStyle(
         tester.element(find.byType(QuizPlayerAnswerTile).first),
+        scale: QuizPlayerTypeScale.classroom,
       ).fontSize;
       final examQuestionSize = QuizPlayerVisual.questionStyle(
         tester.element(find.byType(QuizQuestionPromptPanel)),
+        scale: QuizPlayerTypeScale.classroom,
       ).fontSize;
 
       await _pumpSheet(
@@ -421,12 +458,14 @@ void main() {
       expect(
         QuizPlayerVisual.answerStyle(
           tester.element(find.byType(QuizPlayerAnswerTile).first),
+          scale: QuizPlayerTypeScale.classroom,
         ).fontSize,
         examAnswerSize,
       );
       expect(
         QuizPlayerVisual.questionStyle(
           tester.element(find.byType(QuizQuestionPromptPanel)),
+          scale: QuizPlayerTypeScale.classroom,
         ).fontSize,
         examQuestionSize,
       );
@@ -477,17 +516,18 @@ void main() {
     });
 
     testWidgets('1366×768 D1 esame e scheda desktop', (tester) async {
+      const viewport = Size(1366, 768);
       await _pumpExam(
         tester,
         categoryId: LicenseCategoryId.d1,
         count: 15,
-        viewport: const Size(1366, 768),
+        viewport: viewport,
       );
       expect(find.text('1/15'), findsOneWidget);
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.contentMaxWidth,
+          maxWidth: QuizPlayerVisual.examContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );
@@ -497,13 +537,13 @@ void main() {
         tester,
         categoryId: LicenseCategoryId.d1,
         count: 15,
-        viewport: const Size(1366, 768),
+        viewport: viewport,
       );
       expect(find.text('1/15'), findsOneWidget);
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+          maxWidth: QuizPlayerVisual.playerContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );
@@ -511,11 +551,12 @@ void main() {
     });
 
     testWidgets('1440×900 Quiz Esame D1 desktop', (tester) async {
+      const viewport = Size(1440, 900);
       await _pumpExam(
         tester,
         categoryId: LicenseCategoryId.d1,
         count: 15,
-        viewport: const Size(1440, 900),
+        viewport: viewport,
       );
       expect(find.text('1/15'), findsOneWidget);
       expect(_progressCells(), findsNWidgets(15));
@@ -523,7 +564,7 @@ void main() {
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.contentMaxWidth,
+          maxWidth: QuizPlayerVisual.examContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );
@@ -537,19 +578,74 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('1920×1080 Quiz Esame wide content', (tester) async {
+      const viewport = Size(1920, 1080);
+      await _pumpExam(
+        tester,
+        categoryId: LicenseCategoryId.d1,
+        count: 15,
+        viewport: viewport,
+      );
+      expect(find.text('1/15'), findsOneWidget);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.examContentMaxWidthFor(viewport.width),
+        ),
+        isNotNull,
+      );
+      expect(
+        QuizPlayerVisual.playerContentMaxWidthFor(viewport.width),
+        QuizPlayerVisual.playerContentMaxWidthCap,
+      );
+      final questionStyle = QuizPlayerVisual.questionStyle(
+        tester.element(find.byType(QuizQuestionPromptPanel)),
+        scale: QuizPlayerTypeScale.classroom,
+      );
+      expect(
+        questionStyle.fontSize,
+        greaterThanOrEqualTo(QuizPlayerVisual.questionFontDesktop),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('1280×720 Quiz Esame low-height usable', (tester) async {
+      const viewport = Size(1280, 720);
+      await _pumpExam(
+        tester,
+        categoryId: LicenseCategoryId.d1,
+        count: 15,
+        viewport: viewport,
+      );
+      expect(find.text('1/15'), findsOneWidget);
+      expect(find.text('Avanti'), findsOneWidget);
+      expect(
+        _contentMaxWidthBox(
+          tester,
+          maxWidth: QuizPlayerVisual.examContentMaxWidthFor(viewport.width),
+        ),
+        isNotNull,
+      );
+      final last = find.textContaining('Risposta C della domanda 1');
+      await tester.ensureVisible(last);
+      expect(last.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('1440×900 Scheda D1 desktop', (tester) async {
+      const viewport = Size(1440, 900);
       await _pumpSheet(
         tester,
         categoryId: LicenseCategoryId.d1,
         count: 15,
-        viewport: const Size(1440, 900),
+        viewport: viewport,
       );
       expect(find.text('1/15'), findsOneWidget);
       expect(_progressCells(), findsNWidgets(15));
       expect(
         _contentMaxWidthBox(
           tester,
-          maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+          maxWidth: QuizPlayerVisual.playerContentMaxWidthFor(viewport.width),
         ),
         isNotNull,
       );

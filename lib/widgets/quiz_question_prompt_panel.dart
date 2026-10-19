@@ -14,6 +14,7 @@ class QuizQuestionPromptPanel extends StatelessWidget {
     this.compact = false,
     this.dense = false,
     this.includeImage = true,
+    this.classroomScale = false,
     this.labelColor = AppVisual.logoBlue,
     this.textColor = QuizPlayerVisual.ink,
   });
@@ -26,6 +27,9 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
   /// Se false, renderizza solo label+testo (l'immagine è gestita dallo shell).
   final bool includeImage;
+
+  /// Opt-in tipografia classroom (UNIFY.2). Default false → Assigned legacy.
+  final bool classroomScale;
   final Color labelColor;
   final Color textColor;
 
@@ -82,6 +86,10 @@ class QuizQuestionPromptPanel extends StatelessWidget {
 
     final promptStyle = QuizPlayerVisual.questionStyle(
       context,
+      prompt: prompt,
+      scale: classroomScale
+          ? QuizPlayerTypeScale.classroom
+          : QuizPlayerTypeScale.legacy,
     ).copyWith(color: textColor);
 
     final promptWidget = Text(prompt, style: promptStyle);

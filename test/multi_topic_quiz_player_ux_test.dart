@@ -114,11 +114,11 @@ Future<MultiTopicQuizAttemptRepositoryFake> _pumpPlayer(
   return repo;
 }
 
-double? _lessonShellWidth(WidgetTester tester) {
+double? _lessonShellWidth(WidgetTester tester, {required double viewportWidth}) {
+  final expected = QuizPlayerVisual.playerContentMaxWidthFor(viewportWidth);
   final boxes = tester.widgetList<ConstrainedBox>(find.byType(ConstrainedBox));
   for (final box in boxes) {
-    if (box.constraints.maxWidth ==
-        QuizPlayerVisual.lessonSheetContentMaxWidth) {
+    if (box.constraints.maxWidth == expected) {
       final elements = find
           .byWidgetPredicate((w) => identical(w, box))
           .evaluate();
@@ -139,11 +139,14 @@ Future<void> _goToLastQuestion(WidgetTester tester) async {
   expect(find.text('Chiudi scheda'), findsOneWidget);
 }
 
-ConstrainedBox? _lessonSheetWidthBox(WidgetTester tester) {
+ConstrainedBox? _lessonSheetWidthBox(
+  WidgetTester tester, {
+  required double viewportWidth,
+}) {
+  final expected = QuizPlayerVisual.playerContentMaxWidthFor(viewportWidth);
   final boxes = tester.widgetList<ConstrainedBox>(find.byType(ConstrainedBox));
   for (final box in boxes) {
-    if (box.constraints.maxWidth ==
-        QuizPlayerVisual.lessonSheetContentMaxWidth) {
+    if (box.constraints.maxWidth == expected) {
       return box;
     }
   }
@@ -202,7 +205,10 @@ void main() {
       expect(find.textContaining('Corrette:'), findsOneWidget);
       expect(find.textContaining('Errori:'), findsOneWidget);
       expect(find.textContaining('Non risposte:'), findsOneWidget);
-      expect(_lessonSheetWidthBox(tester), isNotNull);
+      expect(
+        _lessonSheetWidthBox(tester, viewportWidth: 1440),
+        isNotNull,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -213,13 +219,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('PROGRESS.3 width shell 1440 ≈ 1120; 390/768/1024 ok', (
+    testWidgets('PROGRESS.3 width shell unified; 390/768/1024 ok', (
       tester,
     ) async {
       await _pumpPlayer(tester, viewport: const Size(1440, 900));
-      final width1440 = _lessonShellWidth(tester);
+      final expected1440 = QuizPlayerVisual.playerContentMaxWidthFor(1440);
+      final width1440 = _lessonShellWidth(tester, viewportWidth: 1440);
       expect(width1440, isNotNull);
-      expect(width1440!, closeTo(1120, 1.0));
+      expect(width1440!, closeTo(expected1440, 1.0));
       expect(tester.takeException(), isNull);
 
       for (final size in const [
@@ -256,17 +263,13 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final w = _lessonShellWidth(tester);
+        final expected = QuizPlayerVisual.playerContentMaxWidthFor(size.width);
+        final w = _lessonShellWidth(tester, viewportWidth: size.width);
         expect(w, isNotNull);
-        expect(
-          w!,
-          closeTo(
-            size.width < QuizPlayerVisual.lessonSheetContentMaxWidth
-                ? size.width
-                : QuizPlayerVisual.lessonSheetContentMaxWidth,
-            1.0,
-          ),
-        );
+        final target = expected.isFinite
+            ? (expected < size.width ? expected : size.width)
+            : size.width;
+        expect(w!, closeTo(target, 1.0));
         expect(tester.takeException(), isNull);
       }
     });
@@ -277,7 +280,10 @@ void main() {
         viewport: const Size(1440, 900),
         withImage: true,
       );
-      expect(_lessonShellWidth(tester), closeTo(1120, 1.0));
+      expect(
+        _lessonShellWidth(tester, viewportWidth: 1440),
+        closeTo(QuizPlayerVisual.playerContentMaxWidthFor(1440), 1.0),
+      );
       expect(tester.takeException(), isNull);
     });
   });

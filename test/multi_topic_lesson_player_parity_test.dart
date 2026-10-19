@@ -103,12 +103,12 @@ class _FakeAttemptRepo implements QuizAttemptRepository {
   }) async => const QuizAttemptSubmitResult(quizResultId: 'ok');
 }
 
-double? _shellWidth(WidgetTester tester) {
+double? _shellWidth(WidgetTester tester, {required double viewportWidth}) {
+  final expected = QuizPlayerVisual.playerContentMaxWidthFor(viewportWidth);
   for (final box in tester.widgetList<ConstrainedBox>(
     find.byType(ConstrainedBox),
   )) {
-    if (box.constraints.maxWidth ==
-        QuizPlayerVisual.lessonSheetContentMaxWidth) {
+    if (box.constraints.maxWidth == expected) {
       final elements = find
           .byWidgetPredicate((w) => identical(w, box))
           .evaluate();
@@ -121,7 +121,7 @@ double? _shellWidth(WidgetTester tester) {
 }
 
 Size? _questionCardSize(WidgetTester tester) {
-  final card = find.byKey(const Key('lesson_style_question_card'));
+  final card = find.byKey(const Key('quiz_player_question_card'));
   if (card.evaluate().isEmpty) return null;
   return tester.getSize(card);
 }
@@ -234,9 +234,10 @@ void main() {
       expect(find.byType(QuizQuestionPromptPanel), findsOneWidget);
       expect(find.byType(QuizLessonSheetProgressPanel), findsOneWidget);
       expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
-      final lessonWidth = _shellWidth(tester);
+      final expectedW = QuizPlayerVisual.playerContentMaxWidthFor(1440);
+      final lessonWidth = _shellWidth(tester, viewportWidth: 1440);
       final lessonCard = _questionCardSize(tester);
-      expect(lessonWidth, closeTo(1120, 1.0));
+      expect(lessonWidth, closeTo(expectedW, 1.0));
       expect(lessonCard, isNotNull);
 
       await _pumpMulti(tester, viewport: const Size(1440, 900));
@@ -245,35 +246,41 @@ void main() {
       expect(find.byType(QuizLessonSheetProgressPanel), findsOneWidget);
       expect(find.byType(QuizPlayerAnswerTile), findsNWidgets(3));
       expect(find.text('Scheda 1 di 2'), findsWidgets);
-      final multiWidth = _shellWidth(tester);
+      final multiWidth = _shellWidth(tester, viewportWidth: 1440);
       final multiCard = _questionCardSize(tester);
-      expect(multiWidth, closeTo(1120, 1.0));
+      expect(multiWidth, closeTo(expectedW, 1.0));
       expect(multiCard, isNotNull);
       expect(multiCard!.width, closeTo(lessonCard!.width, 1.0));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('image side layout equivalent @1440', (tester) async {
+    testWidgets('image integrated layout equivalent @1440', (tester) async {
       await _pumpLessonSheet(
         tester,
         viewport: const Size(1440, 900),
         withImage: true,
       );
-      expect(find.byKey(const Key('quiz_prompt_side_image')), findsOneWidget);
+      expect(find.byKey(const Key('quiz_player_media_image')), findsOneWidget);
+      expect(find.byKey(const Key('lesson_style_image_column')), findsNothing);
       final lessonSide = tester.getSize(
-        find.byKey(const Key('quiz_prompt_side_image')),
+        find.byKey(const Key('quiz_player_media_image')),
       );
+      final lessonAnswer =
+          tester.getSize(find.byType(QuizPlayerAnswerTile).first).width;
 
       await _pumpMulti(
         tester,
         viewport: const Size(1440, 900),
         withImage: true,
       );
-      expect(find.byKey(const Key('quiz_prompt_side_image')), findsOneWidget);
+      expect(find.byKey(const Key('quiz_player_media_image')), findsOneWidget);
       final multiSide = tester.getSize(
-        find.byKey(const Key('quiz_prompt_side_image')),
+        find.byKey(const Key('quiz_player_media_image')),
       );
+      final multiAnswer =
+          tester.getSize(find.byType(QuizPlayerAnswerTile).first).width;
       expect(multiSide.width, closeTo(lessonSide.width, 1.0));
+      expect(multiAnswer, closeTo(lessonAnswer, 1.0));
       expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -290,13 +297,13 @@ void main() {
         await _pumpLessonSheet(tester, viewport: size);
         expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
         expect(tester.takeException(), isNull);
-        final lessonW = _shellWidth(tester);
+        final lessonW = _shellWidth(tester, viewportWidth: size.width);
         expect(lessonW, isNotNull);
 
         await _pumpMulti(tester, viewport: size);
         expect(find.byType(LessonStyleQuizPlayerShell), findsOneWidget);
         expect(tester.takeException(), isNull);
-        final multiW = _shellWidth(tester);
+        final multiW = _shellWidth(tester, viewportWidth: size.width);
         expect(multiW, closeTo(lessonW!, 1.0));
       });
     }

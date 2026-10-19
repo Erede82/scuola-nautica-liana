@@ -10,25 +10,24 @@ import 'nautical_answer_marker.dart';
 import 'quiz_answer_result_chip.dart';
 import 'quiz_lesson_sheet_progress_panel.dart';
 import 'quiz_player_answer_tile.dart';
-import 'quiz_question_image.dart';
+import 'quiz_player_question_body.dart';
 import 'quiz_question_progress_strip.dart';
-import 'quiz_question_prompt_panel.dart';
 
 /// Layout automatico del player lesson-style (Scheda / Multischeda).
 enum LessonStyleQuizLayout {
   /// Nessuna figura: domanda full-width + risposte sotto.
   noImage,
 
-  /// Desktop/tablet: immagine sinistra, domanda+risposte a destra.
+  /// Desktop/tablet: media sinistra + domanda/risposte destra (UNIFY.2 shared).
   withImageSide,
 
-  /// Mobile: stacked (prompt panel con figura) + risposte sotto.
+  /// Mobile / body basso: figura stacked + risposte sotto.
   withImageStacked,
 }
 
 /// Shell condiviso Scheda lezione / Multischeda (area domanda + progress + footer).
 ///
-/// Unica fonte del layout visuale "lesson style". Exam resta separato.
+/// Composizione corpo allineata a Quiz Esame: prompt (+ figura) → risposte.
 class LessonStyleQuizPlayerShell extends StatelessWidget {
   const LessonStyleQuizPlayerShell({
     super.key,
@@ -75,40 +74,37 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
   static const Color _correctBg = QuizPlayerVisual.correctFill;
   static const Color _wrongBg = QuizPlayerVisual.wrongFill;
 
-  /// Breakpoint two-column image (allineato a [QuizQuestionPromptPanel]).
+  /// Breakpoint two-column image (allineato a [QuizPlayerQuestionBody]).
   @visibleForTesting
-  static const double sideLayoutMinWidth = 600;
+  static const double sideLayoutMinWidth =
+      QuizPlayerQuestionBody.sideLayoutMinWidth;
 
   /// Altezza body minima per side layout utile.
-  ///
-  /// Side mette immagine e (prompt + 3 risposte) in una riga condivisa.
-  /// Sotto ~420px il body forza scroll eccessivo e l'immagine laterale
-  /// domina (ex floor 260). Preferiamo stacked.
   @visibleForTesting
-  static const double sideLayoutMinBodyHeight = 420;
+  static const double sideLayoutMinBodyHeight =
+      QuizPlayerQuestionBody.sideLayoutMinBodyHeight;
 
-  /// Cap altezza figura in side layout (BoxFit.contain, no crop).
+  /// Cap altezza figura (legacy API / test). Preferire [QuizQuestionPromptPanel].
   @visibleForTesting
-  static const double sideImageMaxHeightCap = 420;
+  static const double sideImageMaxHeightCap = 260;
 
-  /// Floor adattivo figura side (mai sopra lo spazio body disponibile).
+  /// Floor altezza figura (legacy API / test).
   @visibleForTesting
-  static const double sideImageMinHeightFloor = 160;
+  static const double sideImageMinHeightFloor = 132;
 
-  /// Frazione colonna immagine (desktop side).
+  /// Legacy: non più usata per layout (colonna dedicata rimossa).
   @visibleForTesting
-  static const double imageColumnFlex = 0.36;
+  static const double imageColumnFlex = 0.32;
 
-  /// Pavimento min-height area contenuto desktop (contenuti corti).
+  /// Legacy fill helper (inflate disabilitato: allineato a Exam).
   @visibleForTesting
-  static const double questionCardMinHeightFloor = 160;
+  static const double questionCardMinHeightFloor = 0;
 
-  /// Quota massima body dedicata all'area domanda (no-image).
-  /// Più bassa del passato: lascia spazio alle risposte sopra la piega.
+  /// Legacy fill helper.
   @visibleForTesting
   static const double questionCardMaxBodyFraction = 0.40;
 
-  /// Oltre questa stima righe, niente inflate: altezza naturale + scroll.
+  /// Legacy fill helper.
   @visibleForTesting
   static const int longContentSkipFillLines = 9;
 
@@ -128,16 +124,17 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
     required double contentWidth,
     required double availableBodyHeight,
   }) {
-    if (!hasQuestionImage(imagePath)) {
-      return LessonStyleQuizLayout.noImage;
-    }
-    if (compact || contentWidth < sideLayoutMinWidth) {
-      return LessonStyleQuizLayout.withImageStacked;
-    }
-    if (availableBodyHeight < sideLayoutMinBodyHeight) {
-      return LessonStyleQuizLayout.withImageStacked;
-    }
-    return LessonStyleQuizLayout.withImageSide;
+    return switch (QuizPlayerQuestionBody.resolveLayout(
+      imagePath: imagePath,
+      compact: compact,
+      contentWidth: contentWidth,
+      availableBodyHeight: availableBodyHeight,
+    )) {
+      QuizPlayerBodyLayout.noImage => LessonStyleQuizLayout.noImage,
+      QuizPlayerBodyLayout.imageSide => LessonStyleQuizLayout.withImageSide,
+      QuizPlayerBodyLayout.imageStacked =>
+        LessonStyleQuizLayout.withImageStacked,
+    };
   }
 
   /// Max height figura laterale adattiva allo spazio body.
@@ -156,10 +153,7 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
         .clamp(sideImageMinHeightFloor, sideImageMaxHeightCap);
   }
 
-  /// Min-height area domanda (no-image): indipendente da imagePath.
-  ///
-  /// Contenuti lunghi: 0 (altezza naturale + scroll) per non spingere le risposte
-  /// fuori viewport con una card vuota.
+  /// Min-height area domanda — sempre 0 (UNIFY: niente inflate vs Exam).
   @visibleForTesting
   static double resolveQuestionCardMinHeight({
     required double availableBodyHeight,
@@ -168,23 +162,7 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
     required QuizPlayerContentDensity density,
     int estimatedContentLines = 0,
   }) {
-    if (compact || availableBodyHeight <= 0 || optionCount <= 0) {
-      return 0;
-    }
-    if (estimatedContentLines > longContentSkipFillLines) {
-      return 0;
-    }
-
-    final answerBlock =
-        QuizPlayerDensity.answerMinHeight(density) * optionCount +
-        QuizPlayerDensity.answerSpacing(density) *
-            math.max(0, optionCount - 1) +
-        QuizPlayerDensity.sectionSpacing(density);
-    final leftover = availableBodyHeight - answerBlock;
-    if (leftover <= 0) return 0;
-
-    final ceiling = availableBodyHeight * questionCardMaxBodyFraction;
-    return leftover.clamp(questionCardMinHeightFloor, ceiling);
+    return 0;
   }
 
   QuizQuestion get _question => questions[currentIndex];
@@ -209,127 +187,86 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
         key: const Key('lesson_style_quiz_player_shell'),
         backgroundColor: _backgroundColor,
         appBar: appBar,
-        body: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: QuizPlayerVisual.lessonSheetContentMaxWidth,
+        body: Column(
+          children: [
+            QuizLessonSheetProgressPanel(
+              currentIndex: currentIndex,
+              total: questions.length,
+              isAnswered: (index) =>
+                  QuizSheetPlayerNavigation.isQuestionAnswered(
+                    userAnswers,
+                    index,
+                  ),
+              cellTone: (index) {
+                final answer = userAnswers[index];
+                if (answer == null) {
+                  return QuizProgressCellTone.unanswered;
+                }
+                return answer == questions[index].correctOption
+                    ? QuizProgressCellTone.correct
+                    : QuizProgressCellTone.wrong;
+              },
+              correctCount: correctCount,
+              wrongCount: wrongCount,
+              unansweredCount: unansweredCount,
+              header: progressHeader,
             ),
-            child: SizedBox(
-              width: double.infinity,
-              child: Column(
-                children: [
-                  QuizLessonSheetProgressPanel(
-                    currentIndex: currentIndex,
-                    total: questions.length,
-                    isAnswered: (index) =>
-                        QuizSheetPlayerNavigation.isQuestionAnswered(
-                          userAnswers,
-                          index,
-                        ),
-                    cellTone: (index) {
-                      final answer = userAnswers[index];
-                      if (answer == null) {
-                        return QuizProgressCellTone.unanswered;
-                      }
-                      return answer == questions[index].correctOption
-                          ? QuizProgressCellTone.correct
-                          : QuizProgressCellTone.wrong;
-                    },
-                    correctCount: correctCount,
-                    wrongCount: wrongCount,
-                    unansweredCount: unansweredCount,
-                    header: progressHeader,
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: QuizPlayerVisual.playerContentMaxWidth(context),
                   ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, contentConstraints) {
-                        final compact = QuizPlayerVisual.isCompact(context);
-                        final answerTexts = [
-                          for (final option in question.options)
-                            question.textForOption(option),
-                        ];
-                        final density = QuizPlayerDensity.resolve(
-                          context: context,
-                          prompt: question.prompt,
-                          answers: answerTexts,
-                          contentWidth: contentConstraints.maxWidth,
-                        );
-                        final dense = density == QuizPlayerContentDensity.dense;
-                        final bodyPadding =
-                            QuizPlayerVisual.lessonSheetBodyPadding;
-                        final availableBodyHeight = math.max(
-                          0.0,
-                          contentConstraints.maxHeight - bodyPadding.vertical,
-                        );
-                        final estimatedLines =
-                            QuizPlayerDensity.estimateTotalLines(
-                              context: context,
-                              prompt: question.prompt,
-                              answers: answerTexts,
-                              contentWidth: math.min(
-                                contentConstraints.maxWidth,
-                                QuizPlayerVisual.noImageReadingMaxWidth,
-                              ),
-                            );
-                        final layout = resolveLayout(
-                          imagePath: question.imagePath,
-                          compact: compact,
-                          contentWidth: contentConstraints.maxWidth,
-                          availableBodyHeight: availableBodyHeight,
-                        );
+                  child: LayoutBuilder(
+                    builder: (context, contentConstraints) {
+                      final compact = QuizPlayerVisual.isCompact(context);
+                      final answerTexts = [
+                        for (final option in question.options)
+                          question.textForOption(option),
+                      ];
+                      final density = QuizPlayerDensity.resolve(
+                        context: context,
+                        prompt: question.prompt,
+                        answers: answerTexts,
+                        contentWidth: contentConstraints.maxWidth,
+                      );
+                      final dense = density == QuizPlayerContentDensity.dense;
+                      const bodyPadding = QuizPlayerVisual.bodyPadding;
+                      final availableBodyHeight = math.max(
+                        0.0,
+                        contentConstraints.maxHeight - bodyPadding.vertical,
+                      );
+                      final layout = resolveLayout(
+                        imagePath: question.imagePath,
+                        compact: compact,
+                        contentWidth: contentConstraints.maxWidth,
+                        availableBodyHeight: availableBodyHeight,
+                      );
 
-                        return SingleChildScrollView(
-                          padding: bodyPadding,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: availableBodyHeight,
-                            ),
-                            child: KeyedSubtree(
-                              key: QuizPlayerDensity.densityKey(density),
-                              child: switch (layout) {
-                                LessonStyleQuizLayout.noImage =>
-                                  _buildNoImageBody(
-                                    question: question,
-                                    selected: selected,
-                                    revealed: revealed,
-                                    compact: compact,
-                                    dense: dense,
-                                    density: density,
-                                    availableBodyHeight: availableBodyHeight,
-                                    estimatedContentLines: estimatedLines,
-                                  ),
-                                LessonStyleQuizLayout.withImageSide =>
-                                  _buildImageSideBody(
-                                    question: question,
-                                    selected: selected,
-                                    revealed: revealed,
-                                    compact: compact,
-                                    dense: dense,
-                                    density: density,
-                                    availableBodyHeight: availableBodyHeight,
-                                    contentWidth: contentConstraints.maxWidth,
-                                  ),
-                                LessonStyleQuizLayout.withImageStacked =>
-                                  _buildImageStackedBody(
-                                    question: question,
-                                    selected: selected,
-                                    revealed: revealed,
-                                    compact: compact,
-                                    dense: dense,
-                                    density: density,
-                                  ),
-                              },
-                            ),
+                      return SingleChildScrollView(
+                        padding: bodyPadding,
+                        child: KeyedSubtree(
+                          key: QuizPlayerDensity.densityKey(density),
+                          child: _buildExamAlignedBody(
+                            question: question,
+                            selected: selected,
+                            revealed: revealed,
+                            compact: compact,
+                            dense: dense,
+                            density: density,
+                            layout: layout,
+                            availableBodyHeight: availableBodyHeight,
+                            contentWidth: contentConstraints.maxWidth,
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
         bottomNavigationBar: SafeArea(
           top: false,
@@ -386,186 +323,50 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
     );
   }
 
-  Widget _buildNoImageBody({
+  /// Corpo condiviso classroom-scale ([QuizPlayerQuestionBody]).
+  Widget _buildExamAlignedBody({
     required QuizQuestion question,
     required QuizAnswerOption? selected,
     required bool revealed,
     required bool compact,
     required bool dense,
     required QuizPlayerContentDensity density,
-    required double availableBodyHeight,
-    required int estimatedContentLines,
-  }) {
-    final questionMinHeight = resolveQuestionCardMinHeight(
-      availableBodyHeight: availableBodyHeight,
-      compact: compact,
-      optionCount: question.options.length,
-      density: density,
-      estimatedContentLines: estimatedContentLines,
-    );
-
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: QuizPlayerVisual.noImageReadingMaxWidth,
-        ),
-        child: Column(
-          key: const Key('lesson_style_layout_no_image'),
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(minHeight: questionMinHeight),
-              child: _questionCard(
-                child: QuizQuestionPromptPanel(
-                  questionNumber: currentIndex + 1,
-                  prompt: question.prompt,
-                  imagePath: null,
-                  includeImage: false,
-                  compact: compact,
-                  dense: dense,
-                  labelColor: _primaryColor,
-                  textColor: _textPrimaryColor,
-                ),
-                density: density,
-              ),
-            ),
-            SizedBox(height: QuizPlayerDensity.sectionSpacing(density)),
-            ..._answerTiles(
-              question: question,
-              selected: selected,
-              revealed: revealed,
-              density: density,
-              dense: dense,
-              compact: compact,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageSideBody({
-    required QuizQuestion question,
-    required QuizAnswerOption? selected,
-    required bool revealed,
-    required bool compact,
-    required bool dense,
-    required QuizPlayerContentDensity density,
+    required LessonStyleQuizLayout layout,
     required double availableBodyHeight,
     required double contentWidth,
   }) {
-    final imageWidth = (contentWidth * imageColumnFlex).clamp(220.0, 420.0);
-    final minRowHeight = compact
-        ? 0.0
-        : math.max(questionCardMinHeightFloor, availableBodyHeight * 0.55);
-    final imageMaxHeight = resolveSideImageMaxHeight(
-      availableBodyHeight: availableBodyHeight,
-      minRowHeight: minRowHeight,
-    );
+    final bodyLayout = switch (layout) {
+      LessonStyleQuizLayout.noImage => QuizPlayerBodyLayout.noImage,
+      LessonStyleQuizLayout.withImageSide => QuizPlayerBodyLayout.imageSide,
+      LessonStyleQuizLayout.withImageStacked =>
+        QuizPlayerBodyLayout.imageStacked,
+    };
+    final Key layoutKey = switch (layout) {
+      LessonStyleQuizLayout.noImage =>
+        const Key('lesson_style_layout_no_image'),
+      LessonStyleQuizLayout.withImageSide =>
+        const Key('lesson_style_layout_with_image_side'),
+      LessonStyleQuizLayout.withImageStacked =>
+        const Key('lesson_style_layout_with_image_stacked'),
+    };
 
-    return ConstrainedBox(
-      key: const Key('lesson_style_layout_with_image_side'),
-      constraints: BoxConstraints(minHeight: minRowHeight),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              key: const Key('lesson_style_image_column'),
-              width: imageWidth,
-              child: Container(
-                padding: EdgeInsets.all(QuizPlayerDensity.cardPadding(density)),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: BorderRadius.circular(
-                    QuizPlayerVisual.cardRadius,
-                  ),
-                  border: Border.all(color: _neutralColor),
-                ),
-                child: Center(
-                  child: SizedBox(
-                    key: const Key('quiz_prompt_side_image'),
-                    width:
-                        imageWidth - QuizPlayerDensity.cardPadding(density) * 2,
-                    child: QuizQuestionImage(
-                      imagePath: question.imagePath,
-                      sidePanelLayout: true,
-                      maxWidth:
-                          imageWidth -
-                          QuizPlayerDensity.cardPadding(density) * 2,
-                      maxHeight: imageMaxHeight,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              key: const Key('lesson_style_right_column'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _questionCard(
-                    child: QuizQuestionPromptPanel(
-                      questionNumber: currentIndex + 1,
-                      prompt: question.prompt,
-                      imagePath: question.imagePath,
-                      includeImage: false,
-                      compact: compact,
-                      dense: dense,
-                      labelColor: _primaryColor,
-                      textColor: _textPrimaryColor,
-                    ),
-                    density: density,
-                  ),
-                  SizedBox(height: QuizPlayerDensity.sectionSpacing(density)),
-                  ..._answerTiles(
-                    question: question,
-                    selected: selected,
-                    revealed: revealed,
-                    density: density,
-                    dense: dense,
-                    compact: compact,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageStackedBody({
-    required QuizQuestion question,
-    required QuizAnswerOption? selected,
-    required bool revealed,
-    required bool compact,
-    required bool dense,
-    required QuizPlayerContentDensity density,
-  }) {
-    return Column(
-      key: const Key('lesson_style_layout_with_image_stacked'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _questionCard(
-          child: QuizQuestionPromptPanel(
-            questionNumber: currentIndex + 1,
-            prompt: question.prompt,
-            imagePath: question.imagePath,
-            includeImage: true,
-            // Force stacked image path even when MediaQuery width >= 600
-            // (height gate can select stacked on wide-but-short viewports).
-            compact: true,
-            dense: dense,
-            labelColor: _primaryColor,
-            textColor: _textPrimaryColor,
-          ),
-          density: density,
-        ),
-        SizedBox(height: QuizPlayerDensity.sectionSpacing(density)),
-        ..._answerTiles(
+    return KeyedSubtree(
+      key: layoutKey,
+      child: QuizPlayerQuestionBody(
+        questionNumber: currentIndex + 1,
+        prompt: question.prompt,
+        imagePath: question.imagePath,
+        compact: compact,
+        dense: dense,
+        density: density,
+        layout: bodyLayout,
+        availableBodyHeight: availableBodyHeight,
+        contentWidth: contentWidth,
+        labelColor: _primaryColor,
+        textColor: _textPrimaryColor,
+        cardColor: _cardColor,
+        borderColor: _neutralColor,
+        answersBuilder: () => _answerTiles(
           question: question,
           selected: selected,
           revealed: revealed,
@@ -573,24 +374,7 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
           dense: dense,
           compact: compact,
         ),
-      ],
-    );
-  }
-
-  Widget _questionCard({
-    required Widget child,
-    required QuizPlayerContentDensity density,
-  }) {
-    return Container(
-      key: const Key('lesson_style_question_card'),
-      alignment: Alignment.topLeft,
-      padding: EdgeInsets.all(QuizPlayerDensity.cardPadding(density)),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(QuizPlayerVisual.cardRadius),
-        border: Border.all(color: _neutralColor),
       ),
-      child: child,
     );
   }
 

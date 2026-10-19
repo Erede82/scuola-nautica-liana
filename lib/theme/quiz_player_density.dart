@@ -41,10 +41,11 @@ abstract final class QuizPlayerDensity {
     return math.max(1, (painter.height / lineHeight).ceil());
   }
 
-  /// Risolve densità da viewport e contenuto.
+  /// Risolve densità da viewport, altezza e contenuto.
   ///
   /// Mobile: `dense` oltre [denseLineThreshold].
   /// Desktop/web: `dense` solo oltre [desktopDenseLineThreshold] (testi molto lunghi).
+  /// Low-height desktop: soglia ridotta per evitare footer fuori schermo.
   static QuizPlayerContentDensity resolve({
     required BuildContext context,
     required String prompt,
@@ -57,9 +58,13 @@ abstract final class QuizPlayerDensity {
       answers: answers,
       contentWidth: contentWidth,
     );
-    final threshold = QuizPlayerVisual.isCompact(context)
+    var threshold = QuizPlayerVisual.isCompact(context)
         ? denseLineThreshold
         : desktopDenseLineThreshold;
+    if (QuizPlayerVisual.isLowHeight(context) &&
+        !QuizPlayerVisual.isCompact(context)) {
+      threshold = math.min(threshold, 11);
+    }
     return totalLines > threshold
         ? QuizPlayerContentDensity.dense
         : QuizPlayerContentDensity.standard;
@@ -73,8 +78,15 @@ abstract final class QuizPlayerDensity {
     required double contentWidth,
   }) {
     final textScaler = MediaQuery.textScalerOf(context);
-    final questionStyle = QuizPlayerVisual.questionStyle(context);
-    final answerStyle = QuizPlayerVisual.answerStyle(context);
+    // Density è chiamata solo da Schede / Exam → stima con scala classroom.
+    final questionStyle = QuizPlayerVisual.questionStyle(
+      context,
+      scale: QuizPlayerTypeScale.classroom,
+    );
+    final answerStyle = QuizPlayerVisual.answerStyle(
+      context,
+      scale: QuizPlayerTypeScale.classroom,
+    );
 
     final questionTextWidth = math.max(
       1.0,
@@ -110,10 +122,19 @@ abstract final class QuizPlayerDensity {
   static bool isDense(QuizPlayerContentDensity density) =>
       density == QuizPlayerContentDensity.dense;
 
-  static double answerMinHeight(QuizPlayerContentDensity density) =>
-      isDense(density)
-      ? QuizPlayerVisual.answerMinHeightDense
-      : QuizPlayerVisual.answerMinHeight;
+  static double answerMinHeight(
+    QuizPlayerContentDensity density, {
+    BuildContext? context,
+  }) {
+    if (isDense(density)) return QuizPlayerVisual.answerMinHeightDense;
+    if (context != null &&
+        QuizPlayerVisual.viewportClass(context) ==
+            QuizPlayerViewportClass.largeDesktop &&
+        !QuizPlayerVisual.isLowHeight(context)) {
+      return QuizPlayerVisual.answerMinHeightLarge;
+    }
+    return QuizPlayerVisual.answerMinHeight;
+  }
 
   static EdgeInsets answerPadding(QuizPlayerContentDensity density) =>
       isDense(density)

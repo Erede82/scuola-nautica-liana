@@ -30,7 +30,7 @@ class QuizPlayerAnswerTile extends StatelessWidget {
   /// Padding effettivo della tile.
   EdgeInsets get contentPadding => QuizPlayerDensity.answerPadding(density);
 
-  /// Altezza minima effettiva della tile.
+  /// Altezza minima effettiva della tile (senza context = standard).
   double get minHeight => QuizPlayerDensity.answerMinHeight(density);
 
   /// Border radius effettivo della tile.
@@ -39,9 +39,13 @@ class QuizPlayerAnswerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = QuizPlayerVisual.isCompact(context);
-    final answerStyle = QuizPlayerVisual.answerStyle(context);
+    // Usato solo da Schede / Multischeda / Exam (UNIFY.2 classroom).
+    final answerStyle = QuizPlayerVisual.answerStyle(
+      context,
+      scale: QuizPlayerTypeScale.classroom,
+    );
     final padding = QuizPlayerDensity.answerPadding(density);
-    final minH = QuizPlayerDensity.answerMinHeight(density);
+    final minH = QuizPlayerDensity.answerMinHeight(density, context: context);
 
     return Material(
       color: Colors.transparent,

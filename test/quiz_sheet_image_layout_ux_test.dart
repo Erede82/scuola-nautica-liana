@@ -193,15 +193,14 @@ void main() {
         expect(find.textContaining('Opzione A'), findsWidgets);
         expect(tester.takeException(), isNull);
         if (size.width >= 600) {
+          final media = find.byKey(const Key('quiz_player_media_image'));
+          final stacked = find.byKey(const Key('quiz_prompt_stacked_image'));
           expect(
-            find.byKey(const Key('quiz_prompt_side_image')),
-            findsOneWidget,
+            media.evaluate().isNotEmpty || stacked.evaluate().isNotEmpty,
+            isTrue,
           );
-          final w = tester
-              .getSize(find.byKey(const Key('quiz_prompt_side_image')))
-              .width;
-          if (size.width >= 1440) {
-            expect(w, greaterThan(220));
+          if (media.evaluate().isNotEmpty && size.width >= 1440) {
+            expect(tester.getSize(media).width, greaterThan(200));
           }
         } else {
           expect(
@@ -212,7 +211,9 @@ void main() {
       });
     }
 
-    testWidgets('Exam simulation content width resta 720', (tester) async {
+    testWidgets('Exam simulation content width responsive (not 720)', (
+      tester,
+    ) async {
       const viewport = Size(1440, 900);
       await tester.binding.setSurfaceSize(viewport);
       addTearDown(() async {
@@ -250,14 +251,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        _boxWithMaxWidth(tester, QuizPlayerVisual.contentMaxWidth),
-        isNotNull,
-      );
-      expect(
-        _boxWithMaxWidth(tester, QuizPlayerVisual.lessonSheetContentMaxWidth),
-        isNull,
-      );
+      final expected = QuizPlayerVisual.examContentMaxWidthFor(viewport.width);
+      expect(_boxWithMaxWidth(tester, expected), isNotNull);
+      expect(_boxWithMaxWidth(tester, QuizPlayerVisual.contentMaxWidth), isNull);
     });
   });
 }

@@ -1,3 +1,6 @@
+// ignore_for_file: invalid_runtime_check_with_js_interop_types
+// Needed for clean analyze on current Flutter/web toolchain (raw is! JSObject).
+
 import 'dart:js_interop';
 
 @JS('fetch')
