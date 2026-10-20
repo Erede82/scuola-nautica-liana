@@ -2,26 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../data/license_catalog.dart';
 import '../domain/quiz_license_category.dart';
+import '../domain/student_quiz_statistics_models.dart';
+import '../domain/student_stats_source.dart';
 import '../models/license_models.dart';
-import '../models/quiz_category_statistics.dart';
 import '../pages/lesson_list_page.dart';
-import '../repositories/quiz_statistics_repository.dart';
-import '../services/error_review_provider.dart';
+import '../repositories/quiz_statistics_repository.dart'
+    show QuizStatisticsUnauthenticatedException;
+import '../repositories/student_quiz_statistics_repository.dart';
 import '../services/student_area_context.dart';
+import '../theme/app_visual_tokens.dart';
 import '../widgets/category_content_state.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
-import '../widgets/statistics_lesson_error_chart.dart';
-import '../widgets/statistics_recent_attempts_section.dart';
-import '../widgets/statistics_recommended_review_section.dart';
-import '../widgets/statistics_summary_section.dart';
-import '../widgets/statistics_topic_progress_section.dart';
-import '../theme/app_visual_tokens.dart';
+import '../widgets/student_stats_exam_card.dart';
+import '../widgets/student_stats_review_card.dart';
+import '../widgets/student_stats_studio_card.dart';
+import '../widgets/student_stats_topic_section.dart';
 
 class StatisticsPage extends StatefulWidget {
-  const StatisticsPage({super.key, required this.categoryId, this.repository});
+  const StatisticsPage({
+    super.key,
+    required this.categoryId,
+    this.repository,
+  });
 
   final LicenseCategoryId categoryId;
-  final QuizStatisticsRepository? repository;
+
+  /// Injected in tests; production uses [studentQuizStatisticsRepository].
+  final StudentQuizStatisticsRepository? repository;
 
   @override
   State<StatisticsPage> createState() => _StatisticsPageState();
@@ -35,13 +42,16 @@ class _StatisticsPageState extends State<StatisticsPage> {
   static const Color _textPrimaryColor = AppVisual.ink;
   static const Color _warningColor = Color(0xFFC75D3A);
 
-  late final QuizStatisticsRepository _repository;
-  QuizCategoryStatistics? _statistics;
+  late final StudentQuizStatisticsRepository _repository;
+  StudentQuizStatistics? _statistics;
   bool _loading = false;
   bool _refreshing = false;
   bool _unauthenticated = false;
   Object? _loadError;
   int _loadGeneration = 0;
+
+  StudentStatsSource _reviewSource = StudentStatsSource.all;
+  StudentStatsSource _topicSource = StudentStatsSource.all;
 
   LicenseCategory get _category => LicenseCatalog.byId(widget.categoryId);
 
@@ -53,7 +63,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? quizStatisticsRepository;
+    _repository = widget.repository ?? studentQuizStatisticsRepository;
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadStatistics());
   }
 
@@ -172,7 +182,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
             'quando saranno collegati al tuo account.',
         unavailableTitle: null,
         unavailableMessage: widget.categoryId == LicenseCategoryId.vela
-            ? 'Le statistiche per questo percorso non sono ancora disponibili.'
+            ? 'Statistiche non disponibili per questa categoria.'
             : null,
         unavailableIcon: Icons.insights_rounded,
       );
@@ -182,8 +192,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       return _messageCard(
         textTheme,
         title: 'Statistiche non disponibili',
-        message:
-            'Le statistiche per questo percorso non sono ancora disponibili.',
+        message: 'Statistiche non disponibili per questa categoria.',
         icon: Icons.insights_rounded,
       );
     }
@@ -219,7 +228,12 @@ class _StatisticsPageState extends State<StatisticsPage> {
       return _buildLoadingState(textTheme);
     }
 
-    if (!stats.hasData && stats.hasIgnoredAttempts) {
+    final ignored =
+        stats.ignoredIncompleteLessonAttempts +
+        stats.ignoredIncompleteMultiAttempts +
+        stats.ignoredIncompleteExamAttempts;
+
+    if (!stats.hasAnyActivity && ignored > 0 && !stats.hasCatalog) {
       return _messageCard(
         textTheme,
         title: 'Tentativi non inclusi',
@@ -234,75 +248,75 @@ class _StatisticsPageState extends State<StatisticsPage> {
     if (!stats.showDashboard) {
       return _messageCard(
         textTheme,
-        title: 'Nessuna scheda completata',
-        message: 'Non hai ancora completato schede per questo percorso.',
+        title: 'Nessuna attività',
+        message:
+            'Non hai ancora completato schede o simulazioni per questo percorso.',
         icon: Icons.query_stats_rounded,
         primaryActionLabel: 'Vai alle schede',
         onPrimaryAction: _openLessons,
       );
     }
 
-    final reviewData = ErrorReviewProvider.buildViewDataFromSnapshots(
-      categoryId: widget.categoryId,
-      snapshots: stats.lessonSnapshots,
-    );
-
     return RefreshIndicator(
       color: _primaryColor,
       onRefresh: () => _loadStatistics(isRefresh: true),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: const EdgeInsets.only(bottom: 28),
-        children: [
-          StatisticsSummarySection(
-            summary: stats.summary,
-            progress: stats.progress,
-            recentAttempts: stats.recentAttempts,
-            categoryId: widget.categoryId,
-          ),
-          if (stats.progress.lessonProgress.isNotEmpty)
-            StatisticsTopicProgressSection(
-              lessonProgress: stats.progress.lessonProgress,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 1024;
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-          if (stats.summary.ignoredIncompleteAttempts > 0)
-            _ignoredAttemptsNote(
-              textTheme,
-              stats.summary.ignoredIncompleteAttempts,
-            ),
-          if (stats.hasData)
-            StatisticsRecommendedReviewSection(
-              categoryId: widget.categoryId,
-              viewData: reviewData,
-            ),
-          if (stats.hasData)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _neutralColor),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0D000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: StatisticsLessonErrorChart(
-                  lessonSnapshots: stats.lessonSnapshots,
-                  showLocalEmptyMessage: stats.lessonSnapshots.isEmpty,
-                ),
+            padding: const EdgeInsets.only(bottom: 28),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: wide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: StudentStatsStudioCard(study: stats.study),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: StudentStatsExamCard(exam: stats.exam),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: StudentStatsReviewCard(
+                              topics: stats.reviewFor(_reviewSource),
+                              source: _reviewSource,
+                              onSourceChanged: (v) =>
+                                  setState(() => _reviewSource = v),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          StudentStatsStudioCard(study: stats.study),
+                          const SizedBox(height: 12),
+                          StudentStatsExamCard(exam: stats.exam),
+                          const SizedBox(height: 12),
+                          StudentStatsReviewCard(
+                            topics: stats.reviewFor(_reviewSource),
+                            source: _reviewSource,
+                            onSourceChanged: (v) =>
+                                setState(() => _reviewSource = v),
+                          ),
+                        ],
+                      ),
               ),
-            ),
-          if (stats.hasData)
-            StatisticsRecentAttemptsSection(attempts: stats.recentAttempts),
-        ],
+              if (ignored > 0) _ignoredAttemptsNote(textTheme, ignored),
+              StudentStatsTopicSection(
+                topics: stats.topicsFor(_topicSource),
+                source: _topicSource,
+                onSourceChanged: (v) => setState(() => _topicSource = v),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

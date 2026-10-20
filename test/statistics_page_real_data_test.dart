@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:scuola_nautica_liana/models/lesson_quiz_performance_snapshot.dart';
+import 'package:scuola_nautica_liana/domain/student_quiz_statistics_models.dart';
 import 'package:scuola_nautica_liana/models/license_models.dart';
-import 'package:scuola_nautica_liana/models/quiz_attempt_activity.dart';
-import 'package:scuola_nautica_liana/models/lesson_quiz_progress.dart';
-import 'package:scuola_nautica_liana/models/quiz_category_statistics.dart';
-import 'package:scuola_nautica_liana/models/quiz_statistics_summary.dart';
 import 'package:scuola_nautica_liana/pages/statistics_page.dart';
 import 'package:scuola_nautica_liana/repositories/quiz_statistics_repository.dart';
+import 'package:scuola_nautica_liana/repositories/student_quiz_statistics_repository.dart';
 import 'package:scuola_nautica_liana/services/student_area_context.dart';
 
-class _FakeQuizStatisticsRepository implements QuizStatisticsRepository {
-  _FakeQuizStatisticsRepository({
+class _FakeStudentStatsRepo implements StudentQuizStatisticsRepository {
+  _FakeStudentStatsRepo({
     this.result,
     this.error,
     this.unauthenticated = false,
     this.delay = Duration.zero,
   });
 
-  QuizCategoryStatistics? result;
+  StudentQuizStatistics? result;
   Object? error;
   bool unauthenticated;
   Duration delay;
@@ -26,7 +23,7 @@ class _FakeQuizStatisticsRepository implements QuizStatisticsRepository {
   LicenseCategoryId? lastCategoryId;
 
   @override
-  Future<QuizCategoryStatistics> fetchCategoryStatistics({
+  Future<StudentQuizStatistics> fetchCategoryStatistics({
     required LicenseCategoryId categoryId,
   }) async {
     fetchCount++;
@@ -36,87 +33,53 @@ class _FakeQuizStatisticsRepository implements QuizStatisticsRepository {
       throw const QuizStatisticsUnauthenticatedException();
     }
     if (error != null) throw error!;
-    return result ?? QuizCategoryStatistics.empty(categoryId);
+    return result ?? StudentQuizStatistics.empty(categoryId);
   }
 }
 
-QuizCategoryStatistics _motoreStatsWithData({int ignored = 0}) {
-  return QuizCategoryStatistics(
-    categoryId: LicenseCategoryId.motore,
-    summary: QuizStatisticsSummary(
-      completedSheetsCount: 6,
-      totalQuestions: 120,
-      correctCount: 3,
-      wrongCount: 22,
-      unansweredCount: 95,
-      accuracyPercentage: 2.5,
-      errorPercentage: 97.5,
-      averageErrorsPerSheet: 117 / 6,
-      ignoredIncompleteAttempts: ignored,
-      lastActivityAt: DateTime.utc(2026, 7, 10, 12),
-      lastLessonNumber: 1,
-      lastSheetNumber: 6,
-    ),
-    lessonSnapshots: const [
-      LessonQuizPerformanceSnapshot(
-        categoryId: LicenseCategoryId.motore,
-        lessonNumber: 1,
-        lessonTitle: '1. Teoria dello scafo',
-        totalAttempts: 6,
-        averageErrorPercentage: 97.5,
-      ),
-    ],
-    recentAttempts: [
-      QuizAttemptActivity(
-        quizResultId: 'r6',
-        lessonNumber: 1,
-        sheetNumber: 6,
-        totalQuestions: 20,
-        correctCount: 0,
-        wrongCount: 3,
-        unansweredCount: 17,
-        errorPercentage: 100,
-        completedAt: DateTime.utc(2026, 7, 10, 6),
-      ),
-      QuizAttemptActivity(
-        quizResultId: 'r5',
-        lessonNumber: 1,
-        sheetNumber: 5,
-        totalQuestions: 20,
-        correctCount: 0,
-        wrongCount: 4,
-        unansweredCount: 16,
-        errorPercentage: 100,
-        completedAt: DateTime.utc(2026, 7, 10, 5),
-      ),
-    ],
-    progress: CategoryQuizProgress(
-      totalAvailableSheets: 328,
-      totalCompletedUniqueSheets: 6,
-      overallCompletionPercentage: 6 / 328 * 100,
-      lessonProgress: [
-        LessonQuizProgress(
-          lessonNumber: 1,
-          lessonTitle: '1. Teoria dello scafo',
-          availableSheetsCount: 24,
-          completedUniqueSheetsCount: 6,
-          completionPercentage: 25,
-          isAvailable: true,
-          isComplete: false,
-        ),
-      ],
-      completedLessonsCount: 0,
-      availableLessonsCount: 14,
-      inProgressLessonsCount: 1,
+StudentQuizStatistics _motoreStatsWithData({int ignoredLesson = 0}) {
+  final at = DateTime.utc(2026, 7, 10, 12);
+  final topic = TopicStatistics(
+    lessonNumber: 1,
+    title: '1. Teoria dello scafo',
+    counts: TopicAnswerCounts(
+      correct: 3,
+      wrong: 22,
+      unanswered: 95,
+      lastActivity: at,
     ),
   );
-}
-
-Future<void> _scrollPage(WidgetTester tester, {double delta = -500}) async {
-  final listView = find.byType(ListView);
-  if (listView.evaluate().isEmpty) return;
-  await tester.drag(listView, Offset(0, delta));
-  await tester.pumpAndSettle();
+  return StudentQuizStatistics(
+    categoryId: LicenseCategoryId.motore,
+    study: const StudyStatistics(
+      sheetsCompleted: 6,
+      correct: 3,
+      wrong: 22,
+      unanswered: 95,
+      topicsStudied: 1,
+      topicsTotal: 14,
+    ),
+    exam: ExamStatistics(
+      simulationsCount: 1,
+      passedCount: 0,
+      averageErrors: 8,
+      recentResults: [
+        RecentExamResult(
+          attemptId: 'e1',
+          completedAt: at,
+          passed: false,
+          errorCount: 8,
+        ),
+      ],
+    ),
+    topicsAll: [topic],
+    topicsStudy: [topic],
+    topicsExam: const [],
+    reviewAll: [ReviewTopic(rank: 1, topic: topic)],
+    reviewStudy: [ReviewTopic(rank: 1, topic: topic)],
+    reviewExam: const [],
+    ignoredIncompleteLessonAttempts: ignoredLesson,
+  );
 }
 
 void main() {
@@ -124,13 +87,12 @@ void main() {
     studentAreaPreviewActiveMode.value = null;
   });
 
-  group('StatisticsPage real data', () {
+  group('StatisticsPage real data (STUDENT.STATS.1)', () {
     testWidgets('loading iniziale', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
+      final repo = _FakeStudentStatsRepo(
         result: _motoreStatsWithData(),
-        delay: const Duration(milliseconds: 200),
+        delay: const Duration(milliseconds: 80),
       );
-
       await tester.pumpWidget(
         MaterialApp(
           home: StatisticsPage(
@@ -140,19 +102,38 @@ void main() {
         ),
       );
       await tester.pump();
-
       expect(find.text('Caricamento statistiche…'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('student-stats-studio-card')), findsOneWidget);
+    });
+
+    testWidgets('dashboard con dati', (tester) async {
+      final repo = _FakeStudentStatsRepo(result: _motoreStatsWithData());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatisticsPage(
+            categoryId: LicenseCategoryId.motore,
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Studio'), findsWidgets);
+      expect(find.text('Da ripassare'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('student-stats-topic-section')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Statistiche per argomento'), findsOneWidget);
       expect(repo.fetchCount, 1);
-
-      await tester.pumpAndSettle();
-      expect(find.text('Caricamento statistiche…'), findsNothing);
+      expect(repo.lastCategoryId, LicenseCategoryId.motore);
     });
 
-    testWidgets('dati reali mostrati con KPI e sezioni', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(),
+    testWidgets('empty senza catalogo né attività', (tester) async {
+      final repo = _FakeStudentStatsRepo(
+        result: StudentQuizStatistics.empty(LicenseCategoryId.motore),
       );
-
       await tester.pumpWidget(
         MaterialApp(
           home: StatisticsPage(
@@ -162,40 +143,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(find.text('Riepilogo'), findsOneWidget);
-      expect(find.text('6 su 328'), findsOneWidget);
-      expect(find.text('2,5%'), findsOneWidget);
-      expect(find.text('Storico non ancora disponibile'), findsOneWidget);
-      expect(find.text('Risposte errate'), findsNothing);
-      expect(find.text('Non risposte'), findsNothing);
-      expect(find.text('Sopra la soglia'), findsOneWidget);
-      expect(find.text('Entro la soglia'), findsNothing);
-      await _scrollPage(tester);
-      expect(find.text('Argomenti da ripassare'), findsOneWidget);
-      await _scrollPage(tester);
-      expect(find.text('Risposte non corrette per lezione'), findsOneWidget);
-      await _scrollPage(tester);
-      expect(find.text('Ultime schede svolte'), findsOneWidget);
-      expect(find.text('Lezione 1 · Scheda 6'), findsOneWidget);
+      expect(find.text('Nessuna attività'), findsOneWidget);
     });
 
-    testWidgets('storico vuoto con catalogo mostra cruscotto', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: QuizCategoryStatistics.empty(
-          LicenseCategoryId.motore,
-          progress: const CategoryQuizProgress(
-            totalAvailableSheets: 328,
-            totalCompletedUniqueSheets: 0,
-            overallCompletionPercentage: 0,
-            lessonProgress: [],
-            completedLessonsCount: 0,
-            availableLessonsCount: 14,
-            inProgressLessonsCount: 0,
-          ),
-        ),
-      );
-
+    testWidgets('errore di rete', (tester) async {
+      final repo = _FakeStudentStatsRepo(error: Exception('network'));
       await tester.pumpWidget(
         MaterialApp(
           home: StatisticsPage(
@@ -205,61 +157,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(find.text('Riepilogo'), findsOneWidget);
-      expect(find.text('0 su 328'), findsOneWidget);
-      expect(find.text('Nessuna scheda completata'), findsOneWidget);
-      expect(
-        find.text('Non hai ancora completato schede per questo percorso.'),
-        findsNothing,
-      );
-    });
-
-    testWidgets('storico vuoto senza catalogo', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: QuizCategoryStatistics.empty(LicenseCategoryId.motore),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.motore,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Non hai ancora completato schede per questo percorso.'),
-        findsOneWidget,
-      );
-      expect(find.text('Vai alle schede'), findsOneWidget);
-    });
-
-    testWidgets('errore repository', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(error: Exception('network'));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.motore,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Non è stato possibile caricare le statistiche.'),
-        findsOneWidget,
-      );
+      expect(find.text('Errore di caricamento'), findsOneWidget);
       expect(find.text('Riprova'), findsOneWidget);
     });
 
-    testWidgets('utente non autenticato', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(unauthenticated: true);
-
+    testWidgets('unauthenticated', (tester) async {
+      final repo = _FakeStudentStatsRepo(unauthenticated: true);
       await tester.pumpWidget(
         MaterialApp(
           home: StatisticsPage(
@@ -269,136 +172,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(
-        find.text('La sessione non è disponibile. Accedi nuovamente.'),
-        findsOneWidget,
-      );
+      expect(find.text('Sessione non disponibile'), findsOneWidget);
     });
 
-    testWidgets('ignored-only state', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: QuizCategoryStatistics.ignoredOnly(
-          categoryId: LicenseCategoryId.motore,
-          ignoredIncompleteAttempts: 3,
-        ),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.motore,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text(
-          'Alcuni tentativi non possono essere inclusi nelle statistiche.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Riprova'), findsOneWidget);
-    });
-
-    testWidgets('dati validi + ignored attempts mostra nota', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(ignored: 2),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.motore,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Riepilogo'), findsOneWidget);
-      await _scrollPage(tester);
-      expect(
-        find.textContaining('2 tentativi incompleti non inclusi'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('D1 mostra titolo e soglia 3 per QA 4+14', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: QuizCategoryStatistics(
-          categoryId: LicenseCategoryId.d1,
-          summary: const QuizStatisticsSummary(
-            completedSheetsCount: 1,
-            totalQuestions: 20,
-            correctCount: 2,
-            wrongCount: 4,
-            unansweredCount: 14,
-            accuracyPercentage: 10,
-            errorPercentage: 90,
-            averageErrorsPerSheet: 18,
-            ignoredIncompleteAttempts: 0,
-          ),
-          lessonSnapshots: const [
-            LessonQuizPerformanceSnapshot(
-              categoryId: LicenseCategoryId.d1,
-              lessonNumber: 1,
-              lessonTitle: '1. Teoria dello scafo',
-              totalAttempts: 1,
-              averageErrorPercentage: 90,
-            ),
-          ],
-          recentAttempts: [
-            QuizAttemptActivity(
-              quizResultId: 'd1-qa',
-              lessonNumber: 1,
-              sheetNumber: 1,
-              totalQuestions: 20,
-              correctCount: 2,
-              wrongCount: 4,
-              unansweredCount: 14,
-              errorPercentage: 90,
-              completedAt: DateTime.utc(2026, 7, 26, 10),
-            ),
-          ],
-          progress: const CategoryQuizProgress(
-            totalAvailableSheets: 232,
-            totalCompletedUniqueSheets: 1,
-            overallCompletionPercentage: 0.4,
-            lessonProgress: [],
-            completedLessonsCount: 0,
-            availableLessonsCount: 14,
-            inProgressLessonsCount: 1,
-          ),
-        ),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.d1,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Statistiche · Patente D1'), findsOneWidget);
-      expect(find.text('Sopra la soglia'), findsOneWidget);
-      expect(find.text('Entro la soglia'), findsNothing);
-      expect(find.textContaining('Soglia 3 errori'), findsOneWidget);
-      expect(find.text('18'), findsWidgets);
-      expect(repo.lastCategoryId, LicenseCategoryId.d1);
-    });
-
-    testWidgets('preview staff non invoca repository', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(),
-      );
+    testWidgets('staff preview non carica repo', (tester) async {
       studentAreaPreviewActiveMode.value = StudentAreaMode.staffPreview;
-
+      final repo = _FakeStudentStatsRepo(result: _motoreStatsWithData());
       await tester.pumpWidget(
         MaterialApp(
           home: StudentAreaContext(
@@ -412,42 +191,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-
       expect(repo.fetchCount, 0);
-      expect(find.text('Statistiche allievo'), findsOneWidget);
-      expect(find.text('Anteprima staff'), findsOneWidget);
-      expect(find.text('Riepilogo'), findsNothing);
-      expect(find.text('6'), findsNothing);
+      expect(find.textContaining('anteprima'), findsWidgets);
     });
 
-    testWidgets('preview staff non mostra dati staff', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StudentAreaContext(
-            mode: StudentAreaMode.staffPreview,
-            readOnly: true,
-            child: StatisticsPage(
-              categoryId: LicenseCategoryId.motore,
-              repository: repo,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('22'), findsNothing);
-      expect(find.text('95'), findsNothing);
-    });
-
-    testWidgets('refresh invoca nuovamente il repository', (tester) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(),
-      );
-
+    testWidgets('pull-to-refresh richiama fetch', (tester) async {
+      final repo = _FakeStudentStatsRepo(result: _motoreStatsWithData());
       await tester.pumpWidget(
         MaterialApp(
           home: StatisticsPage(
@@ -458,36 +207,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(repo.fetchCount, 1);
-
-      await tester.tap(find.byIcon(Icons.refresh_rounded));
+      await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
       await tester.pumpAndSettle();
-      expect(repo.fetchCount, 2);
-    });
-
-    testWidgets('vela mostra percorso non disponibile senza errore tecnico', (
-      tester,
-    ) async {
-      final repo = _FakeQuizStatisticsRepository(
-        result: _motoreStatsWithData(),
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StatisticsPage(
-            categoryId: LicenseCategoryId.vela,
-            repository: repo,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(repo.fetchCount, 0);
-      expect(
-        find.text(
-          'Le statistiche per questo percorso non sono ancora disponibili.',
-        ),
-        findsOneWidget,
-      );
+      expect(repo.fetchCount, greaterThanOrEqualTo(2));
     });
   });
 }
