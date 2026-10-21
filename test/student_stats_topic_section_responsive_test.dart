@@ -9,14 +9,15 @@ const _longTitle =
     'procedure di emergenza a bordo';
 
 TopicStatistics _topic({
-  String title = '1. Teoria dello scafo',
+  int lesson = 1,
+  String? title,
   int correct = 82,
   int wrong = 12,
   int unanswered = 3,
 }) {
   return TopicStatistics(
-    lessonNumber: 1,
-    title: title,
+    lessonNumber: lesson,
+    title: title ?? '$lesson. Teoria dello scafo',
     counts: TopicAnswerCounts(
       correct: correct,
       wrong: wrong,
@@ -25,6 +26,10 @@ TopicStatistics _topic({
     ),
   );
 }
+
+List<TopicStatistics> _topics(int count) => [
+      for (var i = 1; i <= count; i++) _topic(lesson: i, title: '$i. Argomento $i'),
+    ];
 
 Future<void> _pumpSection(
   WidgetTester tester, {
@@ -90,27 +95,27 @@ void main() {
       );
       expect(
         studentStatsTopicLayoutModeForWidth(1024),
-        StudentStatsTopicLayoutMode.laptop,
+        StudentStatsTopicLayoutMode.singleColumn,
+      );
+      expect(
+        studentStatsTopicLayoutModeForWidth(1199),
+        StudentStatsTopicLayoutMode.singleColumn,
+      );
+      expect(
+        studentStatsTopicLayoutModeForWidth(1200),
+        StudentStatsTopicLayoutMode.twoColumns,
       );
       expect(
         studentStatsTopicLayoutModeForWidth(1366),
-        StudentStatsTopicLayoutMode.laptop,
+        StudentStatsTopicLayoutMode.twoColumns,
       );
       expect(
         studentStatsTopicLayoutModeForWidth(1440),
-        StudentStatsTopicLayoutMode.laptop,
-      );
-      expect(
-        studentStatsTopicLayoutModeForWidth(1599),
-        StudentStatsTopicLayoutMode.laptop,
-      );
-      expect(
-        studentStatsTopicLayoutModeForWidth(1600),
-        StudentStatsTopicLayoutMode.desktop,
+        StudentStatsTopicLayoutMode.twoColumns,
       );
       expect(
         studentStatsTopicLayoutModeForWidth(1920),
-        StudentStatsTopicLayoutMode.desktop,
+        StudentStatsTopicLayoutMode.twoColumns,
       );
     });
   });
@@ -122,8 +127,14 @@ void main() {
         size: const Size(390, 844),
         topics: [_topic()],
       );
-      expect(find.byKey(const ValueKey('student-stats-topic-mode-cards')), findsOneWidget);
-      expect(find.byKey(const ValueKey('student-stats-topic-mode-laptop')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-cards')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-two-columns')),
+        findsNothing,
+      );
       expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
       expect(tester.takeException(), isNull);
     });
@@ -134,60 +145,115 @@ void main() {
         size: const Size(768, 1024),
         topics: [_topic()],
       );
-      expect(find.byKey(const ValueKey('student-stats-topic-mode-cards')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-cards')),
+        findsOneWidget,
+      );
       expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
     });
 
+    testWidgets('1024 single column compact', (tester) async {
+      await _pumpSection(
+        tester,
+        size: const Size(1024, 768),
+        topics: [
+          _topic(title: _longTitle, correct: 100, wrong: 20, unanswered: 3),
+        ],
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-single')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-two-columns')),
+        findsNothing,
+      );
+      expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
+      expect(find.textContaining('Sicurezza 1'), findsOneWidget);
+      expect(find.textContaining('123 domande'), findsOneWidget);
+      expect(find.textContaining('100 corrette'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     for (final size in [
-      const Size(1024, 768),
       const Size(1366, 768),
       const Size(1440, 900),
+      const Size(1920, 1080),
     ]) {
       testWidgets(
-        '${size.width.toInt()} laptop compact, no horizontal scroll, long title',
+        '${size.width.toInt()} two columns, 14 topics → 7+7, no H-scroll',
         (tester) async {
           await _pumpSection(
             tester,
             size: size,
-            topics: [
-              _topic(title: _longTitle, correct: 100, wrong: 20, unanswered: 3),
-            ],
+            topics: _topics(14),
           );
 
           expect(
-            find.byKey(const ValueKey('student-stats-topic-mode-laptop')),
+            find.byKey(const ValueKey('student-stats-topic-mode-two-columns')),
             findsOneWidget,
           );
           expect(
-            find.byKey(const ValueKey('student-stats-topic-mode-desktop')),
-            findsNothing,
+            find.byKey(const ValueKey('student-stats-topic-col-left')),
+            findsOneWidget,
           );
+          expect(
+            find.byKey(const ValueKey('student-stats-topic-col-right')),
+            findsOneWidget,
+          );
+          expect(find.text('1. Argomento 1'), findsOneWidget);
+          expect(find.text('8. Argomento 8'), findsOneWidget);
+          expect(find.text('14. Argomento 14'), findsOneWidget);
           expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
-          expect(find.textContaining('Sicurezza 1'), findsOneWidget);
-          expect(find.text('Domande'), findsOneWidget);
-          expect(find.text('Risposte'), findsOneWidget);
-          expect(find.textContaining('Corrette 100'), findsOneWidget);
-          expect(find.textContaining('Errate 20'), findsOneWidget);
-          expect(find.textContaining('Non risposte 3'), findsOneWidget);
-          expect(find.text('Precisione'), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );
     }
 
-    testWidgets('1920 desktop full table', (tester) async {
+    testWidgets('two columns 10 topics D1 → 5+5', (tester) async {
       await _pumpSection(
         tester,
-        size: const Size(1920, 1080),
-        topics: [_topic(title: _longTitle)],
+        size: const Size(1440, 900),
+        topics: _topics(10),
       );
+      expect(find.text('5. Argomento 5'), findsOneWidget);
+      expect(find.text('6. Argomento 6'), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('student-stats-topic-mode-desktop')),
+        find.byKey(const ValueKey('student-stats-topic-col-right')),
         findsOneWidget,
       );
-      expect(find.byType(DataTable), findsOneWidget);
-      expect(find.textContaining('Sicurezza 1'), findsOneWidget);
-      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('1 topic → left only, no empty right column', (tester) async {
+      await _pumpSection(
+        tester,
+        size: const Size(1440, 900),
+        topics: [_topic()],
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-col-left')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-col-right')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('empty filter state once', (tester) async {
+      await _pumpSection(
+        tester,
+        size: const Size(1440, 900),
+        topics: const [],
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-empty')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('student-stats-topic-mode-two-columns')),
+        findsNothing,
+      );
     });
 
     testWidgets('filter caption present', (tester) async {
@@ -219,12 +285,11 @@ void main() {
                   wrong: 20,
                   unanswered: 3,
                 ),
+                ..._topics(5).skip(1),
               ],
             );
             expect(tester.takeException(), isNull);
-            if (size.width >= 1024 && size.width < 1600) {
-              expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
-            }
+            expect(_hasHorizontalScrollInTopicSection(tester), isFalse);
           },
         );
       }

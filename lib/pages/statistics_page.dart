@@ -272,26 +272,29 @@ class _StatisticsPageState extends State<StatisticsPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: wide
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: StudentStatsStudioCard(study: stats.study),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StudentStatsExamCard(exam: stats.exam),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: StudentStatsReviewCard(
-                              topics: stats.reviewFor(_reviewSource),
-                              source: _reviewSource,
-                              onSourceChanged: (v) =>
-                                  setState(() => _reviewSource = v),
+                    ? IntrinsicHeight(
+                        // Bounded height inside ListView so stretch equalizes cards.
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: StudentStatsStudioCard(study: stats.study),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StudentStatsExamCard(exam: stats.exam),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StudentStatsReviewCard(
+                                topics: stats.reviewFor(_reviewSource),
+                                source: _reviewSource,
+                                onSourceChanged: (v) =>
+                                    setState(() => _reviewSource = v),
+                              ),
+                            ),
+                          ],
+                        ),
                       )
                     : Column(
                         children: [

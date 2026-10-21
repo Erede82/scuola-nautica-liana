@@ -26,48 +26,33 @@ class _FakeStudentStatsRepo implements StudentQuizStatisticsRepository {
   }
 }
 
-StudentQuizStatistics _richStats() {
+StudentQuizStatistics _richStats({int topicCount = 3, int reviewCount = 3}) {
   final at = DateTime.utc(2026, 10, 10, 12);
   final topics = [
-    TopicStatistics(
-      lessonNumber: 1,
-      title: '1. Teoria dello scafo',
-      counts: TopicAnswerCounts(
-        correct: 10,
-        wrong: 6,
-        unanswered: 4,
-        lastActivity: at,
+    for (var i = 1; i <= topicCount; i++)
+      TopicStatistics(
+        lessonNumber: i,
+        title: '$i. Argomento $i',
+        counts: TopicAnswerCounts(
+          correct: 10,
+          wrong: 6,
+          unanswered: 4,
+          lastActivity: at,
+        ),
       ),
-    ),
-    TopicStatistics(
-      lessonNumber: 2,
-      title: '2. Motori endotermici',
-      counts: TopicAnswerCounts(
-        correct: 12,
-        wrong: 5,
-        unanswered: 3,
-        lastActivity: at,
-      ),
-    ),
-    TopicStatistics(
-      lessonNumber: 3,
-      title: '3. Sicurezza',
-      counts: TopicAnswerCounts(
-        correct: 8,
-        wrong: 8,
-        unanswered: 4,
-        lastActivity: at,
-      ),
-    ),
+  ];
+  final review = [
+    for (var i = 0; i < reviewCount && i < topics.length; i++)
+      ReviewTopic(rank: i + 1, topic: topics[i]),
   ];
   return StudentQuizStatistics(
     categoryId: LicenseCategoryId.motore,
-    study: const StudyStatistics(
+    study: StudyStatistics(
       sheetsCompleted: 12,
       correct: 80,
       wrong: 30,
       unanswered: 20,
-      topicsStudied: 3,
+      topicsStudied: topics.length,
       topicsTotal: 14,
     ),
     exam: ExamStatistics(
@@ -92,16 +77,8 @@ StudentQuizStatistics _richStats() {
     topicsAll: topics,
     topicsStudy: topics,
     topicsExam: const [],
-    reviewAll: [
-      ReviewTopic(rank: 1, topic: topics[2]),
-      ReviewTopic(rank: 2, topic: topics[0]),
-      ReviewTopic(rank: 3, topic: topics[1]),
-    ],
-    reviewStudy: [
-      ReviewTopic(rank: 1, topic: topics[2]),
-      ReviewTopic(rank: 2, topic: topics[0]),
-      ReviewTopic(rank: 3, topic: topics[1]),
-    ],
+    reviewAll: review,
+    reviewStudy: review,
     reviewExam: const [],
   );
 }
@@ -185,6 +162,63 @@ void main() {
         find.textContaining('Continua ad esercitarti'),
         findsWidgets,
       );
+    });
+
+    testWidgets('E. <1366 review shows max 3 of 5', (tester) async {
+      final repo = _FakeStudentStatsRepo(
+        result: _richStats(topicCount: 5, reviewCount: 5),
+      );
+      await _pumpPage(tester, size: const Size(1024, 768), repo: repo);
+
+      final reviewCard = find.byKey(const ValueKey('student-stats-review-card'));
+      expect(
+        find.descendant(of: reviewCard, matching: find.text('1. Argomento 1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: reviewCard, matching: find.text('3. Argomento 3')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: reviewCard, matching: find.text('4. Argomento 4')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: reviewCard, matching: find.text('5. Argomento 5')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('F. >=1366 review shows max 5', (tester) async {
+      final repo = _FakeStudentStatsRepo(
+        result: _richStats(topicCount: 5, reviewCount: 5),
+      );
+      await _pumpPage(tester, size: const Size(1366, 768), repo: repo);
+
+      final reviewCard = find.byKey(const ValueKey('student-stats-review-card'));
+      expect(
+        find.descendant(of: reviewCard, matching: find.text('5. Argomento 5')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('desktop top cards equal height via stretch', (tester) async {
+      final repo = _FakeStudentStatsRepo(
+        result: _richStats(topicCount: 5, reviewCount: 5),
+      );
+      await _pumpPage(tester, size: const Size(1440, 900), repo: repo);
+
+      final studio = tester.getSize(
+        find.byKey(const ValueKey('student-stats-studio-card')),
+      );
+      final exam = tester.getSize(
+        find.byKey(const ValueKey('student-stats-exam-card')),
+      );
+      final review = tester.getSize(
+        find.byKey(const ValueKey('student-stats-review-card')),
+      );
+      expect(studio.height, exam.height);
+      expect(exam.height, review.height);
     });
 
     testWidgets('empty state', (tester) async {

@@ -2,10 +2,15 @@ import '../models/license_models.dart';
 import 'student_quiz_statistics_models.dart';
 import 'student_stats_source.dart';
 
-/// Soglie Top 3 (sample size).
+/// Soglie sample size per ranking "Da ripassare" (invariate).
 const int kStudentStatsTop3PrimaryMinSeen = 8;
 const int kStudentStatsTop3FallbackMinSeen = 5;
+
+/// Limite UI compatto (<1366): fino a 3 argomenti.
 const int kStudentStatsTop3Limit = 3;
+
+/// Limite massimo candidati ranking / UI desktop largo: fino a 5.
+const int kStudentStatsReviewMaxLimit = 5;
 
 /// Laplace-smoothed error rate: (errors + 1) / (seen + 2).
 ///
@@ -174,9 +179,18 @@ StudentQuizStatistics buildStudentQuizStatistics({
     topicsAll: topicsAll,
     topicsStudy: topicsStudy,
     topicsExam: topicsExam,
-    reviewAll: selectStudentStatsReviewTopics(topicsAll),
-    reviewStudy: selectStudentStatsReviewTopics(topicsStudy),
-    reviewExam: selectStudentStatsReviewTopics(topicsExam),
+    reviewAll: selectStudentStatsReviewTopics(
+      topicsAll,
+      limit: kStudentStatsReviewMaxLimit,
+    ),
+    reviewStudy: selectStudentStatsReviewTopics(
+      topicsStudy,
+      limit: kStudentStatsReviewMaxLimit,
+    ),
+    reviewExam: selectStudentStatsReviewTopics(
+      topicsExam,
+      limit: kStudentStatsReviewMaxLimit,
+    ),
     ignoredIncompleteLessonAttempts: ignoredIncompleteLessonAttempts,
     ignoredIncompleteMultiAttempts: ignoredIncompleteMultiAttempts,
     ignoredIncompleteExamAttempts: ignoredIncompleteExamAttempts,
@@ -215,12 +229,15 @@ List<TopicStatistics> _mergeTopicLists(
   return _topicsFromBuckets(buckets: merged, titleByLesson: titleByLesson);
 }
 
-/// Top 3 "Da ripassare" con Laplace + soglie sample.
+/// Ranking "Da ripassare" con Laplace + soglie sample.
+///
+/// Default [limit] = [kStudentStatsReviewMaxLimit] (5). La UI può mostrare
+/// un sottoinsieme (es. 3 su viewport stretti). Formula e tie-break invariati.
 List<ReviewTopic> selectStudentStatsReviewTopics(
   List<TopicStatistics> topics, {
   int primaryMinSeen = kStudentStatsTop3PrimaryMinSeen,
   int fallbackMinSeen = kStudentStatsTop3FallbackMinSeen,
-  int limit = kStudentStatsTop3Limit,
+  int limit = kStudentStatsReviewMaxLimit,
 }) {
   if (topics.isEmpty || limit <= 0) return const [];
 

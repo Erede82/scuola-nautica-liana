@@ -176,13 +176,73 @@ void main() {
       expect(review.map((r) => r.topic.lessonNumber), [2]);
     });
 
-    test('I. fallback >= 5 when fewer than 3 primary', () {
-      final review = selectStudentStatsReviewTopics([
-        topic(n: 1, correct: 1, wrong: 7, unanswered: 0), // 8
-        topic(n: 2, correct: 1, wrong: 4, unanswered: 0), // 5 fallback
-        topic(n: 3, correct: 0, wrong: 4, unanswered: 0), // 4 excluded
-      ]);
+    test('I. fallback >= 5 when fewer than limit primary', () {
+      final review = selectStudentStatsReviewTopics(
+        [
+          topic(n: 1, correct: 1, wrong: 7, unanswered: 0), // 8
+          topic(n: 2, correct: 1, wrong: 4, unanswered: 0), // 5 fallback
+          topic(n: 3, correct: 0, wrong: 4, unanswered: 0), // 4 excluded
+        ],
+        limit: kStudentStatsTop3Limit,
+      );
       expect(review.map((r) => r.topic.lessonNumber).toList(), [1, 2]);
+    });
+
+    test('A. 5 eligible → ranked list provides 5', () {
+      final review = selectStudentStatsReviewTopics([
+        for (var i = 1; i <= 5; i++)
+          topic(
+            n: i,
+            correct: 2,
+            wrong: 6 + (5 - i), // distinct laplace / errors
+            unanswered: 0,
+          ),
+      ]);
+      expect(review, hasLength(5));
+      expect(review.map((r) => r.rank).toList(), [1, 2, 3, 4, 5]);
+    });
+
+    test('B. 4 eligible → 4 real (no filler)', () {
+      final review = selectStudentStatsReviewTopics([
+        for (var i = 1; i <= 4; i++)
+          topic(n: i, correct: 2, wrong: 6, unanswered: 0),
+      ]);
+      expect(review, hasLength(4));
+    });
+
+    test('C. 2 eligible → 2 real', () {
+      final review = selectStudentStatsReviewTopics([
+        topic(n: 1, correct: 2, wrong: 6, unanswered: 0),
+        topic(n: 2, correct: 3, wrong: 5, unanswered: 0),
+      ]);
+      expect(review, hasLength(2));
+    });
+
+    test('D. formula/ranking unchanged with limit 5 vs 3 prefix', () {
+      final topics = [
+        for (var i = 1; i <= 6; i++)
+          topic(
+            n: i,
+            correct: 2,
+            wrong: 8 - i,
+            unanswered: 0,
+            last: DateTime.utc(2026, 1, i),
+          ),
+      ];
+      final top5 = selectStudentStatsReviewTopics(topics);
+      final top3 = selectStudentStatsReviewTopics(
+        topics,
+        limit: kStudentStatsTop3Limit,
+      );
+      expect(top5.take(3).map((r) => r.topic.lessonNumber).toList(),
+          top3.map((r) => r.topic.lessonNumber).toList());
+      expect(
+        studentStatsLaplaceErrorScore(
+          errors: top5.first.topic.errors,
+          seen: top5.first.topic.questionsSeen,
+        ),
+        (top5.first.topic.errors + 1) / (top5.first.topic.questionsSeen + 2),
+      );
     });
 
     test('J. tie-break absolute errors desc', () {

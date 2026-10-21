@@ -139,7 +139,7 @@ class ExamStatistics {
   final double averageErrors;
   final List<RecentExamResult> recentResults;
 
-  /// Risposte esame senza lesson_number: nei totali Esame ma non nel Top 3 / per-topic.
+  /// Risposte esame senza lesson_number: nei totali Esame ma non nel ranking ripasso / per-topic.
   final int answersExcludedFromTopics;
 
   double get passRate {
@@ -159,7 +159,7 @@ class ExamStatistics {
   );
 }
 
-/// Voce Top 3 "Da ripassare".
+/// Voce ranking "Da ripassare" (fino a 5 candidati).
 class ReviewTopic {
   const ReviewTopic({
     required this.rank,

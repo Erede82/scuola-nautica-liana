@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../domain/student_quiz_statistics_models.dart';
+import '../domain/student_stats_layout.dart';
 import '../domain/student_stats_source.dart';
 import '../theme/app_visual_tokens.dart';
 import 'statistics_summary_section.dart';
 import 'student_stats_source_filter_bar.dart';
 
-/// Card DA RIPASSARE — Top 3 argomenti critici.
+/// Card DA RIPASSARE — Top 3/5 argomenti critici (slice UI su ranked list).
 class StudentStatsReviewCard extends StatelessWidget {
   const StudentStatsReviewCard({
     super.key,
@@ -27,6 +28,9 @@ class StudentStatsReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final width = MediaQuery.sizeOf(context).width;
+    final visibleLimit = studentStatsReviewVisibleLimitForWidth(width);
+    final visible = topics.take(visibleLimit).toList(growable: false);
 
     return Container(
       key: const ValueKey('student-stats-review-card'),
@@ -75,15 +79,15 @@ class StudentStatsReviewCard extends StatelessWidget {
             onChanged: onSourceChanged,
           ),
           const SizedBox(height: 14),
-          if (topics.isEmpty)
+          if (visible.isEmpty)
             Text(
               'Continua ad esercitarti per vedere gli argomenti da ripassare.',
               style: textTheme.bodyMedium?.copyWith(color: AppVisual.inkMuted),
             )
           else
-            for (final item in topics) ...[
+            for (final item in visible) ...[
               _topicRow(textTheme, item),
-              if (item != topics.last) const SizedBox(height: 10),
+              if (item != visible.last) const SizedBox(height: 10),
             ],
         ],
       ),
@@ -118,6 +122,8 @@ class StudentStatsReviewCard extends StatelessWidget {
             children: [
               Text(
                 topic.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppVisual.ink,
                   fontWeight: FontWeight.w700,
