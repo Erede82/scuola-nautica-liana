@@ -8,6 +8,7 @@ import '../../repositories/multi_topic_quiz_attempt_repository.dart'
 import 'dto/quiz_result_row.dart';
 import 'dto/quiz_sheet_catalog_row.dart';
 import 'quiz_attempt_history_data_source.dart';
+import 'supabase_select_pagination.dart';
 
 /// Riga answer Multischeda per statistiche (snapshot lezione).
 class MultiTopicStatsAnswerRow {
@@ -141,6 +142,12 @@ class StudentQuizStatisticsDataSourceSupabase
   final QuizAttemptHistoryDataSource _lessonHistory;
   final SupabaseClient? _clientOverride;
 
+  /// Quanti id per clausola IN.
+  ///
+  /// Le righe di ogni chunk vanno comunque paginate: 100 schede × 20 risposte
+  /// (A12) superano il tetto silenzioso PostgREST (1000). Senza `.range()` il
+  /// repository scarta le schede complete perché il conteggio risposte non
+  /// torna con `total_questions`.
   static const int _chunkSize = 100;
 
   SupabaseClient get _client {
@@ -176,11 +183,32 @@ class StudentQuizStatisticsDataSourceSupabase
   Future<Map<String, int>> fetchAnswerCountsByResultIds({
     required String userId,
     required List<String> quizResultIds,
-  }) {
-    return _lessonHistory.fetchAnswerCountsByResultIds(
-      userId: userId,
-      quizResultIds: quizResultIds,
-    );
+  }) async {
+    if (quizResultIds.isEmpty) return const {};
+
+    // Non delegare alla history non paginata: 100 result id × ~20 risposte
+    // vengono troncate a 1000 e le schede complete risultano incomplete.
+    final counts = <String, int>{};
+    for (var offset = 0; offset < quizResultIds.length; offset += _chunkSize) {
+      final end = math.min(offset + _chunkSize, quizResultIds.length);
+      final chunk = quizResultIds.sublist(offset, end);
+      final res = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from('quiz_attempt_answers')
+            .select('id, quiz_result_id')
+            .eq('user_id', userId)
+            .inFilter('quiz_result_id', chunk)
+            .order('id')
+            .range(from, to);
+      });
+      for (final item in res) {
+        if (item is! Map) continue;
+        final resultId = item['quiz_result_id']?.toString();
+        if (resultId == null || resultId.isEmpty) continue;
+        counts[resultId] = (counts[resultId] ?? 0) + 1;
+      }
+    }
+    return counts;
   }
 
   @override
@@ -188,19 +216,23 @@ class StudentQuizStatisticsDataSourceSupabase
     required String userId,
     required String licenseCategoryDb,
   }) async {
-    final res = await _client
-        .from(multiTopicQuizAttemptsTable)
-        .select(
-          'id, user_id, license_category, session_id, sheet_index, '
-          'completed_at, total_questions, correct_count, wrong_count, '
-          'unanswered_count',
-        )
-        .eq('user_id', userId)
-        .eq('license_category', licenseCategoryDb)
-        .order('completed_at', ascending: false);
+    final res = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from(multiTopicQuizAttemptsTable)
+          .select(
+            'id, user_id, license_category, session_id, sheet_index, '
+            'completed_at, total_questions, correct_count, wrong_count, '
+            'unanswered_count',
+          )
+          .eq('user_id', userId)
+          .eq('license_category', licenseCategoryDb)
+          .order('completed_at', ascending: false)
+          .order('id', ascending: false)
+          .range(from, to);
+    });
 
     final rows = <MultiTopicStatsAttemptRow>[];
-    for (final item in res as List<dynamic>) {
+    for (final item in res) {
       if (item is! Map) continue;
       final map = Map<String, dynamic>.from(item);
       final id = map['id']?.toString().trim() ?? '';
@@ -241,13 +273,18 @@ class StudentQuizStatisticsDataSourceSupabase
     for (var offset = 0; offset < attemptIds.length; offset += _chunkSize) {
       final end = math.min(offset + _chunkSize, attemptIds.length);
       final chunk = attemptIds.sublist(offset, end);
-      final res = await _client
-          .from(multiTopicQuizAttemptAnswersTable)
-          .select(
-            'attempt_id, lesson_number_snapshot, is_correct, selected_option',
-          )
-          .inFilter('attempt_id', chunk);
-      for (final item in res as List<dynamic>) {
+      final res = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from(multiTopicQuizAttemptAnswersTable)
+            .select(
+              'id, attempt_id, lesson_number_snapshot, is_correct, '
+              'selected_option',
+            )
+            .inFilter('attempt_id', chunk)
+            .order('id')
+            .range(from, to);
+      });
+      for (final item in res) {
         if (item is! Map) continue;
         final map = Map<String, dynamic>.from(item);
         final attemptId = map['attempt_id']?.toString().trim() ?? '';
@@ -275,18 +312,22 @@ class StudentQuizStatisticsDataSourceSupabase
     required String userId,
     required String licenseCategoryDb,
   }) async {
-    final res = await _client
-        .from('exam_quiz_attempts')
-        .select(
-          'id, user_id, license_category, completed_at, total_questions, '
-          'correct_count, wrong_count, unanswered_count, passed',
-        )
-        .eq('user_id', userId)
-        .eq('license_category', licenseCategoryDb)
-        .order('completed_at', ascending: false);
+    final res = await fetchAllSupabasePages((from, to) {
+      return _client
+          .from('exam_quiz_attempts')
+          .select(
+            'id, user_id, license_category, completed_at, total_questions, '
+            'correct_count, wrong_count, unanswered_count, passed',
+          )
+          .eq('user_id', userId)
+          .eq('license_category', licenseCategoryDb)
+          .order('completed_at', ascending: false)
+          .order('id', ascending: false)
+          .range(from, to);
+    });
 
     final rows = <ExamStatsAttemptRow>[];
-    for (final item in res as List<dynamic>) {
+    for (final item in res) {
       if (item is! Map) continue;
       final map = Map<String, dynamic>.from(item);
       final id = map['id']?.toString().trim() ?? '';
@@ -320,11 +361,17 @@ class StudentQuizStatisticsDataSourceSupabase
     for (var offset = 0; offset < attemptIds.length; offset += _chunkSize) {
       final end = math.min(offset + _chunkSize, attemptIds.length);
       final chunk = attemptIds.sublist(offset, end);
-      final res = await _client
-          .from('exam_quiz_attempt_answers')
-          .select('attempt_id, question_id, is_correct, selected_option')
-          .inFilter('attempt_id', chunk);
-      for (final item in res as List<dynamic>) {
+      final res = await fetchAllSupabasePages((from, to) {
+        return _client
+            .from('exam_quiz_attempt_answers')
+            .select(
+              'id, attempt_id, question_id, is_correct, selected_option',
+            )
+            .inFilter('attempt_id', chunk)
+            .order('id')
+            .range(from, to);
+      });
+      for (final item in res) {
         if (item is! Map) continue;
         final map = Map<String, dynamic>.from(item);
         final attemptId = map['attempt_id']?.toString().trim() ?? '';

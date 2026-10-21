@@ -370,6 +370,50 @@ void main() {
       );
     });
 
+    test('partial multi answer set is excluded as incomplete', () async {
+      final fake = StudentQuizStatisticsDataSourceFake(
+        catalog: [
+          const QuizSheetCatalogRow(
+            id: 'a12-1-1',
+            kind: 'lesson',
+            licenseCategory: 'A12',
+            lessonNumber: 1,
+            sheetNumber: 1,
+          ),
+        ],
+        multiAttempts: [
+          _multi(
+            id: 'm-partial',
+            userId: 'user-1',
+            category: 'A12',
+            correct: 16,
+            wrong: 2,
+            unanswered: 2,
+          ),
+        ],
+        // Header says 20. A truncated answer read (PostgREST max-rows)
+        // must not be counted as a completed sheet.
+        multiAnswers: _multiAnswersFor(
+          'm-partial',
+          correct: 10,
+          wrong: 0,
+          unanswered: 0,
+        ),
+      );
+
+      final repo = StudentQuizStatisticsRepositoryImpl(
+        dataSource: fake,
+        resolveUserId: () async => 'user-1',
+      );
+
+      final stats = await repo.fetchCategoryStatistics(
+        categoryId: LicenseCategoryId.motore,
+      );
+
+      expect(stats.study.sheetsCompleted, 0);
+      expect(stats.ignoredIncompleteMultiAttempts, 1);
+    });
+
     test('zero-answer multi attempt excluded', () async {
       final fake = StudentQuizStatisticsDataSourceFake(
         catalog: [
