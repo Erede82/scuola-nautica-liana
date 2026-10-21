@@ -12,6 +12,7 @@ import '../theme/app_visual_tokens.dart';
 import '../widgets/backoffice/backoffice_formatters.dart';
 import '../widgets/backoffice/lesson_study_access_ui.dart';
 import '../widgets/backoffice/student_backoffice_dialogs.dart';
+import '../widgets/staff_student_statistics_panel.dart';
 
 /// Schermata segreteria per gestire gli accessi studio per allievo (schede, esame, ripasso).
 class StudyAccessAdminPage extends StatefulWidget {
@@ -61,6 +62,9 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   /// Evita reconcile selection concorrenti (search + load).
   int _selectionGen = 0;
 
+  /// Lazy: carica Statistiche solo dopo la prima apertura della tab.
+  bool _statsTabOpened = false;
+
   LicenseCategoryId _categoryId = LicenseCategoryId.motore;
 
   BackofficeRepository get _repo => widget.repository ?? backofficeRepository;
@@ -73,7 +77,8 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_onStudyAccessTabChanged);
     _searchCtrl.addListener(_onSearchChanged);
     _selectedStudentId = widget.initialStudentId;
     _loadProfiles();
@@ -81,10 +86,17 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onStudyAccessTabChanged);
     _searchCtrl.removeListener(_onSearchChanged);
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onStudyAccessTabChanged() {
+    if (_tabController.index == 3 && !_statsTabOpened) {
+      setState(() => _statsTabOpened = true);
+    }
   }
 
   void _onSearchChanged() {
@@ -233,6 +245,8 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
       _selectedStudentId = id;
       _view = null;
       _detailError = null;
+      // Nuovo allievo: ricalcola stats al prossimo ingresso in tab.
+      _statsTabOpened = _tabController.index == 3;
     });
     await _loadStudentDetail(id, selectionGen: gen);
   }
@@ -637,6 +651,18 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
                   },
                 ),
               ),
+              _statsTabOpened
+                  ? StaffStudentStatisticsPanel(
+                      key: ValueKey(
+                        'staff-stats-$_selectedStudentId-$_categoryId',
+                      ),
+                      studentId: _selectedStudentId!,
+                      categoryId: _categoryId,
+                      active: _tabController.index == 3,
+                    )
+                  : const Center(
+                      child: Text('Apri la tab Statistiche per caricare.'),
+                    ),
             ],
           ),
         ),
@@ -681,7 +707,9 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
         Tab(text: 'Schede'),
         Tab(text: 'Esame'),
         Tab(text: 'Ripasso'),
+        Tab(text: 'Statistiche'),
       ],
+      isScrollable: true,
     );
   }
 }

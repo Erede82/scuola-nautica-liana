@@ -1,13 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
-import '../data/license_catalog.dart';
 import '../data/supabase/dto/quiz_result_row.dart';
 import '../data/supabase/dto/quiz_sheet_catalog_row.dart';
 import '../data/supabase/mappers/quiz_statistics_mapper.dart';
 import '../data/supabase/student_quiz_statistics_data_source.dart';
 import '../domain/quiz_license_category.dart';
 import '../domain/student_quiz_statistics_aggregator.dart';
+import '../domain/student_quiz_statistics_input_helpers.dart';
 import '../domain/student_quiz_statistics_models.dart';
 import '../domain/student_stats_source.dart';
 import '../models/license_models.dart';
@@ -74,7 +74,7 @@ class StudentQuizStatisticsRepositoryImpl
     final multiAttemptsRaw = parallel[2]! as List<MultiTopicStatsAttemptRow>;
     final examAttemptsRaw = parallel[3]! as List<ExamStatsAttemptRow>;
 
-    final catalogEntries = _catalogEntries(
+    final catalogEntries = catalogEntriesFromLessonQuizSets(
       categoryId: categoryId,
       catalog: catalog,
     );
@@ -92,11 +92,11 @@ class StudentQuizStatisticsRepositoryImpl
       answerCounts: lessonAnswerCounts,
     );
 
-    final multiDeduped = _dedupeMultiAttempts(multiAttemptsRaw);
+    final multiDeduped = dedupeMultiTopicStatsAttempts(multiAttemptsRaw);
     final multiValid = <MultiTopicStatsAttemptRow>[];
     var ignoredMulti = 0;
     for (final row in multiDeduped) {
-      if (_isCompleteMultiAttempt(row)) {
+      if (isCompleteMultiTopicStatsAttempt(row)) {
         multiValid.add(row);
       } else {
         ignoredMulti++;
@@ -106,7 +106,7 @@ class StudentQuizStatisticsRepositoryImpl
     final examValid = <ExamStatsAttemptRow>[];
     var ignoredExam = 0;
     for (final row in examAttemptsRaw) {
-      if (_isCompleteExamAttempt(row)) {
+      if (isCompleteExamStatsAttempt(row)) {
         examValid.add(row);
       } else {
         ignoredExam++;
@@ -184,7 +184,7 @@ class StudentQuizStatisticsRepositoryImpl
         ),
       );
       // Schede: attributo topic = quiz_sets.lesson_number (rollup header).
-      _addRollupAnswerEvents(
+      addRollupAnswerEvents(
         into: answerEvents,
         source: StudentStatsSource.study,
         lessonNumber: row.lessonNumber,
@@ -264,102 +264,6 @@ class StudentQuizStatisticsRepositoryImpl
     );
   }
 
-  List<StudentStatsTopicCatalogEntry> _catalogEntries({
-    required LicenseCategoryId categoryId,
-    required List<QuizSheetCatalogRow> catalog,
-  }) {
-    final lessonNumbers = <int>{
-      for (final row in catalog)
-        if (row.kind == 'lesson' && row.lessonNumber > 0) row.lessonNumber,
-    };
-    final licenseLessons = LicenseCatalog.byId(categoryId).lessons;
-    final titleByNumber = <int, String>{
-      for (final lesson in licenseLessons) lesson.number: lesson.title,
-    };
-    final sorted = lessonNumbers.toList()..sort();
-    return [
-      for (final n in sorted)
-        StudentStatsTopicCatalogEntry(
-          lessonNumber: n,
-          title: titleByNumber[n] ?? 'Lezione $n',
-        ),
-    ];
-  }
-}
-
-bool _isCompleteMultiAttempt(MultiTopicStatsAttemptRow row) {
-  if (row.totalQuestions <= 0) return false;
-  if (row.sheetIndex <= 0) return false;
-  final accounted =
-      row.correctCount + row.wrongCount + row.unansweredCount;
-  return accounted == row.totalQuestions;
-}
-
-bool _isCompleteExamAttempt(ExamStatsAttemptRow row) {
-  if (row.totalQuestions <= 0) return false;
-  final accounted =
-      row.correctCount + row.wrongCount + row.unansweredCount;
-  return accounted == row.totalQuestions;
-}
-
-/// Dedup (session_id, sheet_index): tiene il più recente per completed_at.
-List<MultiTopicStatsAttemptRow> _dedupeMultiAttempts(
-  List<MultiTopicStatsAttemptRow> rows,
-) {
-  final best = <String, MultiTopicStatsAttemptRow>{};
-  for (final row in rows) {
-    final key = '${row.sessionId}::${row.sheetIndex}';
-    final existing = best[key];
-    if (existing == null || row.completedAt.isAfter(existing.completedAt)) {
-      best[key] = row;
-    }
-  }
-  return best.values.toList(growable: false);
-}
-
-void _addRollupAnswerEvents({
-  required List<StudentStatsAnswerEvent> into,
-  required StudentStatsSource source,
-  required int lessonNumber,
-  required DateTime completedAt,
-  required int correct,
-  required int wrong,
-  required int unanswered,
-}) {
-  if (lessonNumber <= 0) return;
-  for (var i = 0; i < correct; i++) {
-    into.add(
-      StudentStatsAnswerEvent(
-        source: source,
-        lessonNumber: lessonNumber,
-        isCorrect: true,
-        isUnanswered: false,
-        completedAt: completedAt,
-      ),
-    );
-  }
-  for (var i = 0; i < wrong; i++) {
-    into.add(
-      StudentStatsAnswerEvent(
-        source: source,
-        lessonNumber: lessonNumber,
-        isCorrect: false,
-        isUnanswered: false,
-        completedAt: completedAt,
-      ),
-    );
-  }
-  for (var i = 0; i < unanswered; i++) {
-    into.add(
-      StudentStatsAnswerEvent(
-        source: source,
-        lessonNumber: lessonNumber,
-        isCorrect: false,
-        isUnanswered: true,
-        completedAt: completedAt,
-      ),
-    );
-  }
 }
 
 class StudentQuizStatisticsRepositoryEmpty

@@ -14,11 +14,15 @@ class StudentStatsReviewCard extends StatelessWidget {
     required this.topics,
     required this.source,
     required this.onSourceChanged,
+    this.layoutWidth,
   });
 
   final List<ReviewTopic> topics;
   final StudentStatsSource source;
   final ValueChanged<StudentStatsSource> onSourceChanged;
+
+  /// Larghezza pannello (preferita). Se null → MediaQuery screen.
+  final double? layoutWidth;
 
   static const Color _card = Color(0xFFFFFFFF);
   static const Color _border = AppVisual.chipFill;
@@ -28,7 +32,7 @@ class StudentStatsReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final width = MediaQuery.sizeOf(context).width;
+    final width = layoutWidth ?? MediaQuery.sizeOf(context).width;
     final visibleLimit = studentStatsReviewVisibleLimitForWidth(width);
     final visible = topics.take(visibleLimit).toList(growable: false);
 

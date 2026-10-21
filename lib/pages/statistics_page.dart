@@ -13,10 +13,7 @@ import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/category_content_state.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
-import '../widgets/student_stats_exam_card.dart';
-import '../widgets/student_stats_review_card.dart';
-import '../widgets/student_stats_studio_card.dart';
-import '../widgets/student_stats_topic_section.dart';
+import '../widgets/student_quiz_statistics_dashboard.dart';
 
 class StatisticsPage extends StatefulWidget {
   const StatisticsPage({
@@ -40,7 +37,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
   static const Color _cardColor = Color(0xFFFFFFFF);
   static const Color _neutralColor = AppVisual.chipFill;
   static const Color _textPrimaryColor = AppVisual.ink;
-  static const Color _warningColor = Color(0xFFC75D3A);
 
   late final StudentQuizStatisticsRepository _repository;
   StudentQuizStatistics? _statistics;
@@ -257,70 +253,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
       );
     }
 
-    return RefreshIndicator(
-      color: _primaryColor,
+    return StudentQuizStatisticsDashboard(
+      statistics: stats,
+      reviewSource: _reviewSource,
+      topicSource: _topicSource,
+      onReviewSourceChanged: (v) => setState(() => _reviewSource = v),
+      onTopicSourceChanged: (v) => setState(() => _topicSource = v),
       onRefresh: () => _loadStatistics(isRefresh: true),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 1024;
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            padding: const EdgeInsets.only(bottom: 28),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: wide
-                    ? IntrinsicHeight(
-                        // Bounded height inside ListView so stretch equalizes cards.
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: StudentStatsStudioCard(study: stats.study),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: StudentStatsExamCard(exam: stats.exam),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: StudentStatsReviewCard(
-                                topics: stats.reviewFor(_reviewSource),
-                                source: _reviewSource,
-                                onSourceChanged: (v) =>
-                                    setState(() => _reviewSource = v),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        children: [
-                          StudentStatsStudioCard(study: stats.study),
-                          const SizedBox(height: 12),
-                          StudentStatsExamCard(exam: stats.exam),
-                          const SizedBox(height: 12),
-                          StudentStatsReviewCard(
-                            topics: stats.reviewFor(_reviewSource),
-                            source: _reviewSource,
-                            onSourceChanged: (v) =>
-                                setState(() => _reviewSource = v),
-                          ),
-                        ],
-                      ),
-              ),
-              if (ignored > 0) _ignoredAttemptsNote(textTheme, ignored),
-              StudentStatsTopicSection(
-                topics: stats.topicsFor(_topicSource),
-                source: _topicSource,
-                onSourceChanged: (v) => setState(() => _topicSource = v),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 
@@ -361,41 +300,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
           icon: Icons.bar_chart_rounded,
         ),
       ],
-    );
-  }
-
-  Widget _ignoredAttemptsNote(TextTheme textTheme, int ignoredCount) {
-    final label = ignoredCount == 1
-        ? '1 tentativo incompleto non incluso.'
-        : '$ignoredCount tentativi incompleti non inclusi.';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _warningColor.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _warningColor.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.info_outline_rounded, color: _warningColor, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Alcuni tentativi incompleti non sono stati inclusi. $label',
-                style: textTheme.bodySmall?.copyWith(
-                  color: _textPrimaryColor.withValues(alpha: 0.88),
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
