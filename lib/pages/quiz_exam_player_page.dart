@@ -21,6 +21,7 @@ import '../theme/quiz_player_density.dart';
 import '../theme/quiz_player_visual_tokens.dart';
 import '../widgets/nautical_answer_marker.dart';
 import '../widgets/quiz_player_answer_tile.dart';
+import '../widgets/quiz_player_keyboard_scope.dart';
 import '../widgets/quiz_player_question_body.dart';
 import '../widgets/quiz_question_progress_strip.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
@@ -377,6 +378,10 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
 
     final question = _currentQuestion;
     final selected = _selectedAnswer;
+    final canForward = QuizSheetPlayerNavigation.canGoForward(
+      currentIndex: _currentIndex,
+      questionCount: widget.questions.length,
+    );
 
     return PopScope(
       canPop: _allowsImmediatePop,
@@ -387,7 +392,15 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
+      child: QuizPlayerKeyboardScope(
+        onSelectAnswerIndex: (index) {
+          if (index < 0 || index >= question.options.length) return;
+          _selectAnswer(question.options[index]);
+        },
+        onConfirmOrNext: canForward ? _goForward : _completeExamFlow,
+        onNext: canForward ? _goForward : null,
+        onPrevious: _currentIndex > 0 ? _goBack : null,
+        child: Scaffold(
         backgroundColor: _backgroundColor,
         appBar: AppBar(
           backgroundColor: _primaryColor,
@@ -568,13 +581,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed:
-                        QuizSheetPlayerNavigation.canGoForward(
-                          currentIndex: _currentIndex,
-                          questionCount: widget.questions.length,
-                        )
-                        ? _goForward
-                        : null,
+                    onPressed: canForward ? _goForward : null,
                     icon: const Icon(Icons.chevron_right_rounded),
                     tooltip: 'Domanda successiva',
                   ),
@@ -582,6 +589,7 @@ class _QuizExamPlayerPageState extends State<QuizExamPlayerPage> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

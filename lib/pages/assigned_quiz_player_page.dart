@@ -8,6 +8,7 @@ import '../services/student_area_context.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/branded_app_bar_title.dart';
 import '../widgets/nautical_answer_marker.dart';
+import '../widgets/quiz_player_keyboard_scope.dart';
 import '../widgets/quiz_question_prompt_panel.dart';
 import '../widgets/staff_preview_app_bar_badge.dart';
 import 'assigned_quiz_result_page.dart';
@@ -344,6 +345,10 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
     final selectedLetter = _answers[_current.assignmentItemId];
     final selected = QuizAnswerOptionX.tryParse(selectedLetter);
 
+    final canGoPrevious = _index > 0 && !_submitting;
+    final canGoNext = _index < total - 1 && !_submitting;
+    final options = QuizAnswerOption.values;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -353,7 +358,23 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
+      child: QuizPlayerKeyboardScope(
+        enabled: !_submitting && !_abandoning,
+        onSelectAnswerIndex: (index) {
+          if (index < 0 || index >= options.length) return;
+          _selectOption(options[index]);
+        },
+        onConfirmOrNext: () {
+          if (_submitting || _abandoning) return;
+          if (_index >= total - 1) {
+            _submit();
+          } else {
+            setState(() => _index += 1);
+          }
+        },
+        onNext: canGoNext ? () => setState(() => _index += 1) : null,
+        onPrevious: canGoPrevious ? () => setState(() => _index -= 1) : null,
+        child: Scaffold(
         backgroundColor: AppVisual.canvas,
         appBar: AppBar(
           backgroundColor: AppVisual.logoBlue,
@@ -524,6 +545,7 @@ class AssignedQuizPlayerPageState extends State<AssignedQuizPlayerPage> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

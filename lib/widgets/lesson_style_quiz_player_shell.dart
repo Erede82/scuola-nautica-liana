@@ -10,6 +10,7 @@ import 'nautical_answer_marker.dart';
 import 'quiz_answer_result_chip.dart';
 import 'quiz_lesson_sheet_progress_panel.dart';
 import 'quiz_player_answer_tile.dart';
+import 'quiz_player_keyboard_scope.dart';
 import 'quiz_player_question_body.dart';
 import 'quiz_question_progress_strip.dart';
 
@@ -183,7 +184,16 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
     return PopScope(
       canPop: canPop,
       onPopInvokedWithResult: onPopInvoked,
-      child: Scaffold(
+      child: QuizPlayerKeyboardScope(
+        onSelectAnswerIndex: (index) {
+          if (revealed) return;
+          if (index < 0 || index >= question.options.length) return;
+          onSelectAnswer(question.options[index]);
+        },
+        onConfirmOrNext: onPrimaryAction,
+        onNext: onGoForward,
+        onPrevious: onGoBack,
+        child: Scaffold(
         key: const Key('lesson_style_quiz_player_shell'),
         backgroundColor: _backgroundColor,
         appBar: appBar,
@@ -318,6 +328,7 @@ class LessonStyleQuizPlayerShell extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
