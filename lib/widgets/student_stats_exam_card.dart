@@ -117,8 +117,9 @@ class StudentStatsExamCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${GuidaDateTimeFormat.formatDate(recent.completedAt)}'
-                          ' · ${GuidaDateTimeFormat.formatTime(recent.completedAt)}',
+                          GuidaDateTimeFormat.formatItalianDateTime(
+                            recent.completedAt,
+                          ),
                           style: textTheme.bodySmall?.copyWith(
                             color: AppVisual.ink,
                           ),
