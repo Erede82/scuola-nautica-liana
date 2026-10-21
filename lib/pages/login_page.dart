@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../constants/app_branding.dart';
 import '../models/app_auth_summary.dart';
 import '../repositories/student_auth_registry.dart';
+import '../repositories/student_auth_repository.dart';
 import '../services/staff_access_service.dart';
 import '../services/startup_diagnostics.dart';
 import '../theme/app_visual_tokens.dart';
@@ -15,10 +17,18 @@ import 'student_registration_page.dart';
 
 /// Accesso con email e password.
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, this.isInternalIosWebLogin = false});
+  const LoginPage({
+    super.key,
+    this.isInternalIosWebLogin = false,
+    this.authRepository,
+  });
 
   /// FRONT.FINAL: aperta da Welcome su iOS web (unnamed route).
   final bool isInternalIosWebLogin;
+
+  /// Solo test / DI locale: non cambia l’implementazione auth di produzione.
+  @visibleForTesting
+  final StudentAuthRepository? authRepository;
 
   /// Split brand | form (desktop / web largo).
   @visibleForTesting
@@ -40,11 +50,20 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _emailFocus = FocusNode(debugLabel: 'login_email');
+  final _passwordFocus = FocusNode(debugLabel: 'login_password');
+  final _visibilityFocus = FocusNode(debugLabel: 'login_password_visibility');
+  final _submitFocus = FocusNode(debugLabel: 'login_submit');
+  final _registerFocus = FocusNode(debugLabel: 'login_create_account');
+  final _forgotFocus = FocusNode(debugLabel: 'login_forgot_password');
   final GlobalKey _loginBackKey = GlobalKey();
 
   bool _obscure = true;
   bool _loading = false;
   bool _edgeBackHandled = false;
+
+  StudentAuthRepository get _auth =>
+      widget.authRepository ?? studentAuthRepository;
 
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _backgroundColor = AppVisual.canvas;
@@ -82,22 +101,30 @@ class _LoginPageState extends State<LoginPage> {
       IosEdgeCatcher.uninstall();
     }
     StartupDiagnostics.unregisterTarget('LoginBack');
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _visibilityFocus.dispose();
+    _submitFocus.dispose();
+    _registerFocus.dispose();
+    _forgotFocus.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
 
+  /// Unica azione "Accedi" (pulsante + Enter password / desktop hardware Enter).
   Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
+    if (_loading) return;
 
     if (!_formKey.currentState!.validate()) return;
 
     final normalizedEmail = _normalizeEmail(_emailCtrl.text);
 
     setState(() => _loading = true);
+    FocusManager.instance.primaryFocus?.unfocus();
 
     try {
-      final result = await studentAuthRepository.signIn(
+      final result = await _auth.signIn(
         email: normalizedEmail,
         password: _passwordCtrl.text,
       );
@@ -170,31 +197,70 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Desktop/web: Enter fisico spesso NON passa da [TextInputAction] e può
+  /// attivare ActivateIntent (es. Back → Home). Ordine gate:
+  /// 1) Enter? 2) loading → handled 3) email/password focus?
+  /// 4) repeat/up → handled no-op 5) KeyDown → next/submit.
+  KeyEventResult _onLoginKeyEvent(FocusNode node, KeyEvent event) {
+    final key = event.logicalKey;
+    final isEnter = key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+    if (!isEnter) return KeyEventResult.ignored;
+
+    // Login pending: consuma Enter anche dopo unfocus (niente Back/ActivateIntent).
+    if (_loading) return KeyEventResult.handled;
+
+    // Non rubare Enter a Accedi / visibility / Registrati / Forgot / Back.
+    if (!_emailFocus.hasFocus && !_passwordFocus.hasFocus) {
+      return KeyEventResult.ignored;
+    }
+
+    // Held key / KeyUp: nessun submit né focus change.
+    if (event is KeyRepeatEvent || event is KeyUpEvent) {
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    if (_emailFocus.hasFocus) {
+      _passwordFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+
+    // Password focus → stessa azione del pulsante Accedi.
+    _submit();
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _backgroundColor,
-      appBar: AppBar(
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        // Key diagnostica sul back standard (comportamento AppBar invariato).
-        leading: BackButton(key: _loginBackKey),
-        title: const SectionAppBarTitle('Accedi', logoHeight: 30),
-      ),
-      body: Form(
-        key: _formKey,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            if (width >= LoginPage.desktopSplitMinWidth) {
-              return _buildDesktopSplit(context, constraints);
-            }
-            if (width >= LoginPage.tabletMinWidth) {
-              return _buildCenteredCardLayout(context, showBrandLogo: true);
-            }
-            return _buildMobileColumn(context);
-          },
+    return Focus(
+      skipTraversal: true,
+      canRequestFocus: false,
+      onKeyEvent: _onLoginKeyEvent,
+      child: Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          // Key diagnostica sul back standard (comportamento AppBar invariato).
+          leading: BackButton(key: _loginBackKey),
+          title: const SectionAppBarTitle('Accedi', logoHeight: 30),
+        ),
+        body: Form(
+          key: _formKey,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              if (width >= LoginPage.desktopSplitMinWidth) {
+                return _buildDesktopSplit(context, constraints);
+              }
+              if (width >= LoginPage.tabletMinWidth) {
+                return _buildCenteredCardLayout(context, showBrandLogo: true);
+              }
+              return _buildMobileColumn(context);
+            },
+          ),
         ),
       ),
     );
@@ -491,10 +557,15 @@ class _LoginPageState extends State<LoginPage> {
       TextFormField(
         key: const Key('login_email_field'),
         controller: _emailCtrl,
+        focusNode: _emailFocus,
         keyboardType: TextInputType.emailAddress,
         autocorrect: false,
         decoration: _decoration('Email'),
         textInputAction: TextInputAction.next,
+        onFieldSubmitted: (_) {
+          if (_loading) return;
+          _passwordFocus.requestFocus();
+        },
         validator: (v) {
           final t = v?.trim() ?? '';
           if (t.isEmpty) return 'Inserisci l’email.';
@@ -508,10 +579,12 @@ class _LoginPageState extends State<LoginPage> {
       TextFormField(
         key: const Key('login_password_field'),
         controller: _passwordCtrl,
+        focusNode: _passwordFocus,
         obscureText: _obscure,
         decoration: _decoration('Password').copyWith(
           suffixIcon: IconButton(
             key: const Key('login_password_visibility'),
+            focusNode: _visibilityFocus,
             icon: Icon(
               _obscure
                   ? Icons.visibility_outlined
@@ -522,7 +595,10 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         textInputAction: TextInputAction.done,
-        onFieldSubmitted: (_) => _submit(),
+        onFieldSubmitted: (_) {
+          if (_loading) return;
+          _submit();
+        },
         validator: (v) {
           if (v == null || v.isEmpty) return 'Inserisci la password.';
           return null;
@@ -532,6 +608,7 @@ class _LoginPageState extends State<LoginPage> {
         alignment: Alignment.centerRight,
         child: TextButton(
           key: const Key('login_forgot_password'),
+          focusNode: _forgotFocus,
           onPressed: _loading
               ? null
               : () {
@@ -554,6 +631,7 @@ class _LoginPageState extends State<LoginPage> {
       const SizedBox(height: 8),
       FilledButton(
         key: const Key('login_submit'),
+        focusNode: _submitFocus,
         onPressed: _loading ? null : _submit,
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(52),
@@ -574,6 +652,7 @@ class _LoginPageState extends State<LoginPage> {
       const SizedBox(height: 14),
       OutlinedButton(
         key: const Key('login_create_account'),
+        focusNode: _registerFocus,
         onPressed: _loading
             ? null
             : () {
