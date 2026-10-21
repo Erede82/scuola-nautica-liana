@@ -6,6 +6,7 @@ import '../domain/backoffice/backoffice.dart';
 import '../domain/international_phone.dart';
 import '../models/license_models.dart';
 import '../repositories/backoffice/backoffice_registry.dart';
+import '../repositories/backoffice/backoffice_repository.dart';
 import '../services/app_update/update_protected_mutation.dart';
 import '../theme/app_visual_tokens.dart';
 import '../widgets/backoffice/backoffice_formatters.dart';
@@ -14,12 +15,26 @@ import '../widgets/backoffice/student_backoffice_dialogs.dart';
 
 /// Schermata segreteria per gestire gli accessi studio per allievo (schede, esame, ripasso).
 class StudyAccessAdminPage extends StatefulWidget {
-  const StudyAccessAdminPage({super.key, this.embedded = false});
+  const StudyAccessAdminPage({
+    super.key,
+    this.embedded = false,
+    this.initialStudentId,
+    this.repository,
+  });
 
   final bool embedded;
 
+  /// Preselezione opzionale (es. deep-link). Ha priorità su `students.first`.
+  final StudentId? initialStudentId;
+
+  /// Override test / DI locale. Produzione: [backofficeRepository].
+  final BackofficeRepository? repository;
+
   static const Color _primaryColor = AppVisual.logoBlue;
   static const Color _backgroundColor = AppVisual.canvas;
+
+  /// Layout lista + dettaglio affiancati (desktop gestionale).
+  static const double desktopSplitMinWidth = 1024;
 
   @override
   State<StudyAccessAdminPage> createState() => _StudyAccessAdminPageState();
@@ -43,21 +58,107 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   final Set<int> _busyLessonNumbers = {};
   final Map<int, bool> _optimisticLessonUnlock = {};
 
+  /// Evita reconcile selection concorrenti (search + load).
+  int _selectionGen = 0;
+
   LicenseCategoryId _categoryId = LicenseCategoryId.motore;
+
+  BackofficeRepository get _repo => widget.repository ?? backofficeRepository;
+
+  bool get _isDesktopSplit {
+    return MediaQuery.sizeOf(context).width >=
+        StudyAccessAdminPage.desktopSplitMinWidth;
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _searchCtrl.addListener(() => setState(() {}));
+    _searchCtrl.addListener(_onSearchChanged);
+    _selectedStudentId = widget.initialStudentId;
     _loadProfiles();
   }
 
   @override
   void dispose() {
+    _searchCtrl.removeListener(_onSearchChanged);
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (!mounted || _listLoading) {
+      if (mounted) setState(() {});
+      return;
+    }
+    final visible = _filteredProfiles;
+
+    // Narrow: la ricerca filtra solo la lista (Cambia allievo). Non auto-selezionare
+    // durante la digitazione — altrimenti il TextField sparisce a metà input.
+    if (!_isDesktopSplit) {
+      final current = _selectedStudentId;
+      if (current != null && visible.every((p) => p.id != current)) {
+        _clearStudentSelection();
+      } else {
+        setState(() {});
+      }
+      return;
+    }
+
+    final next = _resolveTargetSelection(visible);
+    if (next == _selectedStudentId) {
+      setState(() {});
+      return;
+    }
+    _applyResolvedSelection(visible);
+  }
+
+  /// Selection target rispetto alla lista *visibile* (ordinata/filtrata).
+  StudentId? _resolveTargetSelection(List<StudentProfile> visible) {
+    if (visible.isEmpty) return null;
+    final current = _selectedStudentId;
+    if (current != null && visible.any((p) => p.id == current)) {
+      return current;
+    }
+    final initial = widget.initialStudentId;
+    if (current == null &&
+        initial != null &&
+        visible.any((p) => p.id == initial)) {
+      return initial;
+    }
+    return visible.first.id;
+  }
+
+  Future<void> _applyResolvedSelection(List<StudentProfile> visible) async {
+    final gen = ++_selectionGen;
+    final next = _resolveTargetSelection(visible);
+    if (!mounted || gen != _selectionGen) return;
+
+    if (next == null) {
+      if (_selectedStudentId != null || _view != null || _detailError != null) {
+        setState(() {
+          _selectedStudentId = null;
+          _view = null;
+          _detailError = null;
+          _detailLoading = false;
+        });
+      } else if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    if (next == _selectedStudentId) {
+      if (_view == null && !_detailLoading) {
+        await _loadStudentDetail(next, selectionGen: gen);
+      } else if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    await _selectStudent(next, selectionGen: gen);
   }
 
   Future<void> _loadProfiles() async {
@@ -66,12 +167,17 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
       _listError = null;
     });
     try {
-      final list = await backofficeRepository.listStudentProfiles();
+      final list = await _repo.listStudentProfiles();
       if (!mounted) return;
       setState(() {
         _profiles = list;
         _listLoading = false;
       });
+      // Desktop split: auto-select / preserve / fallback (stesso percorso del click).
+      // Narrow: lista-first (no auto-select) — evita overflow e mantiene ricerca.
+      if (_isDesktopSplit) {
+        await _applyResolvedSelection(_filteredProfiles);
+      }
     } catch (e, st) {
       debugPrint('StudyAccessAdminPage._loadProfiles: $e\n$st');
       if (!mounted) return;
@@ -82,14 +188,19 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     }
   }
 
-  Future<void> _loadStudentDetail(StudentId studentId) async {
+  Future<void> _loadStudentDetail(
+    StudentId studentId, {
+    int? selectionGen,
+  }) async {
     setState(() {
       _detailLoading = true;
       _detailError = null;
     });
     try {
-      final fresh = await backofficeRepository.getStudentAdmin360(studentId);
+      final fresh = await _repo.getStudentAdmin360(studentId);
       if (!mounted) return;
+      if (selectionGen != null && selectionGen != _selectionGen) return;
+      if (_selectedStudentId != studentId) return;
       if (fresh == null) {
         setState(() {
           _detailError = 'Scheda allievo non trovata.';
@@ -106,6 +217,8 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     } catch (e, st) {
       debugPrint('StudyAccessAdminPage._loadStudentDetail: $e\n$st');
       if (!mounted) return;
+      if (selectionGen != null && selectionGen != _selectionGen) return;
+      if (_selectedStudentId != studentId) return;
       setState(() {
         _detailError = e;
         _view = null;
@@ -114,26 +227,30 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     }
   }
 
-  Future<void> _selectStudent(StudentId id) async {
+  Future<void> _selectStudent(StudentId id, {int? selectionGen}) async {
+    final gen = selectionGen ?? ++_selectionGen;
     setState(() {
       _selectedStudentId = id;
       _view = null;
+      _detailError = null;
     });
-    await _loadStudentDetail(id);
+    await _loadStudentDetail(id, selectionGen: gen);
   }
 
   void _clearStudentSelection() {
+    ++_selectionGen;
     setState(() {
       _selectedStudentId = null;
       _view = null;
       _detailError = null;
+      _detailLoading = false;
     });
   }
 
   Future<void> _refreshView() async {
     final id = _selectedStudentId;
     if (id == null) return;
-    await _loadStudentDetail(id);
+    await _loadStudentDetail(id, selectionGen: _selectionGen);
   }
 
   void _snack(String message) {
@@ -186,7 +303,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
 
     try {
       await runUpdateProtectedMutation(
-        () => backofficeRepository.setLessonSheetsUnlockedForLesson(
+        () => _repo.setLessonSheetsUnlockedForLesson(
           studentId: view.profile.id,
           categoryId: _categoryId,
           lessonNumber: lessonNumber,
@@ -215,7 +332,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     final view = _view;
     if (view == null) return;
     await _runWrite(
-      action: () => backofficeRepository.setExamQuizAccessForCategory(
+      action: () => _repo.setExamQuizAccessForCategory(
         studentId: view.profile.id,
         categoryId: _categoryId,
         examUnlocked: unlocked,
@@ -233,7 +350,7 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
     final view = _view;
     if (view == null) return;
     await _runWrite(
-      action: () => backofficeRepository.setErrorReviewTopicAssignment(
+      action: () => _repo.setErrorReviewTopicAssignment(
         studentId: view.profile.id,
         categoryId: _categoryId,
         lessonNumber: lessonNumber,
@@ -272,6 +389,8 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final desktopSplit = _isDesktopSplit;
+    final showTabs = _selectedStudentId != null && _view != null;
 
     return Scaffold(
       backgroundColor: StudyAccessAdminPage._backgroundColor,
@@ -284,115 +403,269 @@ class _StudyAccessAdminPageState extends State<StudyAccessAdminPage>
               elevation: 0,
               title: const Text('Gestione accessi studio'),
               centerTitle: true,
-              bottom: _selectedStudentId != null && _view != null
-                  ? _buildTabBar()
-                  : null,
+              bottom: showTabs ? _buildTabBar() : null,
             ),
       body: Column(
         children: [
-          if (widget.embedded && _selectedStudentId != null && _view != null)
+          if (widget.embedded && showTabs)
             Material(
               color: StudyAccessAdminPage._primaryColor,
               child: _buildTabBar(),
             ),
           _InternalHeader(textTheme: textTheme),
-          _StudentPickerSection(
-            textTheme: textTheme,
-            searchCtrl: _searchCtrl,
-            listLoading: _listLoading,
-            listError: _listError,
-            profiles: _filteredProfiles,
-            selectedProfile: _selectedProfile,
-            selectedStudentId: _selectedStudentId,
-            onRetryList: _loadProfiles,
-            onSelect: _selectStudent,
-            onClearSelection: _clearStudentSelection,
-          ),
-          if (_detailLoading) const LinearProgressIndicator(minHeight: 2),
-          if (_detailError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(
-                'Errore caricamento scheda: $_detailError',
-                style: textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFFC62828),
+          if (_listLoading)
+            const Expanded(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
                 ),
               ),
-            ),
-          if (_selectedStudentId == null)
+            )
+          else if (_listError != null)
             Expanded(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Text(
-                    'Seleziona un allievo per gestire lezioni, quiz esame e ripasso errori.',
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: AppVisual.ink.withValues(alpha: 0.78),
-                      height: 1.45,
-                    ),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Impossibile caricare l’elenco allievi: $_listError',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFFC62828),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _loadProfiles,
+                        child: const Text('Riprova'),
+                      ),
+                    ],
                   ),
                 ),
               ),
             )
-          else if (_view != null) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: _CategoryBar(
-                value: _categoryId,
-                onChanged: (v) => setState(() => _categoryId = v!),
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _LessonSheetsTab(
-                    view: _view!,
-                    categoryId: _categoryId,
-                    textTheme: textTheme,
-                    busyLessonNumbers: _busyLessonNumbers,
-                    optimisticLessonUnlock: _optimisticLessonUnlock,
-                    onApplyWholeLesson: _applyWholeLesson,
-                  ),
-                  _ExamTab(
-                    view: _view!,
-                    categoryId: _categoryId,
-                    textTheme: textTheme,
-                    actionBusy: _examBusy,
-                    onSetExamUnlocked: _setExamUnlocked,
-                  ),
-                  _ErrorReviewTab(
-                    view: _view!,
-                    categoryId: _categoryId,
-                    textTheme: textTheme,
-                    actionBusy: _errorReviewBusy,
-                    onSetTopic: _setErrorReviewTopic,
-                    onOpenDialog: () => showErrorReviewAssignDialog(
-                      context,
-                      initialView: _view!,
-                      repository: backofficeRepository,
-                      onRefreshDetail: ([StudentAdmin360View? updated]) async {
-                        if (updated != null) {
-                          setState(() => _view = updated);
-                        }
-                      },
+          else if (desktopSplit)
+            Expanded(child: _buildDesktopSplitBody(textTheme))
+          else
+            ..._buildNarrowBody(textTheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopSplitBody(TextTheme textTheme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 340,
+          child: _StudentPickerSection(
+            key: const Key('study_access_student_list'),
+            textTheme: textTheme,
+            searchCtrl: _searchCtrl,
+            listLoading: false,
+            listError: null,
+            profiles: _filteredProfiles,
+            allProfilesEmpty: _profiles.isEmpty,
+            selectedProfile: _selectedProfile,
+            selectedStudentId: _selectedStudentId,
+            sidebarMode: true,
+            onRetryList: _loadProfiles,
+            onSelect: (id) => _selectStudent(id),
+            onClearSelection: _clearStudentSelection,
+          ),
+        ),
+        VerticalDivider(
+          width: 1,
+          thickness: 1,
+          color: AppVisual.border.withValues(alpha: 0.85),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_detailLoading) const LinearProgressIndicator(minHeight: 2),
+              if (_detailError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(
+                    'Errore caricamento scheda: $_detailError',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFFC62828),
                     ),
                   ),
-                ],
-              ),
+                ),
+              Expanded(child: _buildDetailPane(textTheme)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildNarrowBody(TextTheme textTheme) {
+    return [
+      _StudentPickerSection(
+        key: const Key('study_access_student_list'),
+        textTheme: textTheme,
+        searchCtrl: _searchCtrl,
+        listLoading: false,
+        listError: null,
+        profiles: _filteredProfiles,
+        allProfilesEmpty: _profiles.isEmpty,
+        selectedProfile: _selectedProfile,
+        selectedStudentId: _selectedStudentId,
+        sidebarMode: false,
+        onRetryList: _loadProfiles,
+        onSelect: (id) => _selectStudent(id),
+        onClearSelection: _clearStudentSelection,
+      ),
+      if (_detailLoading) const LinearProgressIndicator(minHeight: 2),
+      if (_detailError != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(
+            'Errore caricamento scheda: $_detailError',
+            style: textTheme.bodySmall?.copyWith(
+              color: const Color(0xFFC62828),
             ),
-          ] else if (!_detailLoading)
-            Expanded(
-              child: Center(
-                child: Text(
-                  'Impossibile caricare lo stato studio dell’allievo.',
-                  style: textTheme.bodyMedium,
+          ),
+        ),
+      // Picker fuori dall’Expanded (come prima): TabBarView prende il resto.
+      ..._buildDetailSlivers(textTheme),
+    ];
+  }
+
+  /// Contenuto detail come lista di children da inserire in un Column genitore
+  /// che già offre un Expanded / spazio flex.
+  List<Widget> _buildDetailSlivers(TextTheme textTheme) {
+    final searchActive = _searchCtrl.text.trim().isNotEmpty;
+    final visible = _filteredProfiles;
+
+    if (_profiles.isEmpty) {
+      return [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Text(
+                'Nessun allievo disponibile',
+                key: const Key('study_access_empty_profiles'),
+                textAlign: TextAlign.center,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: AppVisual.ink.withValues(alpha: 0.78),
+                  height: 1.45,
                 ),
               ),
             ),
-        ],
+          ),
+        ),
+      ];
+    }
+
+    if (visible.isEmpty && searchActive) {
+      return [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Text(
+                'Nessun allievo corrisponde alla ricerca.',
+                key: const Key('study_access_empty_search'),
+                textAlign: TextAlign.center,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: AppVisual.ink.withValues(alpha: 0.78),
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (_selectedStudentId == null) {
+      // Lista già visibile sopra: niente copy "Seleziona un allievo…".
+      return [const Expanded(child: SizedBox.shrink())];
+    }
+
+    if (_view != null) {
+      return [
+        Padding(
+          key: const Key('study_access_detail_pane'),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: _CategoryBar(
+            value: _categoryId,
+            onChanged: (v) => setState(() => _categoryId = v!),
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _LessonSheetsTab(
+                view: _view!,
+                categoryId: _categoryId,
+                textTheme: textTheme,
+                busyLessonNumbers: _busyLessonNumbers,
+                optimisticLessonUnlock: _optimisticLessonUnlock,
+                onApplyWholeLesson: _applyWholeLesson,
+              ),
+              _ExamTab(
+                view: _view!,
+                categoryId: _categoryId,
+                textTheme: textTheme,
+                actionBusy: _examBusy,
+                onSetExamUnlocked: _setExamUnlocked,
+              ),
+              _ErrorReviewTab(
+                view: _view!,
+                categoryId: _categoryId,
+                textTheme: textTheme,
+                actionBusy: _errorReviewBusy,
+                onSetTopic: _setErrorReviewTopic,
+                onOpenDialog: () => showErrorReviewAssignDialog(
+                  context,
+                  initialView: _view!,
+                  repository: _repo,
+                  onRefreshDetail: ([StudentAdmin360View? updated]) async {
+                    if (updated != null) {
+                      setState(() => _view = updated);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    if (_detailLoading) {
+      return [
+        const Expanded(child: Center(child: CircularProgressIndicator())),
+      ];
+    }
+
+    return [
+      Expanded(
+        child: Center(
+          child: Text(
+            'Impossibile caricare lo stato studio dell’allievo.',
+            style: textTheme.bodyMedium,
+          ),
+        ),
       ),
+    ];
+  }
+
+  Widget _buildDetailPane(TextTheme textTheme) {
+    // Desktop split: un solo child Expanded → riusa gli stessi sliver in Column.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _buildDetailSlivers(textTheme),
     );
   }
 
@@ -467,13 +740,16 @@ class _InternalHeader extends StatelessWidget {
 
 class _StudentPickerSection extends StatelessWidget {
   const _StudentPickerSection({
+    super.key,
     required this.textTheme,
     required this.searchCtrl,
     required this.listLoading,
     required this.listError,
     required this.profiles,
+    required this.allProfilesEmpty,
     required this.selectedProfile,
     required this.selectedStudentId,
+    required this.sidebarMode,
     required this.onRetryList,
     required this.onSelect,
     required this.onClearSelection,
@@ -484,8 +760,10 @@ class _StudentPickerSection extends StatelessWidget {
   final bool listLoading;
   final Object? listError;
   final List<StudentProfile> profiles;
+  final bool allProfilesEmpty;
   final StudentProfile? selectedProfile;
   final StudentId? selectedStudentId;
+  final bool sidebarMode;
   final VoidCallback onRetryList;
   final ValueChanged<StudentId> onSelect;
   final VoidCallback onClearSelection;
@@ -520,7 +798,8 @@ class _StudentPickerSection extends StatelessWidget {
       );
     }
 
-    if (selectedProfile != null) {
+    // Mobile / narrow: card selezionata + "Cambia allievo" (lista nascosta).
+    if (!sidebarMode && selectedProfile != null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: _StudentAccessCard(
@@ -535,75 +814,84 @@ class _StudentPickerSection extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Cerca per nome, telefono o email',
-              prefixIcon: const Icon(Icons.search_rounded),
-              filled: true,
-              fillColor: _cardColor,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 14,
+    final listBody = profiles.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              allProfilesEmpty
+                  ? 'Nessun allievo disponibile'
+                  : 'Nessun allievo corrisponde alla ricerca.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: _textPrimaryColor.withValues(alpha: 0.75),
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: AppVisual.border.withValues(alpha: 0.72),
-                ),
+            ),
+          )
+        : ListView.separated(
+            shrinkWrap: !sidebarMode,
+            padding: EdgeInsets.zero,
+            itemCount: profiles.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final p = profiles[index];
+              return _StudentAccessCard(
+                profile: p,
+                textTheme: textTheme,
+                selected: p.id == selectedStudentId,
+                onTap: () => onSelect(p.id),
+              );
+            },
+          );
+
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Cerca per nome, telefono o email',
+            prefixIcon: const Icon(Icons.search_rounded),
+            filled: true,
+            fillColor: _cardColor,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppVisual.border.withValues(alpha: 0.72),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: AppVisual.border.withValues(alpha: 0.72),
-                ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppVisual.border.withValues(alpha: 0.72),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            '${profiles.length} allievi',
-            style: textTheme.labelMedium?.copyWith(
-              color: _textPrimaryColor.withValues(alpha: 0.68),
-              fontWeight: FontWeight.w600,
-            ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${profiles.length} allievi',
+          style: textTheme.labelMedium?.copyWith(
+            color: _textPrimaryColor.withValues(alpha: 0.68),
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 8),
+        ),
+        const SizedBox(height: 8),
+        if (sidebarMode)
+          Expanded(child: listBody)
+        else
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 360),
-            child: profiles.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Nessun allievo corrisponde alla ricerca.',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: _textPrimaryColor.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: profiles.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final p = profiles[index];
-                      return _StudentAccessCard(
-                        profile: p,
-                        textTheme: textTheme,
-                        selected: p.id == selectedStudentId,
-                        onTap: () => onSelect(p.id),
-                      );
-                    },
-                  ),
+            child: listBody,
           ),
-        ],
-      ),
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, sidebarMode ? 12 : 0),
+      child: column,
     );
   }
 }

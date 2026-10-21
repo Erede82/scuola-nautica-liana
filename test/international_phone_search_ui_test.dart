@@ -31,7 +31,15 @@ void _clearStaff() {
 Widget _wrap(Widget child, {Size size = const Size(390, 844)}) {
   return MediaQuery(
     data: MediaQueryData(size: size),
-    child: MaterialApp(home: Scaffold(body: child)),
+    child: MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: size.width,
+          height: size.height,
+          child: child,
+        ),
+      ),
+    ),
   );
 }
 
