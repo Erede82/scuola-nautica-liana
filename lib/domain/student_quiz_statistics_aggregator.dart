@@ -43,10 +43,25 @@ class StudentStatsTopicCatalogEntry {
   const StudentStatsTopicCatalogEntry({
     required this.lessonNumber,
     required this.title,
+    this.lessonSheetIds = const [],
   });
 
   final int lessonNumber;
   final String title;
+
+  /// Stable `quiz_sets.id` for kind=lesson in this topic.
+  final List<String> lessonSheetIds;
+}
+
+/// Scheda lezione valida già completata (identità stabile).
+class StudentStatsCompletedLessonSheet {
+  const StudentStatsCompletedLessonSheet({
+    required this.quizSetId,
+    required this.lessonNumber,
+  });
+
+  final String quizSetId;
+  final int lessonNumber;
 }
 
 /// Costruisce [StudentQuizStatistics] da eventi già validati.
@@ -56,6 +71,7 @@ StudentQuizStatistics buildStudentQuizStatistics({
   required List<StudentStatsExamAttemptEvent> examAttempts,
   required List<StudentStatsAnswerEvent> answerEvents,
   required List<StudentStatsTopicCatalogEntry> catalog,
+  List<StudentStatsCompletedLessonSheet> completedLessonSheets = const [],
   int ignoredIncompleteLessonAttempts = 0,
   int ignoredIncompleteMultiAttempts = 0,
   int ignoredIncompleteExamAttempts = 0,
@@ -64,6 +80,10 @@ StudentQuizStatistics buildStudentQuizStatistics({
     for (final entry in catalog)
       if (entry.lessonNumber > 0) entry.lessonNumber: entry.title,
   };
+  final lessonSheetProgress = lessonSheetProgressByTopic(
+    catalog: catalog,
+    completedLessonSheets: completedLessonSheets,
+  );
   final topicsTotal = titleByLesson.length;
 
   var studyCorrect = 0;
@@ -165,12 +185,19 @@ StudentQuizStatistics buildStudentQuizStatistics({
   final topicsStudy = _topicsFromBuckets(
     buckets: studyBuckets,
     titleByLesson: titleByLesson,
+    lessonSheetProgress: lessonSheetProgress,
   );
   final topicsExam = _topicsFromBuckets(
     buckets: examBuckets,
     titleByLesson: titleByLesson,
+    lessonSheetProgress: lessonSheetProgress,
   );
-  final topicsAll = _mergeTopicLists(topicsStudy, topicsExam, titleByLesson);
+  final topicsAll = _mergeTopicLists(
+    topicsStudy,
+    topicsExam,
+    titleByLesson,
+    lessonSheetProgress,
+  );
 
   return StudentQuizStatistics(
     categoryId: categoryId,
@@ -197,9 +224,47 @@ StudentQuizStatistics buildStudentQuizStatistics({
   );
 }
 
+/// Unique completed lesson sheets ∩ catalog ids, per lesson.
+///
+/// Duplicates, ids outside the catalog, and empty ids do not increase
+/// the numerator. The count cannot exceed the catalog denominator.
+Map<int, ({int completed, int total})> lessonSheetProgressByTopic({
+  required List<StudentStatsTopicCatalogEntry> catalog,
+  required List<StudentStatsCompletedLessonSheet> completedLessonSheets,
+}) {
+  final catalogIds = <int, Set<String>>{};
+  for (final entry in catalog) {
+    if (entry.lessonNumber <= 0) continue;
+    catalogIds.putIfAbsent(entry.lessonNumber, () => <String>{});
+    for (final id in entry.lessonSheetIds) {
+      if (id.isEmpty) continue;
+      catalogIds[entry.lessonNumber]!.add(id);
+    }
+  }
+
+  final completedIds = <int, Set<String>>{};
+  for (final sheet in completedLessonSheets) {
+    if (sheet.lessonNumber <= 0 || sheet.quizSetId.isEmpty) continue;
+    final allowed = catalogIds[sheet.lessonNumber];
+    if (allowed == null || !allowed.contains(sheet.quizSetId)) continue;
+    completedIds
+        .putIfAbsent(sheet.lessonNumber, () => <String>{})
+        .add(sheet.quizSetId);
+  }
+
+  return {
+    for (final entry in catalogIds.entries)
+      entry.key: (
+        completed: completedIds[entry.key]?.length ?? 0,
+        total: entry.value.length,
+      ),
+  };
+}
+
 List<TopicStatistics> _topicsFromBuckets({
   required Map<int, TopicAnswerCounts> buckets,
   required Map<int, String> titleByLesson,
+  required Map<int, ({int completed, int total})> lessonSheetProgress,
 }) {
   final numbers = buckets.keys.toList()..sort();
   return [
@@ -209,6 +274,8 @@ List<TopicStatistics> _topicsFromBuckets({
           lessonNumber: n,
           title: titleByLesson[n] ?? 'Lezione $n',
           counts: buckets[n]!,
+          lessonSheetsCompleted: lessonSheetProgress[n]?.completed ?? 0,
+          lessonSheetsTotal: lessonSheetProgress[n]?.total ?? 0,
         ),
   ];
 }
@@ -217,6 +284,7 @@ List<TopicStatistics> _mergeTopicLists(
   List<TopicStatistics> study,
   List<TopicStatistics> exam,
   Map<int, String> titleByLesson,
+  Map<int, ({int completed, int total})> lessonSheetProgress,
 ) {
   final merged = <int, TopicAnswerCounts>{};
   for (final t in study) {
@@ -226,7 +294,11 @@ List<TopicStatistics> _mergeTopicLists(
     merged[t.lessonNumber] =
         (merged[t.lessonNumber] ?? TopicAnswerCounts.empty).merge(t.counts);
   }
-  return _topicsFromBuckets(buckets: merged, titleByLesson: titleByLesson);
+  return _topicsFromBuckets(
+    buckets: merged,
+    titleByLesson: titleByLesson,
+    lessonSheetProgress: lessonSheetProgress,
+  );
 }
 
 /// Ranking "Da ripassare" con Laplace + soglie sample.

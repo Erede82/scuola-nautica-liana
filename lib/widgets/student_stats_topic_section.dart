@@ -175,6 +175,8 @@ class StudentStatsTopicSection extends StatelessWidget {
     );
   }
 
+  bool get _showLessonProgress => source != StudentStatsSource.exam;
+
   Widget _compactTopicRow(TextTheme textTheme, TopicStatistics topic) {
     final titleStyle = textTheme.bodyMedium?.copyWith(
       color: AppVisual.ink,
@@ -212,21 +214,25 @@ class StudentStatsTopicSection extends StatelessWidget {
             style: titleStyle,
           ),
           const SizedBox(height: 4),
-          Text(
-            '${topic.questionsSeen} domande · ${topic.correct} corrette · '
-            '${topic.wrong} errate · ${topic.unanswered} non risposte',
-            softWrap: true,
-            style: metaStyle,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '$precision · $activity',
-            softWrap: true,
-            style: metaStyle?.copyWith(
-              color: AppVisual.ink,
-              fontWeight: FontWeight.w700,
+          if (_showLessonProgress && topic.lessonSheetsTotal > 0)
+            _lessonProgressBlock(textTheme, topic, precision, activity)
+          else ...[
+            Text(
+              '${topic.questionsSeen} domande · ${topic.correct} corrette · '
+              '${topic.wrong} errate · ${topic.unanswered} non risposte',
+              softWrap: true,
+              style: metaStyle,
             ),
-          ),
+            const SizedBox(height: 2),
+            Text(
+              '$precision · $activity',
+              softWrap: true,
+              style: metaStyle?.copyWith(
+                color: AppVisual.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -255,33 +261,106 @@ class StudentStatsTopicSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              _chip(textTheme, 'Domande', '${topic.questionsSeen}'),
-              _chip(textTheme, 'Corrette', '${topic.correct}'),
-              _chip(textTheme, 'Errate', '${topic.wrong}'),
-              _chip(textTheme, 'Non risposte', '${topic.unanswered}'),
-              _chip(
-                textTheme,
-                'Precisione',
-                StatisticsSummarySection.formatPercent(
-                  topic.accuracyPercentage,
+          if (_showLessonProgress && topic.lessonSheetsTotal > 0) ...[
+            _lessonProgressBlock(
+              textTheme,
+              topic,
+              StatisticsSummarySection.formatPercent(topic.accuracyPercentage),
+              topic.lastActivity == null
+                  ? '—'
+                  : GuidaDateTimeFormat.formatDate(topic.lastActivity!),
+            ),
+          ] else ...[
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                _chip(textTheme, 'Domande', '${topic.questionsSeen}'),
+                _chip(textTheme, 'Corrette', '${topic.correct}'),
+                _chip(textTheme, 'Errate', '${topic.wrong}'),
+                _chip(textTheme, 'Non risposte', '${topic.unanswered}'),
+                _chip(
+                  textTheme,
+                  'Precisione',
+                  StatisticsSummarySection.formatPercent(
+                    topic.accuracyPercentage,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            topic.lastActivity == null
-                ? 'Ultima attività: —'
-                : 'Ultima attività: '
-                    '${GuidaDateTimeFormat.formatDate(topic.lastActivity!)}',
-            style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
-          ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              topic.lastActivity == null
+                  ? 'Ultima attività: —'
+                  : 'Ultima attività: '
+                      '${GuidaDateTimeFormat.formatDate(topic.lastActivity!)}',
+              style: textTheme.bodySmall?.copyWith(color: AppVisual.inkMuted),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _lessonProgressBlock(
+    TextTheme textTheme,
+    TopicStatistics topic,
+    String precision,
+    String activity,
+  ) {
+    final percent = topic.lessonSheetProgressPercent ?? 0;
+    final ratio = topic.lessonSheetsTotal <= 0
+        ? 0.0
+        : (topic.lessonSheetsCompleted.clamp(0, topic.lessonSheetsTotal) /
+              topic.lessonSheetsTotal);
+    final meta = textTheme.bodySmall?.copyWith(
+      color: AppVisual.inkMuted,
+      fontWeight: FontWeight.w600,
+      height: 1.3,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Schede lezione: ${topic.lessonSheetsCompleted} / ${topic.lessonSheetsTotal}',
+          softWrap: true,
+          style: textTheme.bodyMedium?.copyWith(
+            color: AppVisual.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 8,
+            backgroundColor: _border,
+            color: _primary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$percent%',
+          style: textTheme.labelLarge?.copyWith(
+            color: _primary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Precisione $precision · Ultima attività $activity',
+          softWrap: true,
+          style: meta?.copyWith(color: AppVisual.ink, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${topic.questionsSeen} domande · ${topic.correct} corrette · '
+          '${topic.wrong} errate · ${topic.unanswered} non risposte',
+          softWrap: true,
+          style: meta,
+        ),
+      ],
     );
   }
 

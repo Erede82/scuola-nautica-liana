@@ -1,4 +1,5 @@
 import '../data/license_catalog.dart';
+import '../data/supabase/dto/quiz_result_row.dart';
 import '../data/supabase/dto/quiz_sheet_catalog_row.dart';
 import '../data/supabase/student_quiz_statistics_data_source.dart';
 import '../models/license_models.dart';
@@ -43,10 +44,14 @@ List<StudentStatsTopicCatalogEntry> catalogEntriesFromLessonQuizSets({
   required LicenseCategoryId categoryId,
   required List<QuizSheetCatalogRow> catalog,
 }) {
-  final lessonNumbers = <int>{
-    for (final row in catalog)
-      if (row.kind == 'lesson' && row.lessonNumber > 0) row.lessonNumber,
-  };
+  final idsByLesson = <int, Set<String>>{};
+  for (final row in catalog) {
+    if (row.kind != 'lesson' || row.lessonNumber <= 0 || row.id.isEmpty) {
+      continue;
+    }
+    idsByLesson.putIfAbsent(row.lessonNumber, () => <String>{}).add(row.id);
+  }
+  final lessonNumbers = idsByLesson.keys.toSet();
   final licenseLessons = LicenseCatalog.byId(categoryId).lessons;
   final titleByNumber = <int, String>{
     for (final lesson in licenseLessons) lesson.number: lesson.title,
@@ -57,7 +62,27 @@ List<StudentStatsTopicCatalogEntry> catalogEntriesFromLessonQuizSets({
       StudentStatsTopicCatalogEntry(
         lessonNumber: n,
         title: titleByNumber[n] ?? 'Lezione $n',
+        lessonSheetIds: (idsByLesson[n] ?? const <String>{}).toList()..sort(),
       ),
+  ];
+}
+
+/// Schede lezione valide → identità stabile per il progresso X / Y.
+///
+/// Solo le righe già filtrate come tentativi lezione completi.
+/// Multi, esame e assigned non passano da qui.
+List<StudentStatsCompletedLessonSheet> completedLessonSheetsFromResults(
+  Iterable<QuizResultRow> validLessonResults,
+) {
+  return [
+    for (final row in validLessonResults)
+      if (row.quizSetId.isNotEmpty &&
+          row.lessonNumber > 0 &&
+          (row.kind.isEmpty || row.kind == 'lesson'))
+        StudentStatsCompletedLessonSheet(
+          quizSetId: row.quizSetId,
+          lessonNumber: row.lessonNumber,
+        ),
   ];
 }
 

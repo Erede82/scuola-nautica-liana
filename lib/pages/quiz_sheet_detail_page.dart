@@ -150,6 +150,7 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
   DateTime? _completedAt;
   bool _loading = true;
   bool _loadFailed = false;
+  bool _completedLocked = false;
   int _currentIndex = 0;
   bool _showSummary = false;
   List<int> _lessonSheetNumbers = const [];
@@ -175,6 +176,21 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
     });
 
     try {
+      final completion = await widget.studentQuizRepository
+          .fetchLessonSheetCompletion(
+            categoryId: widget.categoryId,
+            lessonNumber: widget.lessonNumber,
+          );
+      if (!mounted) return;
+      if (completion.isSheetCompleted(widget.sheetNumber)) {
+        setState(() {
+          _completedLocked = true;
+          _loading = false;
+          _questions = const [];
+        });
+        return;
+      }
+
       final contentFuture = widget.studentQuizRepository
           .fetchLessonSheetContent(
             categoryId: widget.categoryId,
@@ -495,6 +511,22 @@ class _QuizSheetPlayerState extends State<_QuizSheetPlayer> {
         backgroundColor: _backgroundColor,
         appBar: _buildAppBar(_appBarTitle),
         body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_completedLocked) {
+      return Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: _buildAppBar(_appBarTitle),
+        body: AppEmptyState(
+          title: 'Scheda già svolta',
+          message:
+              'Scheda già svolta. Rivolgiti alla scuola se vuoi ripeterla.',
+          icon: Icons.lock_outline_rounded,
+          primaryActionLabel: 'Torna alle schede',
+          primaryActionIcon: Icons.arrow_back_rounded,
+          onPrimaryActionPressed: () => Navigator.maybePop(context),
+        ),
       );
     }
 

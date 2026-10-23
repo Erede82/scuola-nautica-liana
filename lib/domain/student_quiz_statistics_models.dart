@@ -52,11 +52,26 @@ class TopicStatistics {
     required this.lessonNumber,
     required this.title,
     required this.counts,
+    this.lessonSheetsCompleted = 0,
+    this.lessonSheetsTotal = 0,
   });
 
   final int lessonNumber;
   final String title;
   final TopicAnswerCounts counts;
+
+  /// Distinct completed normal lesson sheets in this topic.
+  final int lessonSheetsCompleted;
+
+  /// Catalog `quiz_sets` kind=lesson for this topic.
+  final int lessonSheetsTotal;
+
+  /// 0–100, nearest integer. Null when the topic has no lesson sheets.
+  int? get lessonSheetProgressPercent {
+    if (lessonSheetsTotal <= 0) return null;
+    final completed = lessonSheetsCompleted.clamp(0, lessonSheetsTotal);
+    return ((completed * 100) / lessonSheetsTotal).round();
+  }
 
   int get questionsSeen => counts.questionsSeen;
   int get correct => counts.correct;

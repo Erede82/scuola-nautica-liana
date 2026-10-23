@@ -257,6 +257,9 @@ class StudentQuizStatisticsRepositoryImpl
       examAttempts: examAttemptEvents,
       answerEvents: answerEvents,
       catalog: catalogEntries,
+      completedLessonSheets: completedLessonSheetsFromResults(
+        lessonPartition.validResults,
+      ),
       ignoredIncompleteLessonAttempts:
           lessonPartition.ignoredIncompleteAttempts,
       ignoredIncompleteMultiAttempts: ignoredMulti + ignoredMultiNoAnswers,
