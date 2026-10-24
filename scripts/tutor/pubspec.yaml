@@ -1,0 +1,14 @@
+name: tutor_liana_generator
+description: Offline admin generator for pre-generated Tutor Liana explanations.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  crypto: ^3.0.6
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.2
