@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'cost.dart';
 import 'eligibility.dart';
 import 'image_source.dart';
+import 'openai_provider.dart';
 import 'persistence.dart';
 import 'prompt.dart';
 import 'provider.dart';
@@ -86,6 +87,8 @@ class TutorItemResult {
     this.flags = const [],
     this.needsReview,
     this.generationReviewReason,
+    this.providerRequestId,
+    this.providerResponseId,
   });
 
   final String questionId;
@@ -107,6 +110,8 @@ class TutorItemResult {
   final List<String> flags;
   final bool? needsReview;
   final String? generationReviewReason;
+  final String? providerRequestId;
+  final String? providerResponseId;
 
   Map<String, Object?> toJson() {
     return {
@@ -121,6 +126,8 @@ class TutorItemResult {
       'outcome': outcome,
       'needs_review': needsReview,
       'generation_review_reason': generationReviewReason,
+      'openai_request_id': providerRequestId,
+      'openai_response_id': providerResponseId,
       'provider_calls': providerCalls,
       'db_writes': dbWrites,
       'model': model,
@@ -312,6 +319,8 @@ class TutorPipeline {
       List<String> flags = const [],
       bool? needsReview,
       String? generationReviewReason,
+      String? providerRequestId,
+      String? providerResponseId,
     }) {
       return TutorItemResult(
         questionId: question.id,
@@ -333,6 +342,8 @@ class TutorPipeline {
         flags: flags,
         needsReview: needsReview,
         generationReviewReason: generationReviewReason,
+        providerRequestId: providerRequestId,
+        providerResponseId: providerResponseId,
       );
     }
 
@@ -395,6 +406,8 @@ class TutorPipeline {
           flags: quality.flags,
           needsReview: parsed.needsReview,
           generationReviewReason: reviewReason,
+          providerRequestId: response.requestId,
+          providerResponseId: response.responseId,
         );
       }
       final payload = TutorWritePayload(
@@ -432,6 +445,8 @@ class TutorPipeline {
         flags: quality.flags,
         needsReview: parsed.needsReview,
         generationReviewReason: payload.generationReviewReason,
+        providerRequestId: response.requestId,
+        providerResponseId: response.responseId,
       );
     } on TutorImageException catch (error) {
       return base(
@@ -445,6 +460,14 @@ class TutorPipeline {
         providerCalls: providerCalls,
         rejections: ['malformed_output'],
         flags: [error.message],
+      );
+    } on OpenAITutorException catch (error) {
+      return base(
+        outcome: 'failed',
+        providerCalls: providerCalls,
+        rejections: [error.refusal ? 'provider_refusal' : 'provider_error'],
+        flags: [error.message],
+        providerRequestId: error.requestId,
       );
     } catch (error) {
       return base(

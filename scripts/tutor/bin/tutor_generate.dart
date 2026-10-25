@@ -23,12 +23,15 @@ Extra:
   --concurrency <1-4> default 1
   --min-interval-ms   pause after each provider call (default 500 when generating)
   --model <id>        passed to the provider; not used by domain rules
+  --provider openai   required together with --generate before any OpenAI call
   --pricing <file>    optional JSON prices, input_usd_per_million / output_usd_per_million
 
 Environment, only when the live database is used:
   SUPABASE_URL
   SUPABASE_SERVICE_ROLE_KEY
-  AI_API_KEY is read by a future provider adapter and is not used by this foundation.
+
+Environment, only when --provider openai is combined with --generate:
+  OPENAI_API_KEY
 ''';
 
 Future<void> main(List<String> args) async {
@@ -50,7 +53,13 @@ Future<void> main(List<String> args) async {
       final pipeline = TutorPipeline(
         catalog: opened.catalog,
         store: opened.gateway ?? MemoryTutorStore(),
-        provider: RefusingTutorProvider(),
+        provider: buildTutorProvider(
+          providerName: config.providerName,
+          generate: config.generate,
+          openAIApiKey: config.providerName == 'openai' && config.generate
+              ? Platform.environment['OPENAI_API_KEY']
+              : null,
+        ),
         images: opened.gateway ?? UnavailableImageSource(),
         log: (event) => stdout.writeln(jsonEncode(event)),
       );
@@ -102,6 +111,7 @@ class _Config {
     required this.minIntervalMs,
     required this.pricing,
     this.model,
+    this.providerName,
     this.catalogFile,
   });
 
@@ -114,6 +124,7 @@ class _Config {
   final int minIntervalMs;
   final PricingCatalog pricing;
   final String? model;
+  final String? providerName;
   final String? catalogFile;
 }
 
@@ -122,6 +133,7 @@ _Config _parse(List<String> args) {
   String? category;
   String? catalog;
   String? model;
+  String? providerName;
   String? pricingPath;
   int? limit;
   int? lesson;
@@ -176,6 +188,12 @@ _Config _parse(List<String> args) {
         catalog = next();
       case '--model':
         model = next();
+      case '--provider':
+        final provider = next();
+        if (provider.trim().isEmpty) {
+          throw FormatException('--provider requires a value');
+        }
+        providerName = provider;
       case '--pricing':
         pricingPath = next();
       case '--concurrency':
@@ -210,6 +228,7 @@ _Config _parse(List<String> args) {
     concurrency: concurrency,
     minIntervalMs: minIntervalMs,
     model: model,
+    providerName: providerName,
     catalogFile: catalog,
     pricing: pricingPath == null
         ? const PricingCatalog({})

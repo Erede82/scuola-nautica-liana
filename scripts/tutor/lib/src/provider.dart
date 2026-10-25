@@ -31,11 +31,15 @@ class TutorProviderResponse {
     required this.modelId,
     required this.structuredJson,
     required this.usage,
+    this.requestId,
+    this.responseId,
   });
 
   final String modelId;
   final Object? structuredJson;
   final TutorUsage usage;
+  final String? requestId;
+  final String? responseId;
 }
 
 abstract class TutorGenerationProvider {

@@ -3,6 +3,7 @@ library;
 export 'src/cost.dart';
 export 'src/eligibility.dart';
 export 'src/image_source.dart';
+export 'src/openai_provider.dart';
 export 'src/persistence.dart';
 export 'src/pipeline.dart';
 export 'src/prompt.dart';
