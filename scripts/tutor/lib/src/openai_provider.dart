@@ -12,6 +12,13 @@ const String openAITutorDefaultModel = 'gpt-6.1-sol';
 /// Includes visible output and, for reasoning models, reasoning tokens.
 const int openAITutorMaxOutputTokens = 1000;
 
+/// Tutor explanations are short and the official answer is already supplied.
+const String openAITutorReasoningEffort = 'low';
+
+/// Hard stop for an OpenAI HTTP body. 1 MiB is far above a Tutor JSON
+/// response and is enforced while the socket is read.
+const int openAITutorMaxResponseBytes = 1048576;
+
 const Duration openAITutorRequestTimeout = Duration(seconds: 90);
 
 final Uri openAIResponsesEndpoint = Uri.parse(
@@ -99,7 +106,29 @@ class TutorHttpResponse {
 
   final int statusCode;
   final Map<String, String> headers;
-  final String body;
+  final Stream<List<int>> body;
+}
+
+/// Reads [bytes] until [maxBytes]. A body of exactly [maxBytes] is returned.
+/// One additional byte throws [OpenAITutorException] and is not buffered.
+Future<Uint8List> readBoundedBody(
+  Stream<List<int>> bytes, {
+  required int maxBytes,
+}) async {
+  if (maxBytes < 1) {
+    throw ArgumentError.value(maxBytes, 'maxBytes');
+  }
+  final builder = BytesBuilder(copy: false);
+  var total = 0;
+  await for (final chunk in bytes) {
+    if (chunk.isEmpty) continue;
+    if (total >= maxBytes || chunk.length > maxBytes - total) {
+      throw OpenAITutorException('response_body_too_large', transient: false);
+    }
+    builder.add(chunk);
+    total += chunk.length;
+  }
+  return builder.takeBytes();
 }
 
 abstract class TutorHttpTransport {
@@ -124,12 +153,6 @@ class IoTutorHttpTransport implements TutorHttpTransport {
       request.headers.forEach(httpRequest.headers.set);
       httpRequest.add(request.body);
       final response = await httpRequest.close().timeout(timeout);
-      final bytes = await response
-          .fold<List<int>>(<int>[], (collected, chunk) {
-            collected.addAll(chunk);
-            return collected;
-          })
-          .timeout(timeout);
       final headers = <String, String>{};
       response.headers.forEach((name, values) {
         headers[name.toLowerCase()] = values.join(',');
@@ -137,11 +160,23 @@ class IoTutorHttpTransport implements TutorHttpTransport {
       return TutorHttpResponse(
         statusCode: response.statusCode,
         headers: headers,
-        body: utf8.decode(bytes),
+        body: _closeAfter(client, response),
       );
-    } finally {
+    } catch (_) {
       client.close(force: true);
+      rethrow;
     }
+  }
+}
+
+Stream<List<int>> _closeAfter(
+  HttpClient client,
+  Stream<List<int>> source,
+) async* {
+  try {
+    yield* source;
+  } finally {
+    client.close(force: true);
   }
 }
 
@@ -173,6 +208,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
     TutorHttpTransport? transport,
     this.defaultModel = openAITutorDefaultModel,
     this.timeout = openAITutorRequestTimeout,
+    this.maxResponseBytes = openAITutorMaxResponseBytes,
     Uri? endpoint,
   }) : apiKey = requireOpenAIApiKey(apiKey),
        transport = transport ?? IoTutorHttpTransport(),
@@ -182,6 +218,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
   final TutorHttpTransport transport;
   final String defaultModel;
   final Duration timeout;
+  final int maxResponseBytes;
   final Uri endpoint;
 
   @override
@@ -207,6 +244,26 @@ class OpenAITutorProvider implements TutorGenerationProvider {
       throw OpenAITutorException('socket error', transient: true);
     }
     final requestId = _header(response.headers, 'x-request-id');
+    final Uint8List bytes;
+    try {
+      bytes = await readBoundedBody(
+        response.body,
+        maxBytes: maxResponseBytes,
+      ).timeout(timeout);
+    } on TimeoutException {
+      throw OpenAITutorException(
+        'request timed out',
+        transient: true,
+        requestId: requestId,
+      );
+    } on OpenAITutorException catch (error) {
+      throw OpenAITutorException(
+        error.message,
+        transient: error.transient,
+        requestId: requestId,
+      );
+    }
+    final responseText = utf8.decode(bytes);
     if (response.statusCode != 200) {
       throw OpenAITutorException(
         _statusMessage(response.statusCode),
@@ -217,7 +274,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
     }
     final Object? decoded;
     try {
-      decoded = jsonDecode(response.body);
+      decoded = jsonDecode(responseText);
     } on FormatException {
       throw OpenAITutorException(
         'response was not JSON',
@@ -275,6 +332,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
       'model': model,
       'store': false,
       'max_output_tokens': openAITutorMaxOutputTokens,
+      'reasoning': {'effort': openAITutorReasoningEffort},
       'instructions': request.prompt.system,
       'input': [
         {'role': 'user', 'content': content},

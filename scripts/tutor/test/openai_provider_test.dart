@@ -34,7 +34,9 @@ void main() {
     final body = jsonDecode(utf8.decode(sent.body)) as Map<String, Object?>;
     expect(body['model'], openAITutorDefaultModel);
     expect(body['store'], isFalse);
-    expect(body['max_output_tokens'], openAITutorMaxOutputTokens);
+    expect(openAITutorMaxOutputTokens, 1000);
+    expect(body['max_output_tokens'], 1000);
+    expect(body['reasoning'], {'effort': 'low'});
     expect(body.containsKey('tools'), isFalse);
     expect(body['instructions'], request.prompt.system);
     final format = (body['text'] as Map)['format'] as Map<String, Object?>;
@@ -83,6 +85,8 @@ void main() {
         jsonDecode(utf8.decode(transport.requests.single.body))
             as Map<String, Object?>;
     expect(body['model'], 'gpt-6.1-sol-custom');
+    expect(body['reasoning'], {'effort': 'low'});
+    expect(body['max_output_tokens'], 1000);
     final content = ((body['input'] as List).single as Map)['content'] as List;
     expect(content.first['type'], 'input_text');
     final image = content[1] as Map<String, Object?>;
@@ -186,10 +190,10 @@ void main() {
     'HTTP 429 is transient and is not retried inside the provider',
     () async {
       final transport = _ScriptedTransport([
-        (_) => const TutorHttpResponse(
+        (_) => TutorHttpResponse(
           statusCode: 429,
-          headers: {'x-request-id': 'req_429'},
-          body: '{"error":{"message":"rate"}}',
+          headers: const {'x-request-id': 'req_429'},
+          body: _utf8Stream('{"error":{"message":"rate"}}'),
         ),
       ]);
       await _expectOpenAI(provider(transport), (error) {
@@ -207,7 +211,7 @@ void main() {
       (_) => TutorHttpResponse(
         statusCode: 401,
         headers: const {},
-        body: '{"error":{"message":"bad $apiKey"}}',
+        body: _utf8Stream('{"error":{"message":"bad $apiKey"}}'),
       ),
     ]);
     await _expectOpenAI(provider(transport), (error) {
@@ -421,6 +425,166 @@ void main() {
     expect(store.inserts, isEmpty);
     expect(summary.items.single.rejections, contains('malformed_output'));
   });
+
+  test('a normal response below the body cap still parses', () async {
+    final encoded = utf8.encode(
+      jsonEncode({
+        'id': 'resp_small',
+        'status': 'completed',
+        'model': openAITutorDefaultModel,
+        'output': [
+          {
+            'type': 'message',
+            'status': 'completed',
+            'content': [
+              {'type': 'output_text', 'text': jsonEncode(validModelJson())},
+            ],
+          },
+        ],
+      }),
+    );
+    final transport = _ScriptedTransport([
+      (_) => TutorHttpResponse(
+        statusCode: 200,
+        headers: const {'x-request-id': 'req_small'},
+        body: Stream.value(encoded),
+      ),
+    ]);
+    final response = await OpenAITutorProvider(
+      apiKey: apiKey,
+      transport: transport,
+      maxResponseBytes: encoded.length + 1,
+    ).generate(textRequest());
+    expect(parseTutorOutput(response.structuredJson).needsReview, isFalse);
+    expect(response.requestId, 'req_small');
+  });
+
+  test('a body of exactly the configured cap is accepted', () async {
+    final payload = _completedPayload(validModelJson());
+    final encoded = utf8.encode(jsonEncode(payload));
+    final transport = _ScriptedTransport([
+      (_) => TutorHttpResponse(
+        statusCode: 200,
+        headers: const {},
+        body: Stream.value(encoded),
+      ),
+    ]);
+    final response = await OpenAITutorProvider(
+      apiKey: apiKey,
+      transport: transport,
+      maxResponseBytes: encoded.length,
+    ).generate(textRequest());
+    expect(response.responseId, 'resp_cap');
+    expect(transport.requests, hasLength(1));
+  });
+
+  test('one byte over the cap is rejected once and is not retried', () async {
+    final payload = _completedPayload(validModelJson());
+    final encoded = utf8.encode(jsonEncode(payload));
+    final transport = _ScriptedTransport([
+      (_) => TutorHttpResponse(
+        statusCode: 200,
+        headers: const {},
+        body: Stream.fromIterable([
+          encoded.sublist(0, encoded.length - 1),
+          encoded.sublist(encoded.length - 1),
+        ]),
+      ),
+    ]);
+    final store = MemoryTutorStore();
+    final tutor = OpenAITutorProvider(
+      apiKey: apiKey,
+      transport: transport,
+      maxResponseBytes: encoded.length - 1,
+    );
+    await _expectOpenAI(tutor, (error) {
+      expect(error.message, 'response_body_too_large');
+      expect(error.transient, isFalse);
+      expect(isTransientProviderError(error), isFalse);
+      expect(error.toString(), isNot(contains(apiKey)));
+      expect(error.toString().length, lessThan(80));
+    });
+    expect(transport.requests, hasLength(1));
+    final pipelineTransport = _ScriptedTransport([
+      (_) => TutorHttpResponse(
+        statusCode: 200,
+        headers: const {},
+        body: Stream.value(encoded),
+      ),
+    ]);
+    final summary =
+        await TutorPipeline(
+          catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+          store: store,
+          provider: OpenAITutorProvider(
+            apiKey: apiKey,
+            transport: pipelineTransport,
+            maxResponseBytes: encoded.length - 1,
+          ),
+          images: UnavailableImageSource(),
+        ).run(
+          const TutorRunRequest(
+            selection: TutorSelection(limit: 1),
+            generate: true,
+            write: true,
+            regenerate: false,
+            forceApproved: false,
+          ),
+        );
+    expect(pipelineTransport.requests, hasLength(1));
+    expect(summary.dbWrites, 0);
+    expect(store.inserts, isEmpty);
+    expect(summary.items.single.rejections, contains('provider_error'));
+  });
+
+  test(
+    'the production cap keeps an exact body and rejects one extra byte',
+    () async {
+      expect(openAITutorMaxResponseBytes, 1048576);
+      final atCap = Uint8List(openAITutorMaxResponseBytes);
+      final kept = await readBoundedBody(
+        Stream.value(atCap),
+        maxBytes: openAITutorMaxResponseBytes,
+      );
+      expect(kept.length, openAITutorMaxResponseBytes);
+
+      Object? failure;
+      try {
+        await readBoundedBody(
+          Stream.fromIterable([
+            atCap,
+            Uint8List.fromList([1]),
+          ]),
+          maxBytes: openAITutorMaxResponseBytes,
+        );
+      } on OpenAITutorException catch (error) {
+        failure = error;
+      }
+      expect(failure, isA<OpenAITutorException>());
+      final error = failure as OpenAITutorException;
+      expect(error.message, 'response_body_too_large');
+      expect(error.transient, isFalse);
+      expect(isTransientProviderError(error), isFalse);
+      expect(error.toString(), isNot(contains('Authorization')));
+    },
+  );
+
+  test('an oversized malformed body fails at the size guard', () async {
+    final junk = Uint8List.fromList(List<int>.filled(40, 0x78));
+    Object? failure;
+    try {
+      await readBoundedBody(
+        Stream.fromIterable([junk.sublist(0, 20), junk.sublist(20)]),
+        maxBytes: 39,
+      );
+    } on OpenAITutorException catch (error) {
+      failure = error;
+    }
+    final error = failure as OpenAITutorException;
+    expect(error.message, 'response_body_too_large');
+    expect(error.toString(), isNot(contains('xxx')));
+    expect(isTransientProviderError(error), isFalse);
+  });
 }
 
 TutorHttpResponse _ok(
@@ -451,8 +615,29 @@ TutorHttpResponse _response(Map<String, Object?> body, {String? requestId}) {
   return TutorHttpResponse(
     statusCode: 200,
     headers: {'x-request-id': ?requestId},
-    body: jsonEncode(body),
+    body: _utf8Stream(jsonEncode(body)),
   );
+}
+
+Stream<List<int>> _utf8Stream(String text) {
+  return Stream<List<int>>.value(utf8.encode(text));
+}
+
+Map<String, Object?> _completedPayload(Map<String, Object?> structured) {
+  return {
+    'id': 'resp_cap',
+    'status': 'completed',
+    'model': openAITutorDefaultModel,
+    'output': [
+      {
+        'type': 'message',
+        'status': 'completed',
+        'content': [
+          {'type': 'output_text', 'text': jsonEncode(structured)},
+        ],
+      },
+    ],
+  };
 }
 
 Future<void> _expectOpenAI(
