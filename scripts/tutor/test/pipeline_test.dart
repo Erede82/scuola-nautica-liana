@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
@@ -29,6 +30,7 @@ void main() {
     bool write = false,
     bool regenerate = false,
     bool forceApproved = false,
+    bool showOutput = false,
   }) {
     return TutorRunRequest(
       selection: const TutorSelection(limit: 1),
@@ -36,6 +38,7 @@ void main() {
       write: write,
       regenerate: regenerate,
       forceApproved: forceApproved,
+      showOutput: showOutput,
     );
   }
 
@@ -451,6 +454,259 @@ void main() {
     expect(store.inserts, isEmpty);
     expect(summary.items.single.rejections, contains('image_unreadable'));
   });
+
+  test('default generation does not expose Tutor texts', () async {
+    final events = <Map<String, Object?>>[];
+    final summary = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: ScriptedProvider([validModelJson()]),
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: events.add,
+    ).run(request(generate: true));
+    final item = summary.items.single.toJson();
+    expect(item.keys.toSet(), _defaultItemKeys);
+    expect(item.containsKey('explanation'), isFalse);
+    expect(item.containsKey('simple_explanation'), isFalse);
+    expect(item.containsKey('memory_example'), isFalse);
+    expect(events.single.keys.toSet(), _defaultItemKeys);
+    expect(jsonEncode(events.single), isNot(contains('La risposta ufficiale')));
+    expect(summary.toJson().containsKey('explanation'), isFalse);
+    expect(summary.dbWrites, 0);
+  });
+
+  test('--show-output exposes only the validated Tutor texts', () async {
+    final model = validModelJson();
+    final explanation = model['explanation']! as String;
+    final simple = model['simple_explanation']! as String;
+    final memory = model['memory_example']! as String;
+    model['explanation'] = '  $explanation  ';
+    model['simple_explanation'] = '  $simple  ';
+    model['memory_example'] = '  $memory  ';
+    final events = <Map<String, Object?>>[];
+    final summary = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: ScriptedProvider([model]),
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: events.add,
+    ).run(request(generate: true, showOutput: true));
+    final item = events.single;
+    expect(item.keys.toSet(), {..._defaultItemKeys, ..._outputKeys});
+    expect(item['explanation'], explanation);
+    expect(item['simple_explanation'], simple);
+    expect(item['memory_example'], memory);
+    expect(item['needs_review'], isFalse);
+    expect(item['generation_review_reason'], isNull);
+    expect(item['db_writes'], 0);
+    expect(summary.dbWrites, 0);
+    expect(summary.items.single.outcome, 'review_required');
+    final encoded = jsonEncode(item);
+    expect(encoded, isNot(contains('  $explanation')));
+    expect(encoded, isNot(contains('Authorization')));
+    expect(encoded, isNot(contains('OPENAI_API_KEY')));
+    expect(summary.toJson().containsKey('explanation'), isFalse);
+  });
+
+  test('--show-output does not enable a database write', () async {
+    final summary = await pipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      provider: ScriptedProvider([validModelJson()]),
+      store: ThrowingStore(),
+    ).run(request(generate: true, showOutput: true));
+    expect(summary.dbWrites, 0);
+    expect(summary.items.single.dbWrites, 0);
+    expect(summary.items.single.explanation, isNotNull);
+  });
+
+  test('--show-output hides malformed and refused provider content', () async {
+    const marker = 'RAW_PROVIDER_BODY_MARKER_9f3a';
+    final malformed = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: ScriptedProvider([
+        {'explanation': marker, 'unexpected': true},
+      ]),
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: (event) {
+        final encoded = jsonEncode(event);
+        expect(encoded, isNot(contains(marker)));
+        expect(event.containsKey('explanation'), isFalse);
+        expect(event['rejections'], contains('malformed_output'));
+      },
+    ).run(request(generate: true, showOutput: true));
+    expect(malformed.dbWrites, 0);
+    expect(malformed.items.single.explanation, isNull);
+
+    final refused = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: ScriptedProvider([
+        OpenAITutorException('model refusal', transient: false, refusal: true),
+      ]),
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: (event) {
+        expect(jsonEncode(event), isNot(contains(marker)));
+        expect(event.containsKey('explanation'), isFalse);
+        expect(event['rejections'], contains('provider_refusal'));
+        expect(event['flags'], ['model refusal']);
+      },
+    ).run(request(generate: true, showOutput: true));
+    expect(refused.dbWrites, 0);
+
+    final rejected = validModelJson()
+      ..['explanation'] = 'La risposta corretta è b. $marker';
+    final invalid = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: ScriptedProvider([rejected]),
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: (event) {
+        expect(jsonEncode(event), isNot(contains(marker)));
+        expect(event.containsKey('explanation'), isFalse);
+        expect(event['rejections'], contains('contradicts_official_answer'));
+      },
+    ).run(request(generate: true, write: true, showOutput: true));
+    expect(invalid.dbWrites, 0);
+    expect(invalid.items.single.explanation, isNull);
+  });
+
+  test('--show-output does not open the provider gate', () async {
+    final catalog = FixedCatalog([catalogItem(sampleQuestion())]);
+    final run = pipeline(
+      catalog: catalog,
+      provider: RefusingTutorProvider(),
+      store: ThrowingStore(),
+    ).run(request(generate: true, showOutput: true));
+    await expectLater(run, throwsA(isA<TutorProviderUnavailable>()));
+    expect(catalog.loads, 0);
+    expect(
+      buildTutorProvider(providerName: 'openai', generate: false),
+      isA<RefusingTutorProvider>(),
+    );
+    expect(
+      buildTutorProvider(providerName: null, generate: true),
+      isA<RefusingTutorProvider>(),
+    );
+  });
+
+  test(
+    'CLI --show-output is display-only and keeps the provider gate',
+    () async {
+      final help = await Process.run('dart', [
+        'run',
+        'bin/tutor_generate.dart',
+        '--help',
+      ]);
+      expect(help.exitCode, 0);
+      expect(help.stdout, contains('--show-output'));
+      expect(help.stdout, contains('does not write'));
+
+      final catalog = await _catalogFile();
+      addTearDown(() => catalog.parent.delete(recursive: true));
+      final shown = await Process.run('dart', [
+        'run',
+        'bin/tutor_generate.dart',
+        '--catalog',
+        catalog.path,
+        '--question-id',
+        _cliQuestionId,
+        '--show-output',
+      ]);
+      expect(shown.exitCode, 0, reason: '${shown.stdout}\n${shown.stderr}');
+      final lines = (shown.stdout as String)
+          .trim()
+          .split('\n')
+          .map((line) => jsonDecode(line) as Map<String, Object?>)
+          .toList();
+      expect(lines.first.containsKey('explanation'), isFalse);
+      expect(lines.first['outcome'], 'planned');
+      expect(lines.last['db_writes'], 0);
+      expect(shown.stdout, isNot(contains('OPENAI_API_KEY')));
+
+      final writeOnly = await Process.run('dart', [
+        'run',
+        'bin/tutor_generate.dart',
+        '--catalog',
+        catalog.path,
+        '--question-id',
+        _cliQuestionId,
+        '--show-output',
+        '--write',
+      ]);
+      expect(writeOnly.exitCode, 2);
+      expect(writeOnly.stderr, contains('--write requires --generate'));
+
+      final gated = await Process.run('dart', [
+        'run',
+        'bin/tutor_generate.dart',
+        '--catalog',
+        catalog.path,
+        '--question-id',
+        _cliQuestionId,
+        '--generate',
+        '--show-output',
+      ]);
+      expect(gated.exitCode, 2);
+      expect(gated.stderr, contains('Refusing --generate'));
+      expect(gated.stdout, isNot(contains('explanation')));
+    },
+  );
+}
+
+const _defaultItemKeys = {
+  'question_id',
+  'category',
+  'lesson',
+  'topic',
+  'image',
+  'source_hash',
+  'existing_status',
+  'action',
+  'outcome',
+  'needs_review',
+  'generation_review_reason',
+  'openai_request_id',
+  'openai_response_id',
+  'provider_calls',
+  'db_writes',
+  'model',
+  'input_tokens',
+  'output_tokens',
+  'duration_ms',
+  'rejections',
+  'flags',
+};
+
+const _outputKeys = {'explanation', 'simple_explanation', 'memory_example'};
+
+const _cliQuestionId = '11111111-1111-4111-8111-111111111111';
+
+Future<File> _catalogFile() async {
+  final directory = await Directory.systemTemp.createTemp('tutor-show-output-');
+  final file = File('${directory.path}/catalog.json');
+  await file.writeAsString(
+    jsonEncode([
+      {
+        'id': _cliQuestionId,
+        'license_category': 'A12',
+        'lesson_number': 4,
+        'exam_topic_code': 'SCAFO',
+        'source_topic_text': 'Lo scafo',
+        'prompt': 'Domanda di prova',
+        'option_a': 'Uno',
+        'option_b': 'Due',
+        'option_c': 'Tre',
+        'correct_option': 'A',
+      },
+    ]),
+  );
+  return file;
 }
 
 class _BrokenImages implements TutorImageSource {

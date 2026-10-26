@@ -52,6 +52,7 @@ class TutorRunRequest {
     this.maxAttempts = 3,
     this.model,
     this.pricing = const PricingCatalog({}),
+    this.showOutput = false,
   });
 
   final TutorSelection selection;
@@ -64,6 +65,10 @@ class TutorRunRequest {
   final int maxAttempts;
   final String? model;
   final PricingCatalog pricing;
+
+  /// When true, a validated generation includes the three Tutor texts in the
+  /// item JSON. This never persists a row.
+  final bool showOutput;
 }
 
 class TutorItemResult {
@@ -89,6 +94,9 @@ class TutorItemResult {
     this.generationReviewReason,
     this.providerRequestId,
     this.providerResponseId,
+    this.explanation,
+    this.simpleExplanation,
+    this.memoryExample,
   });
 
   final String questionId;
@@ -113,8 +121,13 @@ class TutorItemResult {
   final String? providerRequestId;
   final String? providerResponseId;
 
+  /// Validated texts. Null unless `--show-output` followed a successful check.
+  final String? explanation;
+  final String? simpleExplanation;
+  final String? memoryExample;
+
   Map<String, Object?> toJson() {
-    return {
+    final json = <String, Object?>{
       'question_id': questionId,
       'category': category,
       'lesson': lessonNumber,
@@ -137,6 +150,12 @@ class TutorItemResult {
       'rejections': rejections,
       'flags': flags,
     };
+    if (explanation != null) {
+      json['explanation'] = explanation;
+      json['simple_explanation'] = simpleExplanation;
+      json['memory_example'] = memoryExample;
+    }
+    return json;
   }
 }
 
@@ -321,6 +340,9 @@ class TutorPipeline {
       String? generationReviewReason,
       String? providerRequestId,
       String? providerResponseId,
+      String? explanation,
+      String? simpleExplanation,
+      String? memoryExample,
     }) {
       return TutorItemResult(
         questionId: question.id,
@@ -344,6 +366,9 @@ class TutorPipeline {
         generationReviewReason: generationReviewReason,
         providerRequestId: providerRequestId,
         providerResponseId: providerResponseId,
+        explanation: explanation,
+        simpleExplanation: simpleExplanation,
+        memoryExample: memoryExample,
       );
     }
 
@@ -447,6 +472,11 @@ class TutorPipeline {
         generationReviewReason: payload.generationReviewReason,
         providerRequestId: response.requestId,
         providerResponseId: response.responseId,
+        explanation: request.showOutput ? payload.explanation : null,
+        simpleExplanation: request.showOutput
+            ? payload.simpleExplanation
+            : null,
+        memoryExample: request.showOutput ? payload.memoryExample : null,
       );
     } on TutorImageException catch (error) {
       return base(

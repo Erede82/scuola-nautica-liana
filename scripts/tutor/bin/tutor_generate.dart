@@ -24,6 +24,7 @@ Extra:
   --min-interval-ms   pause after each provider call (default 500 when generating)
   --model <id>        passed to the provider; not used by domain rules
   --provider openai   required together with --generate before any OpenAI call
+  --show-output       include validated Tutor texts in the item JSON; does not write
   --pricing <file>    optional JSON prices, input_usd_per_million / output_usd_per_million
 
 Environment, only when the live database is used:
@@ -76,6 +77,7 @@ Future<void> main(List<String> args) async {
               : Duration.zero,
           model: config.model,
           pricing: config.pricing,
+          showOutput: config.showOutput,
         ),
       );
       stdout.writeln(tutorSummaryLine(summary));
@@ -113,6 +115,7 @@ class _Config {
     this.model,
     this.providerName,
     this.catalogFile,
+    required this.showOutput,
   });
 
   final TutorSelection selection;
@@ -126,6 +129,7 @@ class _Config {
   final String? model;
   final String? providerName;
   final String? catalogFile;
+  final bool showOutput;
 }
 
 _Config _parse(List<String> args) {
@@ -146,6 +150,7 @@ _Config _parse(List<String> args) {
   var forceApproved = false;
   var concurrency = 1;
   var minIntervalMs = 500;
+  var showOutput = false;
 
   for (var i = 0; i < args.length; i++) {
     final arg = args[i];
@@ -194,6 +199,8 @@ _Config _parse(List<String> args) {
           throw FormatException('--provider requires a value');
         }
         providerName = provider;
+      case '--show-output':
+        showOutput = true;
       case '--pricing':
         pricingPath = next();
       case '--concurrency':
@@ -230,6 +237,7 @@ _Config _parse(List<String> args) {
     model: model,
     providerName: providerName,
     catalogFile: catalog,
+    showOutput: showOutput,
     pricing: pricingPath == null
         ? const PricingCatalog({})
         : _pricing(File(pricingPath)),
