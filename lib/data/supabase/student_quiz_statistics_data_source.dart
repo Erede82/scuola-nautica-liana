@@ -7,6 +7,7 @@ import '../../repositories/multi_topic_quiz_attempt_repository.dart'
     show multiTopicQuizAttemptAnswersTable, multiTopicQuizAttemptsTable;
 import 'dto/quiz_result_row.dart';
 import 'dto/quiz_sheet_catalog_row.dart';
+import 'postgrest_page.dart';
 import 'quiz_attempt_history_data_source.dart';
 
 /// Riga answer Multischeda per statistiche (snapshot lezione).
@@ -141,6 +142,8 @@ class StudentQuizStatisticsDataSourceSupabase
   final QuizAttemptHistoryDataSource _lessonHistory;
   final SupabaseClient? _clientOverride;
 
+  /// `in.(...)` URL budget. One chunk of 100 attempts can still hold 2000
+  /// answers, so each chunk is paged inside [_pagedRows].
   static const int _chunkSize = 100;
 
   SupabaseClient get _client {
@@ -188,21 +191,23 @@ class StudentQuizStatisticsDataSourceSupabase
     required String userId,
     required String licenseCategoryDb,
   }) async {
-    final res = await _client
-        .from(multiTopicQuizAttemptsTable)
-        .select(
-          'id, user_id, license_category, session_id, sheet_index, '
-          'completed_at, total_questions, correct_count, wrong_count, '
-          'unanswered_count',
-        )
-        .eq('user_id', userId)
-        .eq('license_category', licenseCategoryDb)
-        .order('completed_at', ascending: false);
+    final pages = await _pagedRows(
+      (from, to) => _client
+          .from(multiTopicQuizAttemptsTable)
+          .select(
+            'id, user_id, license_category, session_id, sheet_index, '
+            'completed_at, total_questions, correct_count, wrong_count, '
+            'unanswered_count',
+          )
+          .eq('user_id', userId)
+          .eq('license_category', licenseCategoryDb)
+          .order('completed_at', ascending: false)
+          .order('id', ascending: true)
+          .range(from, to),
+    );
 
     final rows = <MultiTopicStatsAttemptRow>[];
-    for (final item in res as List<dynamic>) {
-      if (item is! Map) continue;
-      final map = Map<String, dynamic>.from(item);
+    for (final map in pages) {
       final id = map['id']?.toString().trim() ?? '';
       final rowUserId = map['user_id']?.toString().trim() ?? '';
       final category = map['license_category']?.toString().trim() ?? '';
@@ -241,26 +246,32 @@ class StudentQuizStatisticsDataSourceSupabase
     for (var offset = 0; offset < attemptIds.length; offset += _chunkSize) {
       final end = math.min(offset + _chunkSize, attemptIds.length);
       final chunk = attemptIds.sublist(offset, end);
-      final res = await _client
-          .from(multiTopicQuizAttemptAnswersTable)
-          .select(
-            'attempt_id, lesson_number_snapshot, is_correct, selected_option',
-          )
-          .inFilter('attempt_id', chunk);
-      for (final item in res as List<dynamic>) {
-        if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
+      final pages = await _pagedRows(
+        (from, to) => _client
+            .from(multiTopicQuizAttemptAnswersTable)
+            .select(
+              'attempt_id, lesson_number_snapshot, is_correct, selected_option',
+            )
+            .inFilter('attempt_id', chunk)
+            .order('attempt_id', ascending: true)
+            .order('position', ascending: true)
+            .order('id', ascending: true)
+            .range(from, to),
+      );
+      for (final map in pages) {
         final attemptId = map['attempt_id']?.toString().trim() ?? '';
         if (attemptId.isEmpty) continue;
         final selected = map['selected_option'];
-        final isUnanswered = selected == null ||
-            (selected is String && selected.trim().isEmpty);
+        final isUnanswered =
+            selected == null || (selected is String && selected.trim().isEmpty);
         final lessonRaw = map['lesson_number_snapshot'];
         final lesson = lessonRaw == null ? null : (lessonRaw as num?)?.toInt();
         out.add(
           MultiTopicStatsAnswerRow(
             attemptId: attemptId,
-            lessonNumberSnapshot: (lesson != null && lesson > 0) ? lesson : null,
+            lessonNumberSnapshot: (lesson != null && lesson > 0)
+                ? lesson
+                : null,
             isCorrect: map['is_correct'] == true,
             isUnanswered: isUnanswered,
           ),
@@ -275,20 +286,22 @@ class StudentQuizStatisticsDataSourceSupabase
     required String userId,
     required String licenseCategoryDb,
   }) async {
-    final res = await _client
-        .from('exam_quiz_attempts')
-        .select(
-          'id, user_id, license_category, completed_at, total_questions, '
-          'correct_count, wrong_count, unanswered_count, passed',
-        )
-        .eq('user_id', userId)
-        .eq('license_category', licenseCategoryDb)
-        .order('completed_at', ascending: false);
+    final pages = await _pagedRows(
+      (from, to) => _client
+          .from('exam_quiz_attempts')
+          .select(
+            'id, user_id, license_category, completed_at, total_questions, '
+            'correct_count, wrong_count, unanswered_count, passed',
+          )
+          .eq('user_id', userId)
+          .eq('license_category', licenseCategoryDb)
+          .order('completed_at', ascending: false)
+          .order('id', ascending: true)
+          .range(from, to),
+    );
 
     final rows = <ExamStatsAttemptRow>[];
-    for (final item in res as List<dynamic>) {
-      if (item is! Map) continue;
-      final map = Map<String, dynamic>.from(item);
+    for (final map in pages) {
       final id = map['id']?.toString().trim() ?? '';
       final rowUserId = map['user_id']?.toString().trim() ?? '';
       final category = map['license_category']?.toString().trim() ?? '';
@@ -320,19 +333,23 @@ class StudentQuizStatisticsDataSourceSupabase
     for (var offset = 0; offset < attemptIds.length; offset += _chunkSize) {
       final end = math.min(offset + _chunkSize, attemptIds.length);
       final chunk = attemptIds.sublist(offset, end);
-      final res = await _client
-          .from('exam_quiz_attempt_answers')
-          .select('attempt_id, question_id, is_correct, selected_option')
-          .inFilter('attempt_id', chunk);
-      for (final item in res as List<dynamic>) {
-        if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
+      final pages = await _pagedRows(
+        (from, to) => _client
+            .from('exam_quiz_attempt_answers')
+            .select('attempt_id, question_id, is_correct, selected_option')
+            .inFilter('attempt_id', chunk)
+            .order('attempt_id', ascending: true)
+            .order('position', ascending: true)
+            .order('id', ascending: true)
+            .range(from, to),
+      );
+      for (final map in pages) {
         final attemptId = map['attempt_id']?.toString().trim() ?? '';
         final questionId = map['question_id']?.toString().trim() ?? '';
         if (attemptId.isEmpty || questionId.isEmpty) continue;
         final selected = map['selected_option'];
-        final isUnanswered = selected == null ||
-            (selected is String && selected.trim().isEmpty);
+        final isUnanswered =
+            selected == null || (selected is String && selected.trim().isEmpty);
         out.add(
           ExamStatsAnswerRow(
             attemptId: attemptId,
@@ -355,13 +372,15 @@ class StudentQuizStatisticsDataSourceSupabase
     for (var offset = 0; offset < questionIds.length; offset += _chunkSize) {
       final end = math.min(offset + _chunkSize, questionIds.length);
       final chunk = questionIds.sublist(offset, end);
-      final res = await _client
-          .from('questions')
-          .select('id, lesson_number')
-          .inFilter('id', chunk);
-      for (final item in res as List<dynamic>) {
-        if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
+      final pages = await _pagedRows(
+        (from, to) => _client
+            .from('questions')
+            .select('id, lesson_number')
+            .inFilter('id', chunk)
+            .order('id', ascending: true)
+            .range(from, to),
+      );
+      for (final map in pages) {
         final id = map['id']?.toString().trim() ?? '';
         if (id.isEmpty) continue;
         final raw = map['lesson_number'];
@@ -374,6 +393,20 @@ class StudentQuizStatisticsDataSourceSupabase
       }
     }
     return out;
+  }
+
+  Future<List<Map<String, dynamic>>> _pagedRows(
+    Future<dynamic> Function(int from, int to) query,
+  ) {
+    return collectPostgrestPages(
+      fetchPage: (from, to) async {
+        final res = await query(from, to);
+        if (res is! List) {
+          throw StateError('PostgREST page was not a list.');
+        }
+        return res;
+      },
+    );
   }
 }
 
@@ -421,19 +454,17 @@ class StudentQuizStatisticsDataSourceFake
   @override
   Future<List<QuizSheetCatalogRow>> fetchLessonSheetCatalog({
     required String licenseCategoryDb,
-  }) async =>
-      catalog
-          .where((r) => r.licenseCategory == licenseCategoryDb)
-          .toList(growable: false);
+  }) async => catalog
+      .where((r) => r.licenseCategory == licenseCategoryDb)
+      .toList(growable: false);
 
   @override
   Future<List<QuizResultRow>> fetchLessonResultsForCategory({
     required String userId,
     required String licenseCategoryDb,
-  }) async =>
-      lessonResults
-          .where((r) => r.licenseCategory == licenseCategoryDb)
-          .toList(growable: false);
+  }) async => lessonResults
+      .where((r) => r.licenseCategory == licenseCategoryDb)
+      .toList(growable: false);
 
   @override
   Future<Map<String, int>> fetchAnswerCountsByResultIds({
@@ -458,8 +489,7 @@ class StudentQuizStatisticsDataSourceFake
     if (multiFetchError != null) throw multiFetchError!;
     return multiAttempts
         .where(
-          (a) =>
-              a.userId == userId && a.licenseCategory == licenseCategoryDb,
+          (a) => a.userId == userId && a.licenseCategory == licenseCategoryDb,
         )
         .toList(growable: false);
   }
@@ -484,8 +514,7 @@ class StudentQuizStatisticsDataSourceFake
     if (examFetchError != null) throw examFetchError!;
     return examAttempts
         .where(
-          (a) =>
-              a.userId == userId && a.licenseCategory == licenseCategoryDb,
+          (a) => a.userId == userId && a.licenseCategory == licenseCategoryDb,
         )
         .toList(growable: false);
   }

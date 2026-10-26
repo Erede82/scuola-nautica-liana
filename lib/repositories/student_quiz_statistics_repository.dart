@@ -127,39 +127,31 @@ class StudentQuizStatisticsRepositoryImpl
     final multiAnswers = await multiAnswerFuture;
     final examAnswers = await examAnswerFuture;
 
-    // Zero-answer guard: tentativi senza risposte utili non entrano.
+    // Headline totals use complete headers. Topic rows still require a full
+    // answer set, so a short page cannot both drop the sheet and skew topics.
     final multiAnswerCounts = <String, int>{};
     for (final a in multiAnswers) {
-      multiAnswerCounts[a.attemptId] = (multiAnswerCounts[a.attemptId] ?? 0) + 1;
+      multiAnswerCounts[a.attemptId] =
+          (multiAnswerCounts[a.attemptId] ?? 0) + 1;
     }
-    final multiWithAnswers = <MultiTopicStatsAttemptRow>[];
-    var ignoredMultiNoAnswers = 0;
-    for (final attempt in multiValid) {
-      final count = multiAnswerCounts[attempt.id] ?? 0;
-      if (count == 0 || count != attempt.totalQuestions) {
-        ignoredMultiNoAnswers++;
-        continue;
-      }
-      multiWithAnswers.add(attempt);
-    }
+    final multiTopicIds = <String>{
+      for (final attempt in multiValid)
+        if ((multiAnswerCounts[attempt.id] ?? 0) == attempt.totalQuestions)
+          attempt.id,
+    };
 
     final examAnswerCounts = <String, int>{};
     for (final a in examAnswers) {
       examAnswerCounts[a.attemptId] = (examAnswerCounts[a.attemptId] ?? 0) + 1;
     }
-    final examWithAnswers = <ExamStatsAttemptRow>[];
-    var ignoredExamNoAnswers = 0;
-    for (final attempt in examValid) {
-      final count = examAnswerCounts[attempt.id] ?? 0;
-      if (count == 0 || count != attempt.totalQuestions) {
-        ignoredExamNoAnswers++;
-        continue;
-      }
-      examWithAnswers.add(attempt);
-    }
+    final examTopicIds = <String>{
+      for (final attempt in examValid)
+        if ((examAnswerCounts[attempt.id] ?? 0) == attempt.totalQuestions)
+          attempt.id,
+    };
 
     final examQuestionIds = examAnswers
-        .where((a) => examWithAnswers.any((e) => e.id == a.attemptId))
+        .where((a) => examTopicIds.contains(a.attemptId))
         .map((a) => a.questionId)
         .toSet()
         .toList();
@@ -195,11 +187,8 @@ class StudentQuizStatisticsRepositoryImpl
       );
     }
 
-    final multiIds = multiWithAnswers.map((a) => a.id).toSet();
-    final multiById = {
-      for (final a in multiWithAnswers) a.id: a,
-    };
-    for (final attempt in multiWithAnswers) {
+    final multiById = {for (final a in multiValid) a.id: a};
+    for (final attempt in multiValid) {
       studySheets.add(
         StudentStatsSheetEvent(
           completedAt: attempt.completedAt,
@@ -210,7 +199,7 @@ class StudentQuizStatisticsRepositoryImpl
       );
     }
     for (final answer in multiAnswers) {
-      if (!multiIds.contains(answer.attemptId)) continue;
+      if (!multiTopicIds.contains(answer.attemptId)) continue;
       final attempt = multiById[answer.attemptId]!;
       answerEvents.add(
         StudentStatsAnswerEvent(
@@ -223,10 +212,9 @@ class StudentQuizStatisticsRepositoryImpl
       );
     }
 
-    final examIds = examWithAnswers.map((a) => a.id).toSet();
-    final examById = {for (final a in examWithAnswers) a.id: a};
+    final examById = {for (final a in examValid) a.id: a};
     final examAttemptEvents = <StudentStatsExamAttemptEvent>[
-      for (final a in examWithAnswers)
+      for (final a in examValid)
         StudentStatsExamAttemptEvent(
           attemptId: a.id,
           completedAt: a.completedAt,
@@ -238,7 +226,7 @@ class StudentQuizStatisticsRepositoryImpl
     ];
 
     for (final answer in examAnswers) {
-      if (!examIds.contains(answer.attemptId)) continue;
+      if (!examTopicIds.contains(answer.attemptId)) continue;
       final attempt = examById[answer.attemptId]!;
       answerEvents.add(
         StudentStatsAnswerEvent(
@@ -262,11 +250,10 @@ class StudentQuizStatisticsRepositoryImpl
       ),
       ignoredIncompleteLessonAttempts:
           lessonPartition.ignoredIncompleteAttempts,
-      ignoredIncompleteMultiAttempts: ignoredMulti + ignoredMultiNoAnswers,
-      ignoredIncompleteExamAttempts: ignoredExam + ignoredExamNoAnswers,
+      ignoredIncompleteMultiAttempts: ignoredMulti,
+      ignoredIncompleteExamAttempts: ignoredExam,
     );
   }
-
 }
 
 class StudentQuizStatisticsRepositoryEmpty
