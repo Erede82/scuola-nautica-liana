@@ -20,6 +20,8 @@ void main() {
       imageAttached: false,
     );
     expect(prompt.version, tutorLianaPromptVersion);
+    expect(prompt.version, 'tutor_liana_v2');
+    expect(prompt.version, isNot('tutor_liana_v1'));
     expect(prompt.version, isNot('latest'));
     expect(prompt.version, isNot('current'));
     expect(prompt.system, contains('authoritative'));
@@ -33,6 +35,30 @@ void main() {
     expect(prompt.user, isNot(contains('selected_option')));
     expect(prompt.user, isNot(contains('IMAGE')));
     expect(prompt.user, isNot(contains('EXISTING OFFICIAL EXPLANATION')));
+  });
+
+  test('prompt requires a silent Italian proofreading pass', () {
+    final prompt = buildTutorPrompt(sampleQuestion(), imageAttached: false);
+    final system = prompt.system;
+    expect(system, contains('Italian spelling'));
+    expect(system, contains('spacing between words'));
+    expect(system, contains('punctuation'));
+    expect(system, contains('accidental word concatenations'));
+    expect(system, contains('incomplete sentences'));
+    expect(system, contains('Do not mention this check'));
+    expect(system, contains('Do not replace valid nautical terms'));
+    expect(system, contains('make the text longer'));
+    expect(system, contains('The official correct answer is supplied'));
+    expect(system, contains('Never say the official answer is incorrect'));
+    expect(system, contains('Do not invent law article numbers'));
+    expect(system, contains('Do not be childish'));
+    expect(system, isNot(contains('be more verbose')));
+    expect(
+      system,
+      contains(
+        'explanation, simple_explanation, memory_example, needs_review, review_reason',
+      ),
+    );
   });
 
   test('image and official note are included only when present', () {

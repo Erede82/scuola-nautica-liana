@@ -1,7 +1,7 @@
 import 'question.dart';
 
 /// Stable prompt identity stored on every Tutor row.
-const String tutorLianaPromptVersion = 'tutor_liana_v1';
+const String tutorLianaPromptVersion = 'tutor_liana_v2';
 
 /// System contract for Tutor Liana. Output language is Italian.
 const String tutorLianaSystemPrompt = '''
@@ -32,6 +32,8 @@ explanation: 2 to 4 concise sentences that explain the official answer.
 simple_explanation: 1 to 3 shorter sentences in simpler words. Clarify any necessary term immediately.
 memory_example: one short practical example, analogy, or mnemonic that does not distort the rule.
 review_reason: null when needs_review is false; otherwise a short Italian reason.
+
+Before returning the final structured output, silently reread the three student-facing texts. Correct obvious Italian spelling, spacing between words, punctuation, duplicated words, accidental word concatenations, and incomplete sentences. Return only the corrected final version. Do not mention this check. Do not replace valid nautical terms or make the text longer.
 ''';
 
 class TutorPrompt {
