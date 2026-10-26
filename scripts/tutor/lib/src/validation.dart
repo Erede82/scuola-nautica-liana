@@ -122,6 +122,9 @@ TutorQualityReport validateTutorOutput(
   );
 
   final combined = '$explanation\n$simple\n$memory';
+  if (_hasGluedNumberWord(combined)) {
+    rejections.add('concatenated_number_word');
+  }
   if (_hasMarkdown(combined)) rejections.add('markdown_or_link');
   if (_contradictsOfficial(combined, official)) {
     rejections.add('contradicts_official_answer');
@@ -159,6 +162,25 @@ void _lengthGuard({
   } else if (text.length > softMax) {
     flags.add('long_$field');
   }
+}
+
+/// Digits immediately followed by four or more lowercase letters.
+///
+/// `5nodi` matches. `5 nodi`, `12V`, `10kW`, `6NM`, `5s`, and `26m` do not.
+/// The letter run `esimo` / `esima` / `esimi` / `esime` is the ordinal form
+/// already present in the question bank (`50esimo`) and is not a missing space.
+final RegExp _gluedNumberWord = RegExp(
+  r'(?<![0-9A-Za-zÀ-ÿ])[0-9]+([a-zàèéìòù]{4,})(?![0-9A-Za-zÀ-ÿ])',
+);
+
+const _ordinalSuffixes = {'esimo', 'esima', 'esimi', 'esime'};
+
+bool _hasGluedNumberWord(String text) {
+  for (final match in _gluedNumberWord.allMatches(text)) {
+    final suffix = match.group(1);
+    if (suffix != null && !_ordinalSuffixes.contains(suffix)) return true;
+  }
+  return false;
 }
 
 bool _hasMarkdown(String text) {

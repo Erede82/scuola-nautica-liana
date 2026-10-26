@@ -74,6 +74,57 @@ void main() {
     );
   });
 
+  test('a number glued to a lowercase word is rejected in every field', () {
+    const cases = [
+      'Se navighi a 5nodi per un’ora resti sulla rotta ufficiale.',
+      'Percorri 10metri e poi controlli la risposta ufficiale.',
+      'Per 20minuti mantieni la stessa andatura ufficiale.',
+      'La distanza ufficiale è 3miglia lungo la rotta indicata.',
+    ];
+    for (final sentence in cases) {
+      expect(
+        check(base(explanation: sentence)).rejections,
+        contains('concatenated_number_word'),
+      );
+      expect(
+        check(base(simple: sentence)).rejections,
+        contains('concatenated_number_word'),
+      );
+      expect(
+        check(base(memory: sentence)).rejections,
+        contains('concatenated_number_word'),
+      );
+    }
+    final flagged = check(
+      base(
+        explanation: 'Se navighi a 5nodi per un’ora resti sulla rotta.',
+        needsReview: true,
+        reviewReason: 'Controllare il testo.',
+      ),
+    );
+    expect(flagged.acceptForReview, isFalse);
+    expect(flagged.rejections, contains('concatenated_number_word'));
+  });
+
+  test('spaced copy and compact technical notation stay valid', () {
+    const accepted = [
+      'Se navighi a 5 nodi per un’ora resti sulla rotta ufficiale.',
+      'Percorri 10 metri e poi controlli la risposta ufficiale.',
+      'Per 20 minuti mantieni la stessa andatura ufficiale.',
+      'La distanza ufficiale è 3 miglia lungo la rotta indicata.',
+      'La batteria è da 12V e il circuito da 24V assorbe 5A.',
+      'Il motore eroga 10kW e la distanza è 6NM.',
+      'Il tempo è 5s e la quota è 26m.',
+      'Il riferimento è 11M e la boa è 13B.',
+      'Il 50esimo, il 60esimo e il 65esimo caso restano validi.',
+    ];
+    for (final sentence in accepted) {
+      final report = check(base(explanation: sentence));
+      expect(report.acceptForReview, isTrue, reason: sentence);
+      expect(report.rejections, isEmpty, reason: sentence);
+    }
+  });
+
   test('excessive output is rejected and needs_review is flagged', () {
     expect(
       check(base(explanation: 'a' * (explanationHardMax + 1))).rejections,

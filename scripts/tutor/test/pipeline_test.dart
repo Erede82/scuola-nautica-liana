@@ -576,6 +576,39 @@ void main() {
     expect(invalid.items.single.explanation, isNull);
   });
 
+  test('glued number words fail once and stay hidden', () async {
+    const marker = 'Se navighi a 5nodi per un’ora.';
+    final provider = ScriptedProvider([
+      validModelJson()
+        ..['explanation'] = marker
+        ..['simple_explanation'] = 'Percorri 10metri.'
+        ..['memory_example'] = 'Per 20minuti.',
+    ]);
+    final events = <Map<String, Object?>>[];
+    final summary = await TutorPipeline(
+      catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+      store: ThrowingStore(),
+      provider: provider,
+      images: UnavailableImageSource(),
+      clock: () => fixedNow,
+      log: events.add,
+    ).run(request(generate: true, write: true, showOutput: true));
+    expect(provider.calls, 1);
+    expect(summary.providerCalls, 1);
+    expect(summary.dbWrites, 0);
+    expect(summary.items.single.outcome, 'failed');
+    expect(summary.items.single.explanation, isNull);
+    expect(
+      summary.items.single.rejections,
+      contains('concatenated_number_word'),
+    );
+    final encoded = jsonEncode(events.single);
+    expect(encoded, isNot(contains(marker)));
+    expect(encoded, isNot(contains('10metri')));
+    expect(encoded, isNot(contains('20minuti')));
+    expect(events.single.containsKey('explanation'), isFalse);
+  });
+
   test('--show-output does not open the provider gate', () async {
     final catalog = FixedCatalog([catalogItem(sampleQuestion())]);
     final run = pipeline(
