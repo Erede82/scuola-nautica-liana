@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'copyedit.dart';
 import 'cost.dart';
 import 'eligibility.dart';
 import 'image_source.dart';
@@ -53,6 +54,7 @@ class TutorRunRequest {
     this.model,
     this.pricing = const PricingCatalog({}),
     this.showOutput = false,
+    this.copyedit = false,
   });
 
   final TutorSelection selection;
@@ -69,6 +71,10 @@ class TutorRunRequest {
   /// When true, a validated generation includes the three Tutor texts in the
   /// item JSON. This never persists a row.
   final bool showOutput;
+
+  /// When true, a valid generation is copyedited before it can be shown or
+  /// written. This never persists a row by itself.
+  final bool copyedit;
 }
 
 class TutorItemResult {
@@ -82,6 +88,8 @@ class TutorItemResult {
     required this.action,
     required this.existingStatus,
     required this.providerCalls,
+    required this.generationProviderCalls,
+    required this.copyeditProviderCalls,
     required this.dbWrites,
     required this.outcome,
     this.model,
@@ -92,6 +100,16 @@ class TutorItemResult {
     this.flags = const [],
     this.needsReview,
     this.generationReviewReason,
+    this.generationInputTokens,
+    this.generationOutputTokens,
+    this.copyeditInputTokens,
+    this.copyeditOutputTokens,
+    this.copyeditModel,
+    this.copyeditDurationMs,
+    this.copyeditChanged,
+    this.copyeditVersion,
+    this.copyeditRequestId,
+    this.copyeditResponseId,
     this.providerRequestId,
     this.providerResponseId,
     this.explanation,
@@ -108,6 +126,8 @@ class TutorItemResult {
   final String action;
   final String? existingStatus;
   final int providerCalls;
+  final int generationProviderCalls;
+  final int copyeditProviderCalls;
   final int dbWrites;
   final String outcome;
   final String? model;
@@ -118,6 +138,16 @@ class TutorItemResult {
   final List<String> flags;
   final bool? needsReview;
   final String? generationReviewReason;
+  final int? generationInputTokens;
+  final int? generationOutputTokens;
+  final int? copyeditInputTokens;
+  final int? copyeditOutputTokens;
+  final String? copyeditModel;
+  final int? copyeditDurationMs;
+  final bool? copyeditChanged;
+  final String? copyeditVersion;
+  final String? copyeditRequestId;
+  final String? copyeditResponseId;
   final String? providerRequestId;
   final String? providerResponseId;
 
@@ -142,10 +172,22 @@ class TutorItemResult {
       'openai_request_id': providerRequestId,
       'openai_response_id': providerResponseId,
       'provider_calls': providerCalls,
+      'generation_provider_calls': generationProviderCalls,
+      'copyedit_provider_calls': copyeditProviderCalls,
       'db_writes': dbWrites,
       'model': model,
       'input_tokens': inputTokens,
       'output_tokens': outputTokens,
+      'generation_input_tokens': generationInputTokens,
+      'generation_output_tokens': generationOutputTokens,
+      'copyedit_input_tokens': copyeditInputTokens,
+      'copyedit_output_tokens': copyeditOutputTokens,
+      'copyedit_model': copyeditModel,
+      'copyedit_duration_ms': copyeditDurationMs,
+      'copyedit_changed': copyeditChanged,
+      'copyedit_version': copyeditVersion,
+      'copyedit_openai_request_id': copyeditRequestId,
+      'copyedit_openai_response_id': copyeditResponseId,
       'duration_ms': durationMs,
       'rejections': rejections,
       'flags': flags,
@@ -228,6 +270,9 @@ class TutorPipeline {
     if (request.write && !request.generate) {
       throw FormatException('--write requires --generate.');
     }
+    if (request.copyedit && !request.generate) {
+      throw FormatException('--copyedit requires --generate.');
+    }
     if (request.generate && provider is RefusingTutorProvider) {
       throw TutorProviderUnavailable(
         'Refusing --generate. No live provider adapter is installed, '
@@ -285,18 +330,7 @@ class TutorPipeline {
     var costKnown = true;
     for (final item in items) {
       if (item.providerCalls == 0) continue;
-      final model = item.model;
-      final input = item.inputTokens;
-      final output = item.outputTokens;
-      if (model == null || input == null || output == null) {
-        costKnown = false;
-        break;
-      }
-      final part = request.pricing.estimate(
-        model: model,
-        inputTokens: input,
-        outputTokens: output,
-      );
+      final part = _pricedPasses(request.pricing, item);
       if (part == null) {
         costKnown = false;
         break;
@@ -328,11 +362,20 @@ class TutorPipeline {
     );
     TutorItemResult base({
       required String outcome,
-      int providerCalls = 0,
+      int generationProviderCalls = 0,
+      int copyeditProviderCalls = 0,
       int dbWrites = 0,
       String? model,
-      int? inputTokens,
-      int? outputTokens,
+      int? generationInputTokens,
+      int? generationOutputTokens,
+      int? copyeditInputTokens,
+      int? copyeditOutputTokens,
+      String? copyeditModel,
+      int? copyeditDurationMs,
+      bool? copyeditChanged,
+      String? copyeditVersion,
+      String? copyeditRequestId,
+      String? copyeditResponseId,
       int? durationMs,
       List<String> rejections = const [],
       List<String> flags = const [],
@@ -344,6 +387,7 @@ class TutorPipeline {
       String? simpleExplanation,
       String? memoryExample,
     }) {
+      final secondRan = copyeditProviderCalls > 0;
       return TutorItemResult(
         questionId: question.id,
         category: question.licenseCategory,
@@ -353,12 +397,32 @@ class TutorPipeline {
         sourceHash: item.sourceHash,
         action: action.label,
         existingStatus: item.existing?.status,
-        providerCalls: providerCalls,
+        providerCalls: generationProviderCalls + copyeditProviderCalls,
+        generationProviderCalls: generationProviderCalls,
+        copyeditProviderCalls: copyeditProviderCalls,
         dbWrites: dbWrites,
         outcome: outcome,
         model: model,
-        inputTokens: inputTokens,
-        outputTokens: outputTokens,
+        inputTokens: _sumTokens(
+          generationInputTokens,
+          copyeditInputTokens,
+          secondRan: secondRan,
+        ),
+        outputTokens: _sumTokens(
+          generationOutputTokens,
+          copyeditOutputTokens,
+          secondRan: secondRan,
+        ),
+        generationInputTokens: generationInputTokens,
+        generationOutputTokens: generationOutputTokens,
+        copyeditInputTokens: copyeditInputTokens,
+        copyeditOutputTokens: copyeditOutputTokens,
+        copyeditModel: copyeditModel,
+        copyeditDurationMs: copyeditDurationMs,
+        copyeditChanged: copyeditChanged,
+        copyeditVersion: copyeditVersion,
+        copyeditRequestId: copyeditRequestId,
+        copyeditResponseId: copyeditResponseId,
         durationMs: durationMs,
         rejections: rejections,
         flags: flags,
@@ -380,7 +444,8 @@ class TutorPipeline {
     }
 
     final started = DateTime.now();
-    var providerCalls = 0;
+    var generationCalls = 0;
+    var copyeditCalls = 0;
     try {
       TutorImageAsset? image;
       if (question.hasImage) {
@@ -394,7 +459,7 @@ class TutorPipeline {
       final prompt = buildTutorPrompt(question, imageAttached: image != null);
       final response = await withBoundedRetries(
         () {
-          providerCalls += 1;
+          generationCalls += 1;
           return provider.generate(
             TutorGenerationRequest(
               question: question,
@@ -422,10 +487,10 @@ class TutorPipeline {
       if (!quality.acceptForReview) {
         return base(
           outcome: 'failed',
-          providerCalls: providerCalls,
+          generationProviderCalls: generationCalls,
           model: response.modelId,
-          inputTokens: response.usage.inputTokens,
-          outputTokens: response.usage.outputTokens,
+          generationInputTokens: response.usage.inputTokens,
+          generationOutputTokens: response.usage.outputTokens,
           durationMs: duration,
           rejections: quality.rejections,
           flags: quality.flags,
@@ -435,20 +500,174 @@ class TutorPipeline {
           providerResponseId: response.responseId,
         );
       }
+      var accepted = parsed;
+      var acceptedQuality = quality;
+      TutorProviderResponse? copyResponse;
+      int? copyeditDurationMs;
+      bool? copyeditChanged;
+      if (request.copyedit) {
+        final copyStarted = DateTime.now();
+        try {
+          copyResponse = await withBoundedRetries(
+            () {
+              copyeditCalls += 1;
+              return provider.copyedit(
+                TutorCopyeditRequest(
+                  explanation: parsed.explanation.trim(),
+                  simpleExplanation: parsed.simpleExplanation.trim(),
+                  memoryExample: parsed.memoryExample.trim(),
+                  model: request.model,
+                ),
+              );
+            },
+            maxAttempts: request.maxAttempts,
+            isTransient: isTransientProviderError,
+            delayForAttempt: (attempt) => Duration(milliseconds: 250 * attempt),
+          );
+        } on TutorCopyeditParseException catch (error) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            rejections: const ['copyedit_malformed'],
+            flags: [error.message],
+            started: started,
+          );
+        } on TutorOutputParseException catch (error) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            rejections: const ['copyedit_malformed'],
+            flags: [error.message],
+            started: started,
+          );
+        } on OpenAITutorException catch (error) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            copyedit: null,
+            rejections: [
+              error.refusal ? 'copyedit_refusal' : 'copyedit_provider_error',
+            ],
+            flags: [error.message],
+            requestId: error.requestId,
+            started: started,
+          );
+        } catch (error) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            rejections: const ['copyedit_provider_error'],
+            flags: [error.toString()],
+            started: started,
+          );
+        }
+        final receivedCopy = copyResponse!;
+        if (request.minInterval > Duration.zero) {
+          await Future<void>.delayed(request.minInterval);
+        }
+        copyeditDurationMs = DateTime.now()
+            .difference(copyStarted)
+            .inMilliseconds;
+        final TutorCopyeditOutput edited;
+        try {
+          edited = parseTutorCopyedit(receivedCopy.structuredJson);
+        } on TutorCopyeditParseException catch (error) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            copyedit: receivedCopy,
+            copyeditDurationMs: copyeditDurationMs,
+            rejections: const ['copyedit_malformed'],
+            flags: [error.message],
+            started: started,
+          );
+        }
+        final beforeExplanation = parsed.explanation.trim();
+        final beforeSimple = parsed.simpleExplanation.trim();
+        final beforeMemory = parsed.memoryExample.trim();
+        final afterExplanation = edited.explanation.trim();
+        final afterSimple = edited.simpleExplanation.trim();
+        final afterMemory = edited.memoryExample.trim();
+        final invariant = verifyTutorCopyedit(
+          beforeExplanation: beforeExplanation,
+          beforeSimple: beforeSimple,
+          beforeMemory: beforeMemory,
+          afterExplanation: afterExplanation,
+          afterSimple: afterSimple,
+          afterMemory: afterMemory,
+        );
+        copyeditChanged =
+            beforeExplanation != afterExplanation ||
+            beforeSimple != afterSimple ||
+            beforeMemory != afterMemory;
+        if (!invariant.accepted) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            copyedit: receivedCopy,
+            copyeditDurationMs: copyeditDurationMs,
+            copyeditChanged: copyeditChanged,
+            rejections: invariant.rejections,
+            started: started,
+          );
+        }
+        final reparsed = TutorParsedOutput(
+          explanation: afterExplanation,
+          simpleExplanation: afterSimple,
+          memoryExample: afterMemory,
+          needsReview: parsed.needsReview,
+          reviewReason: parsed.reviewReason,
+        );
+        final requality = validateTutorOutput(
+          reparsed,
+          correctOption: question.correctOption,
+        );
+        if (!requality.acceptForReview) {
+          return _copyeditFailure(
+            base: base,
+            generationCalls: generationCalls,
+            copyeditCalls: copyeditCalls,
+            generation: response,
+            copyedit: receivedCopy,
+            copyeditDurationMs: copyeditDurationMs,
+            copyeditChanged: copyeditChanged,
+            rejections: requality.rejections,
+            flags: [...requality.flags, 'after_copyedit'],
+            started: started,
+          );
+        }
+        accepted = reparsed;
+        acceptedQuality = requality;
+      }
       final payload = TutorWritePayload(
         questionId: question.id,
         sourceHash: item.sourceHash,
-        explanation: parsed.explanation.trim(),
-        simpleExplanation: parsed.simpleExplanation.trim(),
-        memoryExample: parsed.memoryExample.trim(),
+        explanation: accepted.explanation.trim(),
+        simpleExplanation: accepted.simpleExplanation.trim(),
+        memoryExample: accepted.memoryExample.trim(),
         model: response.modelId,
         generatedAt: clock().toUtc(),
-        output: parsed,
+        output: accepted,
+        copyeditVersion: request.copyedit ? tutorCopyeditVersion : null,
       );
+      final expectedCopyedit = request.copyedit ? tutorCopyeditVersion : null;
       if (payload.status != tutorStoredStatus ||
           payload.approvedAt != null ||
           payload.reviewedAt != null ||
           payload.promptVersion != tutorLianaPromptVersion ||
+          payload.copyeditVersion != expectedCopyedit ||
           payload.generationReviewReason != reviewReason ||
           (payload.generationReviewReason != null &&
               payload.generationReviewReason!.trim().isEmpty)) {
@@ -461,14 +680,23 @@ class TutorPipeline {
       }
       return base(
         outcome: 'review_required',
-        providerCalls: providerCalls,
+        generationProviderCalls: generationCalls,
+        copyeditProviderCalls: copyeditCalls,
         dbWrites: writes,
         model: response.modelId,
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
-        durationMs: duration,
-        flags: quality.flags,
-        needsReview: parsed.needsReview,
+        generationInputTokens: response.usage.inputTokens,
+        generationOutputTokens: response.usage.outputTokens,
+        copyeditInputTokens: copyResponse?.usage.inputTokens,
+        copyeditOutputTokens: copyResponse?.usage.outputTokens,
+        copyeditModel: copyResponse?.modelId,
+        copyeditDurationMs: copyeditDurationMs,
+        copyeditChanged: copyeditChanged,
+        copyeditVersion: request.copyedit ? tutorCopyeditVersion : null,
+        copyeditRequestId: copyResponse?.requestId,
+        copyeditResponseId: copyResponse?.responseId,
+        durationMs: DateTime.now().difference(started).inMilliseconds,
+        flags: acceptedQuality.flags,
+        needsReview: accepted.needsReview,
         generationReviewReason: payload.generationReviewReason,
         providerRequestId: response.requestId,
         providerResponseId: response.responseId,
@@ -487,14 +715,16 @@ class TutorPipeline {
     } on TutorOutputParseException catch (error) {
       return base(
         outcome: 'failed',
-        providerCalls: providerCalls,
+        generationProviderCalls: generationCalls,
+        copyeditProviderCalls: copyeditCalls,
         rejections: ['malformed_output'],
         flags: [error.message],
       );
     } on OpenAITutorException catch (error) {
       return base(
         outcome: 'failed',
-        providerCalls: providerCalls,
+        generationProviderCalls: generationCalls,
+        copyeditProviderCalls: copyeditCalls,
         rejections: [error.refusal ? 'provider_refusal' : 'provider_error'],
         flags: [error.message],
         providerRequestId: error.requestId,
@@ -502,7 +732,8 @@ class TutorPipeline {
     } catch (error) {
       return base(
         outcome: 'failed',
-        providerCalls: providerCalls,
+        generationProviderCalls: generationCalls,
+        copyeditProviderCalls: copyeditCalls,
         rejections: ['provider_error'],
         flags: [error.toString()],
       );
@@ -537,6 +768,113 @@ class TutorPipeline {
         throw StateError('skipped action cannot write');
     }
   }
+}
+
+int? _sumTokens(int? first, int? second, {required bool secondRan}) {
+  if (!secondRan) return first;
+  if (first == null || second == null) return null;
+  return first + second;
+}
+
+double? _pricedPasses(PricingCatalog pricing, TutorItemResult item) {
+  double total = 0;
+  var priced = false;
+  double? add(String? model, int? input, int? output, int calls) {
+    if (calls == 0) return 0;
+    if (model == null || input == null || output == null) return null;
+    return pricing.estimate(
+      model: model,
+      inputTokens: input,
+      outputTokens: output,
+    );
+  }
+
+  final generation = add(
+    item.model,
+    item.generationInputTokens,
+    item.generationOutputTokens,
+    item.generationProviderCalls,
+  );
+  if (item.generationProviderCalls > 0) {
+    if (generation == null) return null;
+    total += generation;
+    priced = true;
+  }
+  final copyedit = add(
+    item.copyeditModel,
+    item.copyeditInputTokens,
+    item.copyeditOutputTokens,
+    item.copyeditProviderCalls,
+  );
+  if (item.copyeditProviderCalls > 0) {
+    if (copyedit == null) return null;
+    total += copyedit;
+    priced = true;
+  }
+  return priced ? total : null;
+}
+
+TutorItemResult _copyeditFailure({
+  required TutorItemResult Function({
+    required String outcome,
+    int generationProviderCalls,
+    int copyeditProviderCalls,
+    int dbWrites,
+    String? model,
+    int? generationInputTokens,
+    int? generationOutputTokens,
+    int? copyeditInputTokens,
+    int? copyeditOutputTokens,
+    String? copyeditModel,
+    int? copyeditDurationMs,
+    bool? copyeditChanged,
+    String? copyeditVersion,
+    String? copyeditRequestId,
+    String? copyeditResponseId,
+    int? durationMs,
+    List<String> rejections,
+    List<String> flags,
+    bool? needsReview,
+    String? generationReviewReason,
+    String? providerRequestId,
+    String? providerResponseId,
+    String? explanation,
+    String? simpleExplanation,
+    String? memoryExample,
+  })
+  base,
+  required int generationCalls,
+  required int copyeditCalls,
+  required TutorProviderResponse generation,
+  TutorProviderResponse? copyedit,
+  int? copyeditDurationMs,
+  bool? copyeditChanged,
+  required List<String> rejections,
+  List<String> flags = const [],
+  String? requestId,
+  required DateTime started,
+}) {
+  return base(
+    outcome: 'failed',
+    generationProviderCalls: generationCalls,
+    copyeditProviderCalls: copyeditCalls,
+    model: generation.modelId,
+    generationInputTokens: generation.usage.inputTokens,
+    generationOutputTokens: generation.usage.outputTokens,
+    copyeditInputTokens: copyedit?.usage.inputTokens,
+    copyeditOutputTokens: copyedit?.usage.outputTokens,
+    copyeditModel: copyedit?.modelId,
+    copyeditDurationMs: copyeditDurationMs,
+    copyeditChanged: copyeditChanged,
+    copyeditVersion: tutorCopyeditVersion,
+    copyeditRequestId: requestId ?? copyedit?.requestId,
+    copyeditResponseId: copyedit?.responseId,
+    durationMs: DateTime.now().difference(started).inMilliseconds,
+    rejections: rejections,
+    flags: flags,
+    providerRequestId: generation.requestId,
+    providerResponseId: generation.responseId,
+  );
 }
 
 String tutorSummaryLine(TutorRunSummary summary) =>

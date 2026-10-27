@@ -1,3 +1,4 @@
+import 'copyedit.dart';
 import 'prompt.dart';
 import 'validation.dart';
 
@@ -25,7 +26,9 @@ class TutorWritePayload {
     required this.model,
     required this.generatedAt,
     required TutorParsedOutput output,
+    String? copyeditVersion,
   }) : promptVersion = tutorLianaPromptVersion,
+       copyeditVersion = _persistedCopyeditVersion(copyeditVersion),
        status = tutorStoredStatus,
        reviewedAt = null,
        approvedAt = null,
@@ -39,6 +42,9 @@ class TutorWritePayload {
   final String status;
   final String model;
   final String promptVersion;
+
+  /// Null when no copyedit pass produced the row.
+  final String? copyeditVersion;
   final DateTime generatedAt;
   final DateTime? reviewedAt;
   final DateTime? approvedAt;
@@ -54,6 +60,7 @@ class TutorWritePayload {
       'status': status,
       'model': model,
       'prompt_version': promptVersion,
+      'copyedit_version': copyeditVersion,
       'generated_at': generatedAt.toUtc().toIso8601String(),
       'reviewed_at': null,
       'approved_at': null,
@@ -82,4 +89,16 @@ String protectedUpdateFilter({
 
 String forcedUpdateFilter({required String questionId}) {
   return 'question_id=eq.$questionId';
+}
+
+String? _persistedCopyeditVersion(String? value) {
+  if (value == null) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    throw ArgumentError('copyedit_version cannot be blank');
+  }
+  if (trimmed != tutorCopyeditVersion) {
+    throw ArgumentError('copyedit_version must be $tutorCopyeditVersion');
+  }
+  return trimmed;
 }

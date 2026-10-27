@@ -585,6 +585,63 @@ void main() {
     expect(error.toString(), isNot(contains('xxx')));
     expect(isTransientProviderError(error), isFalse);
   });
+
+  test('copyedit is a text-only request on the configured model', () async {
+    const explanation = 'Esprime quindi il rapporto, misuratain miglia marine.';
+    const simple = 'In breve, vale la risposta ufficiale indicata.';
+    const memory = 'Pensala come una boa che resta al suo posto.';
+    final transport = _ScriptedTransport([
+      (_) => _ok({
+        'explanation': explanation,
+        'simple_explanation': simple,
+        'memory_example': memory,
+        'changed': false,
+        'review_reason': null,
+      }),
+    ]);
+    await provider(transport).copyedit(
+      const TutorCopyeditRequest(
+        explanation: explanation,
+        simpleExplanation: simple,
+        memoryExample: memory,
+        model: null,
+      ),
+    );
+    final body =
+        jsonDecode(utf8.decode(transport.requests.single.body))
+            as Map<String, Object?>;
+    final encoded = jsonEncode(body);
+    expect(body['model'], openAITutorDefaultModel);
+    expect(body['store'], isFalse);
+    expect(body['max_output_tokens'], openAITutorMaxOutputTokens);
+    expect(body['reasoning'], {'effort': openAITutorReasoningEffort});
+    expect(body['instructions'], tutorCopyeditSystemPrompt);
+    expect(body.containsKey('tools'), isFalse);
+    final format = (body['text'] as Map)['format'] as Map<String, Object?>;
+    expect(format['name'], tutorCopyeditSchemaName);
+    expect(format['strict'], isTrue);
+    expect(format['schema'], tutorCopyeditJsonSchema());
+    final content = ((body['input'] as List).single as Map)['content'] as List;
+    expect(content, hasLength(1));
+    expect(content.single['type'], 'input_text');
+    expect(content.single, isNot(contains('input_image')));
+    expect(
+      content.single['text'],
+      tutorCopyeditUserText(
+        explanation: explanation,
+        simpleExplanation: simple,
+        memoryExample: memory,
+      ),
+    );
+    expect(encoded, isNot(contains('input_image')));
+    expect(encoded, isNot(contains('Domanda di prova')));
+    expect(encoded, isNot(contains(apiKey)));
+    expect(encoded, isNot(contains('OPENAI_API_KEY')));
+    expect(
+      transport.requests.single.headers['Authorization'],
+      'Bearer $apiKey',
+    );
+  });
 }
 
 TutorHttpResponse _ok(

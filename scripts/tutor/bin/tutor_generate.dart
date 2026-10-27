@@ -25,6 +25,7 @@ Extra:
   --model <id>        passed to the provider; not used by domain rules
   --provider openai   required together with --generate before any OpenAI call
   --show-output       include validated Tutor texts in the item JSON; does not write
+  --copyedit          after a valid generation, run one text-only copyedit pass; does not write
   --pricing <file>    optional JSON prices, input_usd_per_million / output_usd_per_million
 
 Environment, only when the live database is used:
@@ -45,6 +46,9 @@ Future<void> main(List<String> args) async {
     validateSelection(config.selection);
     if (config.write && !config.generate) {
       throw FormatException('--write requires --generate.');
+    }
+    if (config.copyedit && !config.generate) {
+      throw FormatException('--copyedit requires --generate.');
     }
     if (config.catalogFile != null && config.write) {
       throw FormatException('--catalog cannot be combined with --write.');
@@ -78,6 +82,7 @@ Future<void> main(List<String> args) async {
           model: config.model,
           pricing: config.pricing,
           showOutput: config.showOutput,
+          copyedit: config.copyedit,
         ),
       );
       stdout.writeln(tutorSummaryLine(summary));
@@ -116,6 +121,7 @@ class _Config {
     this.providerName,
     this.catalogFile,
     required this.showOutput,
+    required this.copyedit,
   });
 
   final TutorSelection selection;
@@ -130,6 +136,7 @@ class _Config {
   final String? providerName;
   final String? catalogFile;
   final bool showOutput;
+  final bool copyedit;
 }
 
 _Config _parse(List<String> args) {
@@ -151,6 +158,7 @@ _Config _parse(List<String> args) {
   var concurrency = 1;
   var minIntervalMs = 500;
   var showOutput = false;
+  var copyedit = false;
 
   for (var i = 0; i < args.length; i++) {
     final arg = args[i];
@@ -201,6 +209,8 @@ _Config _parse(List<String> args) {
         providerName = provider;
       case '--show-output':
         showOutput = true;
+      case '--copyedit':
+        copyedit = true;
       case '--pricing':
         pricingPath = next();
       case '--concurrency':
@@ -238,6 +248,7 @@ _Config _parse(List<String> args) {
     providerName: providerName,
     catalogFile: catalog,
     showOutput: showOutput,
+    copyedit: copyedit,
     pricing: pricingPath == null
         ? const PricingCatalog({})
         : _pricing(File(pricingPath)),

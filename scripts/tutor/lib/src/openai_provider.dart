@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'copyedit.dart';
 import 'provider.dart';
 import 'validation.dart';
 
@@ -222,9 +223,30 @@ class OpenAITutorProvider implements TutorGenerationProvider {
   final Uri endpoint;
 
   @override
-  Future<TutorProviderResponse> generate(TutorGenerationRequest request) async {
+  Future<TutorProviderResponse> generate(TutorGenerationRequest request) {
     final requestedModel = _requestedModel(request.model);
-    final payload = _requestBody(request, requestedModel);
+    return _send(
+      _requestBody(request, requestedModel),
+      requestedModel: requestedModel,
+      refusalMessage: 'model refused the generation',
+    );
+  }
+
+  @override
+  Future<TutorProviderResponse> copyedit(TutorCopyeditRequest request) {
+    final requestedModel = _requestedModel(request.model);
+    return _send(
+      _copyeditBody(request, requestedModel),
+      requestedModel: requestedModel,
+      refusalMessage: 'model refused the copyedit',
+    );
+  }
+
+  Future<TutorProviderResponse> _send(
+    Map<String, Object?> payload, {
+    required String requestedModel,
+    required String refusalMessage,
+  }) async {
     final httpRequest = TutorHttpRequest(
       method: 'POST',
       uri: endpoint,
@@ -295,6 +317,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
       body,
       requestedModel: requestedModel,
       requestId: requestId,
+      refusalMessage: refusalMessage,
     );
   }
 
@@ -348,10 +371,47 @@ class OpenAITutorProvider implements TutorGenerationProvider {
     };
   }
 
+  Map<String, Object?> _copyeditBody(
+    TutorCopyeditRequest request,
+    String model,
+  ) {
+    return {
+      'model': model,
+      'store': false,
+      'max_output_tokens': openAITutorMaxOutputTokens,
+      'reasoning': {'effort': openAITutorReasoningEffort},
+      'instructions': tutorCopyeditSystemPrompt,
+      'input': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'input_text',
+              'text': tutorCopyeditUserText(
+                explanation: request.explanation,
+                simpleExplanation: request.simpleExplanation,
+                memoryExample: request.memoryExample,
+              ),
+            },
+          ],
+        },
+      ],
+      'text': {
+        'format': {
+          'type': 'json_schema',
+          'name': tutorCopyeditSchemaName,
+          'strict': true,
+          'schema': tutorCopyeditJsonSchema(),
+        },
+      },
+    };
+  }
+
   TutorProviderResponse _parseBody(
     Map<String, Object?> body, {
     required String requestedModel,
     required String? requestId,
+    required String refusalMessage,
   }) {
     final responseId = _nonEmptyString(body['id']);
     final status = body['status']?.toString();
@@ -365,7 +425,7 @@ class OpenAITutorProvider implements TutorGenerationProvider {
     final extracted = _extractOutput(body['output']);
     if (extracted.refusal) {
       throw OpenAITutorException(
-        'model refused the generation',
+        refusalMessage,
         transient: false,
         requestId: requestId,
         refusal: true,

@@ -159,6 +159,8 @@ void main() {
     expect(payload.reviewedAt, isNull);
     expect(payload.generationReviewReason, isNull);
     expect(payload.promptVersion, tutorLianaPromptVersion);
+    expect(payload.copyeditVersion, isNull);
+    expect(payload.toJson()['copyedit_version'], isNull);
     expect(payload.toJson()['approved_at'], isNull);
     expect(payload.toJson()['reviewed_at'], isNull);
     expect(payload.toJson().containsKey('generation_review_reason'), isTrue);

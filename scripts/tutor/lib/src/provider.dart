@@ -26,6 +26,21 @@ class TutorGenerationRequest {
   final String? imageMediaType;
 }
 
+/// Text-only copyedit. The question and image are not part of this request.
+class TutorCopyeditRequest {
+  const TutorCopyeditRequest({
+    required this.explanation,
+    required this.simpleExplanation,
+    required this.memoryExample,
+    required this.model,
+  });
+
+  final String explanation;
+  final String simpleExplanation;
+  final String memoryExample;
+  final String? model;
+}
+
 class TutorProviderResponse {
   const TutorProviderResponse({
     required this.modelId,
@@ -44,6 +59,8 @@ class TutorProviderResponse {
 
 abstract class TutorGenerationProvider {
   Future<TutorProviderResponse> generate(TutorGenerationRequest request);
+
+  Future<TutorProviderResponse> copyedit(TutorCopyeditRequest request);
 }
 
 /// Fail-closed boundary. No vendor HTTP client is bundled.
@@ -55,6 +72,14 @@ class RefusingTutorProvider implements TutorGenerationProvider {
       'Set up a reviewed adapter that reads AI_API_KEY from the environment, '
       'accepts structured JSON, attaches image bytes, and returns token usage. '
       'This foundation does not call an AI API.',
+    );
+  }
+
+  @override
+  Future<TutorProviderResponse> copyedit(TutorCopyeditRequest request) {
+    throw TutorProviderUnavailable(
+      'No live Tutor provider is configured. '
+      'Copyedit is an offline generation pass and does not call an AI API.',
     );
   }
 }

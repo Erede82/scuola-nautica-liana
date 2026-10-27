@@ -57,13 +57,27 @@ Map<String, Object?> validModelJson() {
 class ScriptedProvider implements TutorGenerationProvider {
   ScriptedProvider(
     this._responses, {
+    List<Object?>? copyedits,
     this.usage = const TutorUsage(inputTokens: 10, outputTokens: 4),
-  });
+    this.copyeditUsage = const TutorUsage(inputTokens: 3, outputTokens: 2),
+    this.requestId,
+    this.responseId,
+    this.copyeditRequestId,
+    this.copyeditResponseId,
+  }) : _copyedits = copyedits ?? [];
 
   final List<Object?> _responses;
+  final List<Object?> _copyedits;
   final TutorUsage usage;
+  final TutorUsage copyeditUsage;
+  final String? requestId;
+  final String? responseId;
+  final String? copyeditRequestId;
+  final String? copyeditResponseId;
   int calls = 0;
+  int copyeditCalls = 0;
   TutorGenerationRequest? lastRequest;
+  TutorCopyeditRequest? lastCopyedit;
 
   @override
   Future<TutorProviderResponse> generate(TutorGenerationRequest request) async {
@@ -74,10 +88,32 @@ class ScriptedProvider implements TutorGenerationProvider {
     }
     final next = _responses.removeAt(0);
     if (next is Exception) throw next;
+    if (next is Error) throw next;
     return TutorProviderResponse(
       modelId: 'test-model',
       structuredJson: next,
       usage: usage,
+      requestId: requestId,
+      responseId: responseId,
+    );
+  }
+
+  @override
+  Future<TutorProviderResponse> copyedit(TutorCopyeditRequest request) async {
+    copyeditCalls += 1;
+    lastCopyedit = request;
+    if (_copyedits.isEmpty) {
+      throw StateError('copyedit called with no scripted response');
+    }
+    final next = _copyedits.removeAt(0);
+    if (next is Exception) throw next;
+    if (next is Error) throw next;
+    return TutorProviderResponse(
+      modelId: 'test-model',
+      structuredJson: next,
+      usage: copyeditUsage,
+      requestId: copyeditRequestId,
+      responseId: copyeditResponseId,
     );
   }
 }

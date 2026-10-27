@@ -87,6 +87,8 @@ void main() {
     expect(store.inserts.single.status, 'review_required');
     expect(store.inserts.single.approvedAt, isNull);
     expect(store.inserts.single.reviewedAt, isNull);
+    expect(store.inserts.single.copyeditVersion, isNull);
+    expect(store.inserts.single.promptVersion, tutorLianaPromptVersion);
     expect(store.inserts.single.model, 'test-model');
     expect(store.inserts.single.generatedAt, fixedNow);
     expect(summary.inputTokens, 10);
@@ -707,10 +709,22 @@ const _defaultItemKeys = {
   'openai_request_id',
   'openai_response_id',
   'provider_calls',
+  'generation_provider_calls',
+  'copyedit_provider_calls',
   'db_writes',
   'model',
   'input_tokens',
   'output_tokens',
+  'generation_input_tokens',
+  'generation_output_tokens',
+  'copyedit_input_tokens',
+  'copyedit_output_tokens',
+  'copyedit_model',
+  'copyedit_duration_ms',
+  'copyedit_changed',
+  'copyedit_version',
+  'copyedit_openai_request_id',
+  'copyedit_openai_response_id',
   'duration_ms',
   'rejections',
   'flags',

@@ -1,5 +1,6 @@
 library;
 
+export 'src/copyedit.dart';
 export 'src/cost.dart';
 export 'src/eligibility.dart';
 export 'src/image_source.dart';
