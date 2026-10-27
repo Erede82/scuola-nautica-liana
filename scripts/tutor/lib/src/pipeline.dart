@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'copyedit.dart';
 import 'cost.dart';
+import 'typography.dart';
 import 'eligibility.dart';
 import 'image_source.dart';
 import 'openai_provider.dart';
@@ -107,6 +108,7 @@ class TutorItemResult {
     this.copyeditModel,
     this.copyeditDurationMs,
     this.copyeditChanged,
+    this.typographyNormalized = false,
     this.copyeditVersion,
     this.copyeditRequestId,
     this.copyeditResponseId,
@@ -145,6 +147,9 @@ class TutorItemResult {
   final String? copyeditModel;
   final int? copyeditDurationMs;
   final bool? copyeditChanged;
+
+  /// True when the accepted texts had a missing punctuation space inserted.
+  final bool typographyNormalized;
   final String? copyeditVersion;
   final String? copyeditRequestId;
   final String? copyeditResponseId;
@@ -185,6 +190,7 @@ class TutorItemResult {
       'copyedit_model': copyeditModel,
       'copyedit_duration_ms': copyeditDurationMs,
       'copyedit_changed': copyeditChanged,
+      'typography_normalized': typographyNormalized,
       'copyedit_version': copyeditVersion,
       'copyedit_openai_request_id': copyeditRequestId,
       'copyedit_openai_response_id': copyeditResponseId,
@@ -373,6 +379,7 @@ class TutorPipeline {
       String? copyeditModel,
       int? copyeditDurationMs,
       bool? copyeditChanged,
+      bool typographyNormalized = false,
       String? copyeditVersion,
       String? copyeditRequestId,
       String? copyeditResponseId,
@@ -420,6 +427,7 @@ class TutorPipeline {
         copyeditModel: copyeditModel,
         copyeditDurationMs: copyeditDurationMs,
         copyeditChanged: copyeditChanged,
+        typographyNormalized: typographyNormalized,
         copyeditVersion: copyeditVersion,
         copyeditRequestId: copyeditRequestId,
         copyeditResponseId: copyeditResponseId,
@@ -477,7 +485,16 @@ class TutorPipeline {
       if (request.minInterval > Duration.zero) {
         await Future<void>.delayed(request.minInterval);
       }
-      final parsed = parseTutorOutput(response.structuredJson);
+      final rawParsed = parseTutorOutput(response.structuredJson);
+      final parsed = normalizeTutorTypographyOutput(rawParsed);
+      var typographyNormalized = tutorTypographyChanged(
+        beforeExplanation: rawParsed.explanation,
+        beforeSimple: rawParsed.simpleExplanation,
+        beforeMemory: rawParsed.memoryExample,
+        afterExplanation: parsed.explanation,
+        afterSimple: parsed.simpleExplanation,
+        afterMemory: parsed.memoryExample,
+      );
       final quality = validateTutorOutput(
         parsed,
         correctOption: question.correctOption,
@@ -595,9 +612,25 @@ class TutorPipeline {
         final beforeExplanation = parsed.explanation.trim();
         final beforeSimple = parsed.simpleExplanation.trim();
         final beforeMemory = parsed.memoryExample.trim();
-        final afterExplanation = edited.explanation.trim();
-        final afterSimple = edited.simpleExplanation.trim();
-        final afterMemory = edited.memoryExample.trim();
+        final afterExplanation = normalizeTutorTypographyText(
+          edited.explanation.trim(),
+        );
+        final afterSimple = normalizeTutorTypographyText(
+          edited.simpleExplanation.trim(),
+        );
+        final afterMemory = normalizeTutorTypographyText(
+          edited.memoryExample.trim(),
+        );
+        if (tutorTypographyChanged(
+          beforeExplanation: edited.explanation.trim(),
+          beforeSimple: edited.simpleExplanation.trim(),
+          beforeMemory: edited.memoryExample.trim(),
+          afterExplanation: afterExplanation,
+          afterSimple: afterSimple,
+          afterMemory: afterMemory,
+        )) {
+          typographyNormalized = true;
+        }
         final invariant = verifyTutorCopyedit(
           beforeExplanation: beforeExplanation,
           beforeSimple: beforeSimple,
@@ -691,6 +724,7 @@ class TutorPipeline {
         copyeditModel: copyResponse?.modelId,
         copyeditDurationMs: copyeditDurationMs,
         copyeditChanged: copyeditChanged,
+        typographyNormalized: typographyNormalized,
         copyeditVersion: request.copyedit ? tutorCopyeditVersion : null,
         copyeditRequestId: copyResponse?.requestId,
         copyeditResponseId: copyResponse?.responseId,
@@ -828,6 +862,7 @@ TutorItemResult _copyeditFailure({
     String? copyeditModel,
     int? copyeditDurationMs,
     bool? copyeditChanged,
+    bool typographyNormalized,
     String? copyeditVersion,
     String? copyeditRequestId,
     String? copyeditResponseId,

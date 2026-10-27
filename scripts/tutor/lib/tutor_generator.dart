@@ -14,4 +14,5 @@ export 'src/sample_selector.dart';
 export 'src/selection.dart';
 export 'src/source_hash.dart';
 export 'src/supabase_gateway.dart';
+export 'src/typography.dart';
 export 'src/validation.dart';

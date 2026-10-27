@@ -722,6 +722,7 @@ const _defaultItemKeys = {
   'copyedit_model',
   'copyedit_duration_ms',
   'copyedit_changed',
+  'typography_normalized',
   'copyedit_version',
   'copyedit_openai_request_id',
   'copyedit_openai_response_id',
