@@ -278,6 +278,37 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Riepilogo esame'), findsOneWidget);
     });
+
+    testWidgets(
+      'leave dialog aperto + timer → Esci non scarta submit in corso',
+      (tester) async {
+        final pending = _PendingSubmitRepository();
+        await _pumpPlayer(tester, repository: pending, questionCount: 20);
+        // Almeno una risposta: PopScope richiede conferma (non uscita immediata).
+        await tester.tap(find.text('Risposta A0'));
+        await tester.pumpAndSettle();
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.text('Uscire dalla simulazione?'), findsOneWidget);
+
+        // Timer scade con il dialog ancora aperto → avvia submit sospeso.
+        await tester.pump(const Duration(minutes: 31));
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('Salvataggio risultato…'), findsOneWidget);
+
+        // Decisione stale del dialog leave: non deve fare pop del player.
+        await tester.tap(find.text('Esci senza salvare'));
+        await tester.pumpAndSettle();
+        expect(find.text('Apri player'), findsNothing);
+        expect(find.text('Salvataggio risultato…'), findsOneWidget);
+
+        pending.complete(_submitResult());
+        await tester.pumpAndSettle();
+        expect(find.text('Riepilogo esame'), findsOneWidget);
+      },
+    );
   });
 
   group('QuizExamPlayerPage submit manuale', () {
