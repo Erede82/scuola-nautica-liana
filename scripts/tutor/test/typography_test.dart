@@ -36,7 +36,6 @@ void main() {
       '12V',
       '30°',
       "60'",
-      '5nodi',
       '-5',
       '6 NM',
       '12 V',
@@ -71,25 +70,285 @@ void main() {
     expect(output.needsReview, isFalse);
   });
 
-  test('5nodi is still rejected and is not repaired', () {
+  test('a known unit glued to a number is spaced and then accepted', () {
     expect(
       normalizeTutorTypographyText('Se navighi a 5nodi.'),
-      'Se navighi a 5nodi.',
+      'Se navighi a 5 nodi.',
+    );
+    expect(
+      normalizeTutorTypographyText('Con 30litri resti in mare.'),
+      'Con 30 litri resti in mare.',
+    );
+    expect(
+      normalizeTutorTypographyText('Si ottiene circa69 minuti.'),
+      'Si ottiene circa 69 minuti.',
     );
     final report = validateTutorOutput(
       normalizeTutorTypographyOutput(
         const TutorParsedOutput(
-          explanation: 'Se navighi a 5nodi.',
-          simpleExplanation: 'Il ritmo resta quello.',
-          memoryExample: 'Pensala come una boa.',
+          explanation: 'Se navighi a 5nodi per un’ora.',
+          simpleExplanation: 'Con 30litri resti in mare.',
+          memoryExample: 'Si ottiene circa69 minuti.',
           needsReview: false,
           reviewReason: null,
         ),
       ),
       correctOption: 'A',
     );
+    expect(report.acceptForReview, isTrue);
+    expect(report.rejections, isEmpty);
+  });
+
+  test('an unknown number join is not guessed and stays rejected', () {
+    expect(normalizeTutorTypographyText('Codice 5qwerty.'), 'Codice 5qwerty.');
+    expect(normalizeTutorTypographyText('Vedi pagina12.'), 'Vedi pagina12.');
+    final report = validateTutorOutput(
+      const TutorParsedOutput(
+        explanation: 'Codice 5qwerty resta fuori dalla regola.',
+        simpleExplanation: 'Vedi pagina12 e poi fermati.',
+        memoryExample: 'Pensala come una boa.',
+        needsReview: false,
+        reviewReason: null,
+      ),
+      correctOption: 'A',
+    );
     expect(report.acceptForReview, isFalse);
     expect(report.rejections, contains('concatenated_number_word'));
+  });
+
+  test('observed pilot spacing defects are fixed or rejected', () {
+    const repairs = {
+      'mare,la': 'mare, la',
+      'rispondere,occorre': 'rispondere, occorre',
+      'gasolio,nel': 'gasolio, nel',
+      'disponibili,si': 'disponibili, si',
+      'iniettori.Il': 'iniettori. Il',
+      'costa.Il': 'costa. Il',
+      '30litri': '30 litri',
+      'circa69': 'circa 69',
+      'quellogenerato': 'quello generato',
+      'elettricaalimentata': 'elettrica alimentata',
+      'distanzache': 'distanza che',
+      'carburantenel': 'carburante nel',
+      "superficiedell'acqua": "superficie dell'acqua",
+      'labrezza': 'la brezza',
+      'laterra': 'la terra',
+      'vadalla': 'va dalla',
+      'seusato': 'se usato',
+      'quelladi': 'quella di',
+      'èla': 'è la',
+      'labarca': 'la barca',
+      'dellalinea': 'della linea',
+      'periododi': 'periodo di',
+      'gialloalla': 'giallo alla',
+      'Lacaratteristica': 'La caratteristica',
+      'consideratouso': 'considerato uso',
+      'siavvia': 'si avvia',
+      'nondevono': 'non devono',
+      'condizioniindicate': 'condizioni indicate',
+      'Laregola': 'La regola',
+      'imbarcazionedovuto': 'imbarcazione dovuto',
+    };
+    for (final entry in repairs.entries) {
+      final normalized = normalizeTutorTypographyText(entry.key);
+      expect(normalized, entry.value, reason: entry.key);
+      expect(
+        normalizeTutorTypographyText(normalized),
+        normalized,
+        reason: entry.key,
+      );
+      expect(normalized.contains(entry.key), isFalse, reason: entry.key);
+    }
+
+    final mail = validateTutorOutput(
+      const TutorParsedOutput(
+        explanation: 'Il motore gira ma il gasolio non arriva.',
+        simpleExplanation: 'Confronta mail con la regola ufficiale.',
+        memoryExample: 'Pensala come una boa.',
+        needsReview: false,
+        reviewReason: null,
+      ),
+      correctOption: 'A',
+    );
+    expect(normalizeTutorTypographyText('mail'), 'mail');
+    expect(mail.acceptForReview, isFalse);
+    expect(mail.rejections, contains('glued_word'));
+    expect(
+      validateTutorOutput(
+        const TutorParsedOutput(
+          explanation: 'Il motore gira ma il gasolio non arriva.',
+          simpleExplanation: 'Invia una email solo se serve.',
+          memoryExample: 'Pensala come una boa.',
+          needsReview: false,
+          reviewReason: null,
+        ),
+        correctOption: 'A',
+      ).acceptForReview,
+      isTrue,
+    );
+  });
+
+  test('legitimate Italian and technical forms are not split', () {
+    const unchanged = [
+      'lavoro',
+      'laterale',
+      'latitudine',
+      'iniettori',
+      'distanza',
+      'sistema',
+      'sicurezza',
+      'sempre',
+      'periodo',
+      'condizioni',
+      'nonostante',
+      'elettriche',
+      'biblioteche',
+      'farfalla',
+      'gialla',
+      'cannella',
+      'imbarcazione',
+      'caratteristica',
+      'terraferma',
+      "dell'imbarcazione",
+      "nell'ora",
+      "sull'unità",
+      "un'altra",
+      "l'acqua",
+      'email',
+      '12V',
+      '24V',
+      '10kW',
+      '6NM',
+      '5s',
+      '26m',
+      '50esimo',
+      '1,5',
+      '3.5',
+      'VHF',
+      '12:30',
+      'Fl.Y.3s4M',
+      'quello generato',
+      'la brezza',
+      '30 litri',
+      'circa 69',
+    ];
+    for (final text in unchanged) {
+      expect(normalizeTutorTypographyText(text), text, reason: text);
+      final report = validateTutorOutput(
+        TutorParsedOutput(
+          explanation: 'La regola ufficiale resta $text per lo studente.',
+          simpleExplanation: 'In breve, conta la risposta ufficiale.',
+          memoryExample: 'Pensala come una boa.',
+          needsReview: false,
+          reviewReason: null,
+        ),
+        correctOption: 'A',
+      );
+      expect(report.acceptForReview, isTrue, reason: text);
+      expect(report.rejections, isEmpty, reason: text);
+    }
+  });
+
+  test(
+    'a copyedit echo of glued text is repaired and is not a quality pass by itself',
+    () async {
+      const glued =
+          'Il mare,la regola dice che quellogenerato resta valido. Con 30litri e circa69 minuti.';
+      final generated = validModelJson()
+        ..['explanation'] = glued
+        ..['simple_explanation'] = 'In breve, costa.Il motore siavvia.'
+        ..['memory_example'] = 'Pensala come una boa.';
+      final provider = ScriptedProvider(
+        [generated],
+        copyedits: [
+          {
+            'explanation': glued,
+            'simple_explanation': 'In breve, costa.Il motore siavvia.',
+            'memory_example': 'Pensala come una boa.',
+            'changed': false,
+            'review_reason': null,
+          },
+        ],
+      );
+      final store = MemoryTutorStore();
+      final summary =
+          await TutorPipeline(
+            catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+            store: store,
+            provider: provider,
+            images: UnavailableImageSource(),
+            clock: () => DateTime.utc(2026, 10, 29),
+          ).run(
+            const TutorRunRequest(
+              selection: TutorSelection(limit: 1),
+              generate: true,
+              write: true,
+              regenerate: false,
+              forceApproved: false,
+              showOutput: true,
+              copyedit: true,
+            ),
+          );
+      final item = summary.items.single;
+      expect(summary.dbWrites, 1);
+      expect(item.outcome, 'review_required');
+      expect(item.copyeditChanged, isFalse);
+      expect(item.typographyNormalized, isTrue);
+      expect(item.explanation, contains('mare, la'));
+      expect(item.explanation, contains('quello generato'));
+      expect(item.explanation, contains('30 litri'));
+      expect(item.explanation, contains('circa 69'));
+      expect(item.simpleExplanation, contains('costa. Il'));
+      expect(item.simpleExplanation, contains('si avvia'));
+      expect(item.explanation, isNot(contains('mare,la')));
+      expect(item.explanation, isNot(contains('30litri')));
+      expect(store.inserts, hasLength(1));
+      expect(store.inserts.single.status, 'review_required');
+      expect(store.inserts.single.explanation, contains('mare, la'));
+      expect(store.inserts.single.explanation, isNot(contains('mare,la')));
+    },
+  );
+
+  test('an uncertain join is rejected and is not written', () async {
+    final generated = validModelJson()
+      ..['simple_explanation'] = 'Confronta mail con la regola ufficiale.';
+    final provider = ScriptedProvider(
+      [generated],
+      copyedits: [
+        {
+          'explanation': generated['explanation'],
+          'simple_explanation': 'Confronta mail con la regola ufficiale.',
+          'memory_example': generated['memory_example'],
+          'changed': false,
+          'review_reason': null,
+        },
+      ],
+    );
+    final store = MemoryTutorStore();
+    final summary =
+        await TutorPipeline(
+          catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+          store: store,
+          provider: provider,
+          images: UnavailableImageSource(),
+          clock: () => DateTime.utc(2026, 10, 29),
+        ).run(
+          const TutorRunRequest(
+            selection: TutorSelection(limit: 1),
+            generate: true,
+            write: true,
+            regenerate: false,
+            forceApproved: false,
+            showOutput: true,
+            copyedit: true,
+          ),
+        );
+    final item = summary.items.single;
+    expect(summary.dbWrites, 0);
+    expect(store.inserts, isEmpty);
+    expect(item.outcome, 'failed');
+    expect(provider.copyeditCalls, 0);
+    expect(item.rejections, contains('glued_word'));
   });
 
   test('semantic and technical copyedit guards stay in place', () {

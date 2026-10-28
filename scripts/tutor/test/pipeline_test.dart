@@ -578,13 +578,13 @@ void main() {
     expect(invalid.items.single.explanation, isNull);
   });
 
-  test('glued number words fail once and stay hidden', () async {
-    const marker = 'Se navighi a 5nodi per un’ora.';
+  test('unknown glued number words fail once and stay hidden', () async {
+    const marker = 'Se navighi a 5qwerty per un’ora.';
     final provider = ScriptedProvider([
       validModelJson()
         ..['explanation'] = marker
-        ..['simple_explanation'] = 'Percorri 10metri.'
-        ..['memory_example'] = 'Per 20minuti.',
+        ..['simple_explanation'] = 'Percorri 10zzzzz.'
+        ..['memory_example'] = 'Per 20abcd.',
     ]);
     final events = <Map<String, Object?>>[];
     final summary = await TutorPipeline(
@@ -606,8 +606,8 @@ void main() {
     );
     final encoded = jsonEncode(events.single);
     expect(encoded, isNot(contains(marker)));
-    expect(encoded, isNot(contains('10metri')));
-    expect(encoded, isNot(contains('20minuti')));
+    expect(encoded, isNot(contains('10zzzzz')));
+    expect(encoded, isNot(contains('20abcd')));
     expect(events.single.containsKey('explanation'), isFalse);
   });
 

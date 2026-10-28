@@ -3,6 +3,7 @@ library;
 export 'src/copyedit.dart';
 export 'src/cost.dart';
 export 'src/eligibility.dart';
+export 'src/glued_words.dart';
 export 'src/image_source.dart';
 export 'src/openai_provider.dart';
 export 'src/persistence.dart';

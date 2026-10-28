@@ -639,6 +639,9 @@ class TutorPipeline {
           afterSimple: afterSimple,
           afterMemory: afterMemory,
         );
+        // Metadata only. A false value means the normalized copyedit text
+        // matches the normalized generation. It is not a quality signal:
+        // validation below still decides whether the text can be stored.
         copyeditChanged =
             beforeExplanation != afterExplanation ||
             beforeSimple != afterSimple ||

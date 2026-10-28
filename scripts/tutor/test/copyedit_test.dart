@@ -638,11 +638,13 @@ void main() {
     expect(summary.inputTokens, 10);
   });
 
-  test('first-pass 5nodi fails before any copyedit call', () async {
-    const glued = 'Se mantieni una velocità di 5nodi per un’ora.';
+  test('an unknown first-pass number join fails before any copyedit call', () async {
+    const glued = 'Se mantieni una velocità di 5qwerty per un’ora.';
     final provider = ScriptedProvider(
       [_generated(explanation: glued)],
-      copyedits: [_edited(explanation: glued.replaceFirst('5nodi', '5 nodi'))],
+      copyedits: [
+        _edited(explanation: glued.replaceFirst('5qwerty', '5 qwerty')),
+      ],
     );
     final summary = await _run(
       provider,

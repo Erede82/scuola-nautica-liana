@@ -1,3 +1,5 @@
+import 'glued_words.dart';
+
 class TutorParsedOutput {
   const TutorParsedOutput({
     required this.explanation,
@@ -122,8 +124,11 @@ TutorQualityReport validateTutorOutput(
   );
 
   final combined = '$explanation\n$simple\n$memory';
-  if (_hasGluedNumberWord(combined)) {
+  if (_hasGluedNumberWord(combined) || _hasGluedWordNumber(combined)) {
     rejections.add('concatenated_number_word');
+  }
+  if (tutorUncertainGluedTokens(combined).isNotEmpty) {
+    rejections.add('glued_word');
   }
   if (_hasMarkdown(combined)) rejections.add('markdown_or_link');
   if (_contradictsOfficial(combined, official)) {
@@ -182,6 +187,16 @@ bool _hasGluedNumberWord(String text) {
   }
   return false;
 }
+
+/// A lowercase word immediately followed by digits, as in `circa69`.
+///
+/// Compact technical tokens such as `12V` do not match: the letter run must
+/// be at least four lowercase letters.
+final RegExp _gluedWordNumber = RegExp(
+  r'(?<![0-9A-Za-zÀ-ÿ])[a-zàèéìòù]{4,}[0-9]+(?![0-9A-Za-zÀ-ÿ])',
+);
+
+bool _hasGluedWordNumber(String text) => _gluedWordNumber.hasMatch(text);
 
 bool _hasMarkdown(String text) {
   if (text.contains('```')) return true;
