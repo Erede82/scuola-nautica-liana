@@ -25,22 +25,32 @@ void _clearStaff() {
   );
 }
 
-Widget _wrap(
-  Widget child, {
-  Size size = const Size(1366, 768),
-}) {
+Widget _wrap(Widget child, {Size size = const Size(1366, 768)}) {
   return MediaQuery(
     data: MediaQueryData(size: size),
     child: MaterialApp(
       home: Scaffold(
-        body: SizedBox(
-          width: size.width,
-          height: size.height,
-          child: child,
-        ),
+        body: SizedBox(width: size.width, height: size.height, child: child),
       ),
     ),
   );
+}
+
+Column _cardColumn(WidgetTester tester, Finder scope, String name) {
+  return tester.widget<Column>(
+    find
+        .ancestor(
+          of: find.descendant(of: scope, matching: find.text(name)),
+          matching: find.byType(Column),
+        )
+        .first,
+  );
+}
+
+Finder _selectedNarrowCard() {
+  return find
+      .ancestor(of: find.text('Cambia allievo'), matching: find.byType(Row))
+      .first;
 }
 
 Finder _searchField() {
@@ -114,14 +124,122 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Seleziona un allievo'),
-        findsNothing,
-      );
+      expect(find.textContaining('Seleziona un allievo'), findsNothing);
       expect(find.byKey(const Key('study_access_detail_pane')), findsOneWidget);
       expect(find.text('Lucia Bianchi'), findsWidgets);
       expect(find.text('Schede'), findsOneWidget);
       expect(repo.detailLoads, 1);
+    });
+
+    testWidgets('candidate cards omit course badges and keep contact', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1366, 768));
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+      });
+
+      await tester.pumpWidget(
+        _wrap(
+          StudyAccessAdminPage(embedded: true, repository: _CountingRepo()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final list = find.byKey(const Key('study_access_student_list'));
+      expect(list, findsOneWidget);
+      expect(
+        find.descendant(of: list, matching: find.text('Lucia Bianchi')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: list,
+          matching: find.textContaining('lucia.bianchi@example.com'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: list, matching: find.textContaining('+39')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(
+          of: list,
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        ),
+        findsNWidgets(2),
+      );
+      expect(
+        find.descendant(
+          of: list,
+          matching: find.text('Oltre 12 miglia vela e motore'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('D1')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: list,
+          matching: find.text('Entro le 12 miglia motore'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Entro 12 · motore')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Vela e motore')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Patente a vela')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Patente D1')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Rinnovo patente')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: list, matching: find.text('Duplicato patente')),
+        findsNothing,
+      );
+
+      final luciaColumn = _cardColumn(tester, list, 'Lucia Bianchi');
+      expect(luciaColumn.children.whereType<SizedBox>(), hasLength(1));
+      expect(luciaColumn.children.last, isA<Text>());
+
+      final marcoColumn = _cardColumn(tester, list, 'Marco Verdi');
+      expect(marcoColumn.children.whereType<SizedBox>(), hasLength(2));
+      expect(marcoColumn.children.last, isNot(isA<SizedBox>()));
+
+      final selectedCard = tester.widget<Material>(
+        find
+            .ancestor(
+              of: find.descendant(
+                of: list,
+                matching: find.text('Lucia Bianchi'),
+              ),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final shape = selectedCard.shape! as RoundedRectangleBorder;
+      expect(shape.side.width, 1.5);
+
+      expect(find.byType(DropdownButton<LicenseCategoryId>), findsOneWidget);
+      expect(find.text('Statistiche'), findsOneWidget);
+      expect(find.text('Schede'), findsOneWidget);
+      expect(find.text('Esame'), findsOneWidget);
+      expect(find.text('Ripasso'), findsOneWidget);
     });
 
     testWidgets('valid preselection preserved', (tester) async {
@@ -236,12 +354,12 @@ void main() {
       // Empty results → no stale detail.
       await tester.enterText(_searchField(), 'zzz-no-match-999');
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('study_access_empty_search')), findsOneWidget);
-      expect(find.byKey(const Key('study_access_detail_pane')), findsNothing);
       expect(
-        find.textContaining('Seleziona un allievo'),
-        findsNothing,
+        find.byKey(const Key('study_access_empty_search')),
+        findsOneWidget,
       );
+      expect(find.byKey(const Key('study_access_detail_pane')), findsNothing);
+      expect(find.textContaining('Seleziona un allievo'), findsNothing);
     });
 
     testWidgets('empty profiles → empty state, no crash, no select prompt', (
@@ -262,7 +380,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('study_access_empty_profiles')), findsOneWidget);
+      expect(
+        find.byKey(const Key('study_access_empty_profiles')),
+        findsOneWidget,
+      );
       expect(find.textContaining('Seleziona un allievo'), findsNothing);
       expect(find.byKey(const Key('study_access_detail_pane')), findsNothing);
       expect(tester.takeException(), isNull);
@@ -349,10 +470,7 @@ void main() {
       ]) {
         await tester.binding.setSurfaceSize(size);
         await tester.pumpWidget(
-          _wrap(
-            const StudyAccessAdminPage(embedded: true),
-            size: size,
-          ),
+          _wrap(const StudyAccessAdminPage(embedded: true), size: size),
         );
         await tester.pumpAndSettle();
 
@@ -428,15 +546,57 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Lucia Bianchi').first);
+      await tester.tap(find.text('Marco Verdi').first);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('study_access_detail_pane')), findsOneWidget);
       expect(find.text('Cambia allievo'), findsOneWidget);
       expect(find.textContaining('Seleziona un allievo'), findsNothing);
+      final marcoCard = _selectedNarrowCard();
+      expect(
+        find.descendant(of: marcoCard, matching: find.text('Rinnovo patente')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: marcoCard, matching: find.text('D1')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: marcoCard,
+          matching: find.text('Entro le 12 miglia motore'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: marcoCard, matching: find.text('Patente D1')),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('Cambia allievo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lucia Bianchi').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Cambia allievo'), findsOneWidget);
+      final luciaCard = _selectedNarrowCard();
+      expect(
+        find.descendant(of: luciaCard, matching: find.text('Rinnovo patente')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: luciaCard,
+          matching: find.text('Oltre 12 miglia vela e motore'),
+        ),
+        findsNothing,
+      );
+      final luciaColumn = tester.widget<Column>(
+        find.descendant(of: luciaCard, matching: find.byType(Column)).first,
+      );
+      expect(luciaColumn.children.whereType<SizedBox>(), hasLength(1));
+      expect(luciaColumn.children.last, isA<Text>());
       // Overflow verticale su 390 con header+card+tab lezioni è un vincolo
       // layout pre-esistente del list-then-detail; la selection resta corretta.
       tester.takeException();
     });
-
   });
 }

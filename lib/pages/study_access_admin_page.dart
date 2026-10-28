@@ -954,12 +954,7 @@ class _StudentAccessCard extends StatelessWidget {
       if (profile.email != null && profile.email!.trim().isNotEmpty)
         profile.email!.trim(),
     ];
-    final pathLabel = BackofficeFormatters.enrollmentCoursePath(
-      profile.enrolledCoursePath,
-    );
-    final categoryLabel = BackofficeFormatters.categoryName(
-      profile.enrolledLicenseCategory,
-    );
+    final practiceLabel = _practiceDossierLabel(profile);
 
     final borderColor = selected
         ? _primaryColor.withValues(alpha: 0.55)
@@ -1019,32 +1014,13 @@ class _StudentAccessCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _InfoChip(
-                          label: pathLabel,
-                          accent: _primaryColor,
-                          textTheme: textTheme,
-                        ),
-                        _InfoChip(
-                          label: categoryLabel,
-                          accent: const Color(0xFF2E9E5B),
-                          textTheme: textTheme,
-                        ),
-                        if (profile.practiceDossierType != null)
-                          _InfoChip(
-                            label:
-                                BackofficeFormatters.studentListPracticeBadge(
-                                  profile,
-                                ),
-                            accent: const Color(0xFFC27C1C),
-                            textTheme: textTheme,
-                          ),
-                      ],
-                    ),
+                    if (practiceLabel != null) ...[
+                      const SizedBox(height: 10),
+                      _PracticeDossierBadge(
+                        label: practiceLabel,
+                        textTheme: textTheme,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1065,6 +1041,17 @@ class _StudentAccessCard extends StatelessWidget {
     );
   }
 
+  /// Solo rinnovo/duplicato. Il percorso corso resta fuori dalla card.
+  static String? _practiceDossierLabel(StudentProfile profile) {
+    switch (profile.practiceDossierType) {
+      case 'renewal':
+      case 'duplicate':
+        return BackofficeFormatters.studentListPracticeBadge(profile);
+      default:
+        return null;
+    }
+  }
+
   static String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty) return '?';
@@ -1076,25 +1063,22 @@ class _StudentAccessCard extends StatelessWidget {
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    required this.label,
-    required this.accent,
-    required this.textTheme,
-  });
+class _PracticeDossierBadge extends StatelessWidget {
+  const _PracticeDossierBadge({required this.label, required this.textTheme});
 
   final String label;
-  final Color accent;
   final TextTheme textTheme;
+
+  static const Color _accent = Color(0xFFC27C1C);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.12),
+        color: _accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: accent.withValues(alpha: 0.28)),
+        border: Border.all(color: _accent.withValues(alpha: 0.28)),
       ),
       child: Text(
         label,
