@@ -365,9 +365,9 @@ void main() {
     final item = summary.items.single;
     expect(item.outcome, 'review_required');
     expect(item.explanation, _fixedSpace);
-    expect(item.copyeditChanged, isTrue);
+    expect(item.copyeditChanged, isFalse);
     expect(summary.dbWrites, 0);
-    expect(provider.lastCopyedit?.explanation, _badSpace);
+    expect(provider.lastCopyedit?.explanation, _fixedSpace);
     expect(provider.lastCopyedit?.simpleExplanation, _simple);
     final encoded = jsonEncode(events.single);
     expect(encoded, contains('misurata in'));
@@ -631,7 +631,7 @@ void main() {
     expect(summary.providerCalls, 1);
     expect(summary.items.single.generationProviderCalls, 1);
     expect(summary.items.single.copyeditProviderCalls, 0);
-    expect(summary.items.single.explanation, _badSpace);
+    expect(summary.items.single.explanation, _fixedSpace);
     expect(summary.items.single.copyeditChanged, isNull);
     expect(summary.items.single.copyeditVersion, isNull);
     expect(summary.items.single.inputTokens, 10);
@@ -703,7 +703,7 @@ void main() {
       question: question,
     );
     expect(summary.dbWrites, 1);
-    expect(summary.items.single.copyeditChanged, isTrue);
+    expect(summary.items.single.copyeditChanged, isFalse);
     final stored = store.inserts.single;
     expect(stored.explanation, _fixedSpace);
     expect(stored.explanation, isNot(contains('misuratain')));

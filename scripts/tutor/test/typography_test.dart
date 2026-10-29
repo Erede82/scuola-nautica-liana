@@ -215,8 +215,23 @@ void main() {
       "un'altra",
       "l'acqua",
       'email',
+      'lavoro',
+      'laterale',
+      'lamiera',
+      'lancio',
+      'maiale',
+      'mai',
+      'nondimeno',
+      'nonostante',
+      'pericolo',
+      'partenza',
+      'conoscenza',
+      'diporto',
+      'Pensala',
       '12V',
       '24V',
+      '090°',
+      '180°',
       '10kW',
       '6NM',
       '5s',
@@ -224,9 +239,17 @@ void main() {
       '50esimo',
       '1,5',
       '3.5',
+      '1.032,00',
+      '6.197,00',
       'VHF',
       '12:30',
       'Fl.Y.3s4M',
+      "dall'altezza",
+      "dell'imbarcazione",
+      "nell'acqua",
+      "sull'unità",
+      "l'acqua",
+      "un'altra",
       'quello generato',
       'la brezza',
       '30 litri',
@@ -349,6 +372,189 @@ void main() {
     expect(item.outcome, 'failed');
     expect(provider.copyeditCalls, 0);
     expect(item.rejections, contains('glued_word'));
+  });
+
+  test('real pilot 2 joins are repaired and no longer silently accepted', () {
+    const repairs = {
+      'navigaentro': 'naviga entro',
+      'dall’altezzadelle': 'dall’altezza delle',
+      'dueimbarcazioni': 'due imbarcazioni',
+      'anchedall’altezza': 'anche dall’altezza',
+      'bendistante': 'ben distante',
+      'Pensaal': 'Pensa al',
+      'lacilindrata': 'la cilindrata',
+      'cilindrataè': 'cilindrata è',
+      'ai29': 'ai 29',
+      'lasciarelibero': 'lasciare libero',
+      'obbligatoriala': 'obbligatoria la',
+      'migliadalla': 'miglia dalla',
+      'Questonon': 'Questo non',
+      'unacustodia': 'una custodia',
+      'propriaimbarcazione': 'propria imbarcazione',
+      'di150': 'di 150',
+      'edi': 'e di',
+      'bisognodi': 'bisogno di',
+      'allacosta': 'alla costa',
+      'digalleggiamento': 'di galleggiamento',
+      'partedello': 'parte dello',
+      'attuazioneal': 'attuazione al',
+      'almenoun': 'almeno un',
+      'guida,poi': 'guida, poi',
+      'frontefreddo': 'fronte freddo',
+      'spingeverso': 'spinge verso',
+      'epunta': 'e punta',
+      'Conil': 'Con il',
+      'Perciò048°': 'Perciò 048°',
+      'lasigla': 'la sigla',
+      'tragittoè': 'tragitto è',
+      'consumatie': 'consumati e',
+      'sitrova': 'si trova',
+      'hail': 'ha il',
+      'interv allo': 'intervallo',
+      'più di150': 'più di 150',
+    };
+    for (final entry in repairs.entries) {
+      final normalized = normalizeTutorTypographyText(entry.key);
+      expect(normalized, entry.value, reason: entry.key);
+      expect(normalized.contains(entry.key), isFalse, reason: entry.key);
+      final report = validateTutorOutput(
+        TutorParsedOutput(
+          explanation: 'La regola ufficiale resta chiara: ${entry.value}.',
+          simpleExplanation: 'In breve, conta la risposta ufficiale.',
+          memoryExample: 'Pensala come una boa.',
+          needsReview: false,
+          reviewReason: null,
+        ),
+        correctOption: 'A',
+      );
+      expect(report.acceptForReview, isTrue, reason: entry.key);
+      expect(report.rejections, isEmpty, reason: entry.key);
+    }
+  });
+
+  test('a real spaced pilot sentence is not rewritten', () {
+    const sentence =
+        "Per un'imbarcazione da diporto che naviga entro le 12 miglia.";
+    expect(normalizeTutorTypographyText(sentence), sentence);
+    expect(
+      validateTutorOutput(
+        const TutorParsedOutput(
+          explanation: sentence,
+          simpleExplanation: 'In breve, conta la risposta ufficiale.',
+          memoryExample: 'Pensala come una boa.',
+          needsReview: false,
+          reviewReason: null,
+        ),
+        correctOption: 'A',
+      ).acceptForReview,
+      isTrue,
+    );
+  });
+
+  test('an unresolved internal join is rejected and is not rewritten', () {
+    const glued = 'La pruadellaimbarcazione resta visibile.';
+    expect(normalizeTutorTypographyText(glued), glued);
+    final report = validateTutorOutput(
+      const TutorParsedOutput(
+        explanation: glued,
+        simpleExplanation: 'In breve, conta la risposta ufficiale.',
+        memoryExample: 'Pensala come una boa.',
+        needsReview: false,
+        reviewReason: null,
+      ),
+      correctOption: 'A',
+    );
+    expect(report.acceptForReview, isFalse);
+    expect(report.rejections, contains('glued_word'));
+  });
+
+  test('the final gate repairs a copyedit echo and rejects one it cannot', () async {
+    const clean = 'La barca naviga entro il porto con il vento.';
+    final generated = validModelJson()
+      ..['explanation'] = clean.replaceAll('naviga entro', 'navigaentro')
+      ..['simple_explanation'] = 'Il valore resta nell’interv allo utile.'
+      ..['memory_example'] = 'Pensala come una boa.';
+    final provider = ScriptedProvider(
+      [generated],
+      copyedits: [
+        {
+          'explanation': clean.replaceAll('naviga entro', 'navigaentro'),
+          'simple_explanation': 'Il valore resta nell’interv allo utile.',
+          'memory_example': 'Pensala come una boa.',
+          'changed': false,
+          'review_reason': null,
+        },
+      ],
+    );
+    final store = MemoryTutorStore();
+    final summary =
+        await TutorPipeline(
+          catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+          store: store,
+          provider: provider,
+          images: UnavailableImageSource(),
+          clock: () => DateTime.utc(2026, 10, 29),
+        ).run(
+          const TutorRunRequest(
+            selection: TutorSelection(limit: 1),
+            generate: true,
+            write: true,
+            regenerate: false,
+            forceApproved: false,
+            showOutput: true,
+            copyedit: true,
+          ),
+        );
+    final item = summary.items.single;
+    expect(item.outcome, 'review_required');
+    expect(item.explanation, contains('naviga entro'));
+    expect(item.explanation, isNot(contains('navigaentro')));
+    expect(item.simpleExplanation, contains('intervallo'));
+    expect(item.simpleExplanation, isNot(contains('interv allo')));
+    expect(store.inserts.single.explanation, contains('naviga entro'));
+    expect(provider.lastCopyedit?.explanation, contains('naviga entro'));
+
+    final rejected = ScriptedProvider(
+      [
+        validModelJson()
+          ..['explanation'] = 'La prua della imbarcazione resta visibile.'
+          ..['simple_explanation'] = 'In breve, conta la risposta ufficiale.'
+          ..['memory_example'] = 'Pensala come una boa.',
+      ],
+      copyedits: [
+        {
+          'explanation': 'La pruadellaimbarcazione resta visibile.',
+          'simple_explanation': 'In breve, conta la risposta ufficiale.',
+          'memory_example': 'Pensala come una boa.',
+          'changed': true,
+          'review_reason': null,
+        },
+      ],
+    );
+    final rejectedStore = MemoryTutorStore();
+    final rejectedSummary =
+        await TutorPipeline(
+          catalog: FixedCatalog([catalogItem(sampleQuestion())]),
+          store: rejectedStore,
+          provider: rejected,
+          images: UnavailableImageSource(),
+          clock: () => DateTime.utc(2026, 10, 29),
+        ).run(
+          const TutorRunRequest(
+            selection: TutorSelection(limit: 1),
+            generate: true,
+            write: true,
+            regenerate: false,
+            forceApproved: false,
+            showOutput: true,
+            copyedit: true,
+          ),
+        );
+    expect(rejectedSummary.dbWrites, 0);
+    expect(rejectedStore.inserts, isEmpty);
+    expect(rejected.copyeditCalls, 1);
+    expect(rejectedSummary.items.single.outcome, 'failed');
+    expect(rejectedSummary.items.single.rejections, contains('glued_word'));
   });
 
   test('semantic and technical copyedit guards stay in place', () {

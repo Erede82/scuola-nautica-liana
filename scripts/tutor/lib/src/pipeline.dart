@@ -666,6 +666,9 @@ class TutorPipeline {
           needsReview: parsed.needsReview,
           reviewReason: parsed.reviewReason,
         );
+        // Final gate. The normalization above is the last rewrite.
+        // Validation rejects a suspicious join that was not repaired,
+        // so it cannot be stored as ordinary review_required text.
         final requality = validateTutorOutput(
           reparsed,
           correctOption: question.correctOption,
