@@ -188,6 +188,34 @@ void main() {
     );
   });
 
+  test('ordinary Italian words are not cut into lexicon pieces', () {
+    const sentences = [
+      'La conferma visiva mostra il confine e il contenuto del messaggio.',
+      'Assicurati che il marinaio conosca il segnale.',
+      "Il sottomarino resta in superficie e l'incontro è inutile.",
+      "Un'informazione falsa non cambia il consenso del comandante.",
+      "Il benessere dell'equipaggio non è un dettaglio.",
+      'Infatti la rotta incontro alla costa è pericolosa.',
+    ];
+    for (final text in sentences) {
+      expect(normalizeTutorTypographyText(text), text, reason: text);
+      final report = validateTutorOutput(
+        TutorParsedOutput(
+          explanation: text,
+          simpleExplanation: 'In breve, conta la risposta ufficiale.',
+          memoryExample: 'Pensala come una boa.',
+          needsReview: false,
+          reviewReason: null,
+        ),
+        correctOption: 'A',
+      );
+      expect(report.acceptForReview, isTrue, reason: text);
+      expect(report.rejections, isEmpty, reason: text);
+    }
+    expect(normalizeTutorTypographyText("dall'incontro"), "dall'incontro");
+    expect(normalizeTutorTypographyText("all'incirca"), "all'incirca");
+  });
+
   test('legitimate Italian and technical forms are not split', () {
     const unchanged = [
       'lavoro',

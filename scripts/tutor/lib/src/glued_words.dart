@@ -6,7 +6,9 @@ import 'italian_lexicon.dart';
 // used: `lavoro`, `laterale`, and `sistema` are real words. A missing space
 // is inserted only when a token has one high-confidence decomposition into
 // known lexemes, with a closed-class word on one side or two long content
-// words. Anything still suspicious is left unchanged and rejected.
+// words. Words in [tutorUnsplittableWords] stay whole: they are real Italian
+// tokens, not evidence for cutting some other token. Anything still
+// suspicious is left unchanged and rejected.
 
 final RegExp _tokenBoundaryBefore = RegExp(r'(?<![0-9A-Za-zÀ-ÿ])');
 
@@ -77,6 +79,8 @@ final List<String> _closedSuffixesLongestFirst = List<String>.of(
 
 final RegExp _letterRun = RegExp(r'[A-Za-zÀ-ÿ]+');
 
+final RegExp _oneItalianLetter = RegExp(r'[A-Za-zÀ-ÿ]');
+
 String repairTutorGluedWords(String text) {
   var next = text;
   final keys = _explicitGluedRepairs.keys.toList()
@@ -89,11 +93,12 @@ String repairTutorGluedWords(String text) {
       _explicitGluedRepairs[glued]!,
     );
   }
-  next = next.replaceAllMapped(
-    _demonstrativeGlue,
-    (match) => '${match.group(1)} ',
-  );
+  next = next.replaceAllMapped(_demonstrativeGlue, (match) {
+    if (_runKeptWhole(match.input, match.start)) return match.group(0)!;
+    return '${match.group(1)} ';
+  });
   next = next.replaceAllMapped(_nonGlue, (match) {
+    if (_runKeptWhole(match.input, match.start)) return match.group(0)!;
     final following = match.input.substring(match.end);
     if (following.startsWith('ostante') || following.startsWith('dimeno')) {
       return match.group(0)!;
@@ -101,7 +106,10 @@ String repairTutorGluedWords(String text) {
     return '${match.group(1)} ';
   });
   next = _repairLongestClosedSuffix(next);
-  next = next.replaceAllMapped(_accentedEGlue, (match) => '${match.group(1)} ');
+  next = next.replaceAllMapped(_accentedEGlue, (match) {
+    if (_runKeptWhole(match.input, match.start)) return match.group(0)!;
+    return '${match.group(1)} ';
+  });
   next = _repairUnknownJoins(next);
   next = _repairSplitWords(next);
   return next;
@@ -291,6 +299,21 @@ final List<String> _longClosed = tutorClosedClassWords
 String _fold(String value) =>
     value.replaceAll('’', "'").replaceAll('‘', "'").toLowerCase();
 
+bool _isUnsplittableWord(String foldedLower) =>
+    tutorUnsplittableWords.contains(foldedLower);
+
+String _letterRunAt(String input, int start) {
+  var end = start;
+  while (end < input.length && _oneItalianLetter.hasMatch(input[end])) {
+    end += 1;
+  }
+  return input.substring(start, end);
+}
+
+/// A listed Italian word occupies this whole letter run. Do not cut it.
+bool _runKeptWhole(String input, int start) =>
+    _isUnsplittableWord(_fold(_letterRunAt(input, start)));
+
 bool _isLexeme(String foldedLower) {
   if (tutorItalianLexemes.contains(foldedLower)) return true;
   for (final clitic in _apostropheClitics) {
@@ -311,7 +334,9 @@ _TokenDecision _decideToken(String token) {
   final folded = _fold(token);
   // `mail` is both `ma` + `il` and an English word. Do not guess a space.
   if (folded == 'mail') return _uncertain('uncertain_mail');
-  if (_isLexeme(folded) || _accentedWholes.contains(folded)) {
+  if (_isLexeme(folded) ||
+      _accentedWholes.contains(folded) ||
+      _isUnsplittableWord(folded)) {
     return _unchangedToken;
   }
   final degree = _degreeGlue.firstMatch(token);
@@ -415,7 +440,9 @@ _TokenDecision? _decideApostrophe(String token, String folded) {
     final left = folded.substring(0, index);
     final rest = folded.substring(index + clitic.length);
     if (left.isEmpty) {
-      if (tutorItalianLexemes.contains(rest)) return _unchangedToken;
+      if (tutorItalianLexemes.contains(rest) || _isUnsplittableWord(rest)) {
+        return _unchangedToken;
+      }
       final tails = _tailSplits(rest);
       if (tails.length == 1) {
         final cut = clitic.length + tails.single;
@@ -431,7 +458,7 @@ _TokenDecision? _decideApostrophe(String token, String folded) {
         !tutorClosedClassWords.contains(left)) {
       continue;
     }
-    if (tutorItalianLexemes.contains(rest)) {
+    if (tutorItalianLexemes.contains(rest) || _isUnsplittableWord(rest)) {
       return _fixed(
         '${token.substring(0, index)} ${token.substring(index)}',
         'apostrophe_prefix',
@@ -488,6 +515,7 @@ String _repairLongestClosedSuffix(String text) {
   return text.replaceAllMapped(_letterRun, (match) {
     final token = match.group(0)!;
     final folded = _fold(token);
+    if (_isUnsplittableWord(folded)) return token;
     for (final suffix in _closedSuffixesLongestFirst) {
       if (!folded.endsWith(suffix)) continue;
       final stemLength = token.length - suffix.length;
